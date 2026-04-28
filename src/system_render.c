@@ -6,7 +6,7 @@
 void s_render(struct ECDB const *const ec, int positions_handle, int colors_handle, SDL_Renderer* renderer)
 {
     float length = 200;
-    Vector2* positions = (Vector2*) ec->_componentArrays[positions_handle];
+    struct Vector2* positions = (struct Vector2*) ec->_componentArrays[positions_handle];
     SDL_FColor* colors = (SDL_FColor*) ec->_componentArrays[colors_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {

@@ -27,7 +27,7 @@ bool InitializeComponents(unsigned int entityCount)
         return false;
     }
 
-    if (!ECDB_RegisterComponent(ec, sizeof(Vector2), &positions_handle))
+    if (!ECDB_RegisterComponent(ec, sizeof(struct Vector2), &positions_handle))
     {
         SDL_Log("Couldn't initialize positions component");
         ECDB_Free(ec);
@@ -39,7 +39,7 @@ bool InitializeComponents(unsigned int entityCount)
         ECDB_Free(ec);
         return false;
     }
-    if (!ECDB_RegisterComponent(ec, sizeof(C_Input), &inputs_handle))
+    if (!ECDB_RegisterComponent(ec, sizeof(struct C_Input), &inputs_handle))
     {
         SDL_Log("Couldn't initialize input component");
         ECDB_Free(ec);
@@ -48,7 +48,7 @@ bool InitializeComponents(unsigned int entityCount)
     return true;
 }
 
-bool AddSquare(Vector2 position, SDL_FColor color, float speed, int* entityId)
+bool AddSquare(struct Vector2 position, SDL_FColor color, float speed, int* entityId)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
     {
@@ -56,11 +56,11 @@ bool AddSquare(Vector2 position, SDL_FColor color, float speed, int* entityId)
         return false;
     }
 
-    Vector2* entityPos = ECDB_EnableEntityComponent(ec, *entityId, positions_handle);
-    memcpy(entityPos, &position, sizeof(Vector2));
+    struct Vector2* entityPos = ECDB_EnableEntityComponent(ec, *entityId, positions_handle);
+    memcpy(entityPos, &position, sizeof(struct Vector2));
     SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
-    C_Input* entityInput = ECDB_EnableEntityComponent(ec, *entityId, inputs_handle);
+    struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, *entityId, inputs_handle);
     entityInput->speed=speed;
     return true;
 }
@@ -113,9 +113,9 @@ int main(int argc, char* args[])
 
     int playerId;
     int secondSquareId;
-    AddSquare((Vector2){.x = SCREEN_WIDTH / 2, .y = SCREEN_HEIGHT / 2}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId);
-    AddSquare((Vector2){.x = SCREEN_WIDTH / 2 - 200, .y = SCREEN_HEIGHT / 2 - 200}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 50, &secondSquareId);
-    Vector2 direction = {.x = 0, .y = 0};
+    AddSquare((struct Vector2){.x = SCREEN_WIDTH / 2, .y = SCREEN_HEIGHT / 2}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId);
+    AddSquare((struct Vector2){.x = SCREEN_WIDTH / 2 - 200, .y = SCREEN_HEIGHT / 2 - 200}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 50, &secondSquareId);
+    struct Vector2 direction = {.x = 0, .y = 0};
 
     bool quit = false;
     SDL_Event e;
@@ -174,7 +174,7 @@ int main(int argc, char* args[])
             }
         }
 
-        C_Input* inputs = (C_Input*) ec->_componentArrays[inputs_handle];
+        struct C_Input* inputs = (struct C_Input*) ec->_componentArrays[inputs_handle];
         for(unsigned int i = 0; i < ec->_maxEntities; ++i)
         {
             if(ECDB_EntityHasComponent(ec, i, inputs_handle))

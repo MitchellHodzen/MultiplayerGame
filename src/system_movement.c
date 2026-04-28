@@ -7,8 +7,8 @@
 void s_move(struct ECDB const *const ec, int positions_handle, int inputs_handle, float deltaTimeS)
 {
     int counter = 0;
-    Vector2* positions = (Vector2*) ec->_componentArrays[positions_handle];
-    C_Input* inputs = (C_Input*) ec->_componentArrays[inputs_handle];
+    struct Vector2* positions = (struct Vector2*) ec->_componentArrays[positions_handle];
+    struct C_Input* inputs = (struct C_Input*) ec->_componentArrays[inputs_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         if(ECDB_EntityHasComponent(ec, i, positions_handle) && ECDB_EntityHasComponent(ec, i, inputs_handle))
