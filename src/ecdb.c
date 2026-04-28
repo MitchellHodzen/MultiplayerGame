@@ -3,9 +3,9 @@
 #include <string.h>
 #include "intstack.h"
 
-static bool _Init_Entity_Tracking(ECDB* ecdb)
+static bool _Init_Entity_Tracking(struct ECDB* ecdb)
 {
-    ecdb->_entityIdStack = (IntStack*) malloc(sizeof(IntStack));
+    ecdb->_entityIdStack = (struct IntStack*) malloc(sizeof(struct IntStack));
 
     if (ecdb->_entityIdStack == NULL)
     {
@@ -38,7 +38,7 @@ static bool _Init_Entity_Tracking(ECDB* ecdb)
     return true;
 }
 
-static bool _Init_Components(ECDB* ecdb)
+static bool _Init_Components(struct ECDB* ecdb)
 {
     // Set up component ID containers
     ecdb->_componentArrays = (void**) calloc(ecdb->_maxComponents, sizeof(void*));
@@ -65,7 +65,7 @@ static bool _Init_Components(ECDB* ecdb)
     return true;
 }
 
-bool ECDB_Init(ECDB*const ecdb, unsigned int maxEntities, unsigned int maxComponents)
+bool ECDB_Init(struct ECDB*const ecdb, unsigned int maxEntities, unsigned int maxComponents)
 {
     ecdb->_maxEntities = maxEntities;
     ecdb->_maxComponents = maxComponents;
@@ -81,7 +81,7 @@ bool ECDB_Init(ECDB*const ecdb, unsigned int maxEntities, unsigned int maxCompon
 }
 
 // TODO: If this fails, component handle will be whatever is passed in which is probably 0, which is a valid component. Change in some way
-bool ECDB_RegisterComponent(ECDB*const ecdb, size_t componentSize, int* componentHandle)
+bool ECDB_RegisterComponent(struct ECDB*const ecdb, size_t componentSize, int* componentHandle)
 {
     // Check if we can add another component
     if (ecdb->_componentCount >= ecdb->_maxComponents)
@@ -117,7 +117,7 @@ bool ECDB_RegisterComponent(ECDB*const ecdb, size_t componentSize, int* componen
     return true;
 }
 
-bool ECDB_CreateEntity(ECDB const *const ecdb, int* entityId)
+bool ECDB_CreateEntity(struct ECDB const *const ecdb, int* entityId)
 {
     // Get an entity ID from the stack
     if (!IntStack_Pop(ecdb->_entityIdStack, entityId))
@@ -130,12 +130,12 @@ bool ECDB_CreateEntity(ECDB const *const ecdb, int* entityId)
     return true;
 }
 
-bool ECDB_EntityHasComponent(ECDB const *const ecdb, int entityId, int componentHandle)
+bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
 {
     return ecdb->_componentValidArrays[componentHandle][entityId];
 }
 
-void* ECDB_EnableEntityComponent(ECDB const *const ecdb, int entityId, int componentHandle)
+void* ECDB_EnableEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
 {
     if (ECDB_EntityHasComponent(ecdb, entityId, componentHandle))
     {
@@ -155,7 +155,7 @@ void* ECDB_EnableEntityComponent(ECDB const *const ecdb, int entityId, int compo
     return component;
 }
 
-void* ECDB_GetEntityComponent(ECDB const *const ecdb, int entityId, int componentHandle)
+void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
 {
     // Get a pointer to the component in the components array
     void* componentArray = ecdb->_componentArrays[componentHandle];
@@ -163,7 +163,7 @@ void* ECDB_GetEntityComponent(ECDB const *const ecdb, int entityId, int componen
     return ((char*)componentArray) + (entityId * componentSize);
 }
 
-void ECDB_Free(ECDB* ecdb)
+void ECDB_Free(struct ECDB* ecdb)
 {
     IntStack_Free(ecdb->_entityIdStack);
     for(unsigned int i = 0; i < ecdb->_componentCount; ++i)

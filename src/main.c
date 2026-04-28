@@ -13,14 +13,14 @@
 #define SCREEN_HEIGHT 480
 #define ENTITY_COUNT 100
 
-ECDB* ec = NULL;
+struct ECDB* ec = NULL;
 int positions_handle;
 int colors_handle;
 int inputs_handle;
 
 bool InitializeComponents(unsigned int entityCount)
 {
-    ec = (ECDB*) malloc(sizeof(ECDB));
+    ec = (struct ECDB*) malloc(sizeof(struct ECDB));
     if (!ECDB_Init(ec, entityCount, 3))
     {
         SDL_Log("Couldn't initialize component DB");

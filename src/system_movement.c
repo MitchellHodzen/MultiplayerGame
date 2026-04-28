@@ -4,7 +4,7 @@
 #include "ecdb.h"
 #include "component_input.h"
 
-void s_move(ECDB const *const ec, int positions_handle, int inputs_handle, float deltaTimeS)
+void s_move(struct ECDB const *const ec, int positions_handle, int inputs_handle, float deltaTimeS)
 {
     int counter = 0;
     Vector2* positions = (Vector2*) ec->_componentArrays[positions_handle];

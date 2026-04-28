@@ -3,7 +3,7 @@
 #include "vector2.h"
 #include "ecdb.h"
 
-void s_render(ECDB const *const ec, int positions_handle, int colors_handle, SDL_Renderer* renderer)
+void s_render(struct ECDB const *const ec, int positions_handle, int colors_handle, SDL_Renderer* renderer)
 {
     float length = 200;
     Vector2* positions = (Vector2*) ec->_componentArrays[positions_handle];

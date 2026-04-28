@@ -1,7 +1,7 @@
 #include "intstack.h"
 #include <stdlib.h> 
 
-bool IntStack_Init(IntStack* intStack, unsigned int size)
+bool IntStack_Init(struct IntStack* intStack, unsigned int size)
 {
     intStack->maxSize = size;
     intStack->_data = (int*) malloc(size * sizeof(int));
@@ -14,7 +14,7 @@ bool IntStack_Init(IntStack* intStack, unsigned int size)
     return true;
 }
 
-bool IntStack_Push(IntStack* intStack, int value)
+bool IntStack_Push(struct IntStack* intStack, int value)
 {
     if (intStack->length >= intStack->maxSize)
     {
@@ -28,7 +28,7 @@ bool IntStack_Push(IntStack* intStack, int value)
     return true;
 }
 
-bool IntStack_Pop(IntStack* intStack, int* value)
+bool IntStack_Pop(struct IntStack* intStack, int* value)
 {
     if (intStack->length == 0)
     {
@@ -41,7 +41,7 @@ bool IntStack_Pop(IntStack* intStack, int* value)
     return true;
 }
 
-void IntStack_Free(IntStack* intStack)
+void IntStack_Free(struct IntStack* intStack)
 {
     free(intStack->_data);
     free(intStack);
