@@ -1,5 +1,6 @@
 #include <stdio.h>
-#include <stdlib.h> 
+#include <stdlib.h>
+#include <windows.h> 
 #include <SDL3/SDL.H>
 #include <SDL3/SDL_main.h>
 #include "ecdb.h"
@@ -86,8 +87,34 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer)
     return true;
 }
 
+struct WorkerThreadInput
+{
+    const bool* QuitFlag;
+    int num;
+};
+
+DWORD WINAPI PrintEverySecond(struct WorkerThreadInput* input)
+{
+    while(*(input->QuitFlag) == false)
+    {
+        input->num++;
+        printf("hello world %i\n", input->num);
+        sleep(1);
+    }
+
+    return 0;
+}
+
 int main(int argc, char* args[])
 {
+    bool quit = false;
+    struct WorkerThreadInput threadInput = {.num = 0, .QuitFlag = &quit};
+    HANDLE threadHandle = CreateThread(NULL, 0, PrintEverySecond, &threadInput, 0, NULL);
+    if (threadHandle == NULL)
+    {
+        SDL_Log("Worker Thread Initialization Failed");
+    }
+
     SDL_Window *window = NULL;
     SDL_Renderer *renderer = NULL;
 
@@ -117,7 +144,6 @@ int main(int argc, char* args[])
     AddSquare((struct Vector2){.x = SCREEN_WIDTH / 2 - 200, .y = SCREEN_HEIGHT / 2 - 200}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 50, &secondSquareId);
     struct Vector2 direction = {.x = 0, .y = 0};
 
-    bool quit = false;
     SDL_Event e;
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
@@ -202,5 +228,8 @@ int main(int argc, char* args[])
     SDL_DestroyWindow(window);
     window = NULL;
     SDL_Quit();
+
+    WaitForSingleObject(threadHandle, INFINITE);
+    printf("final thread value: %i", threadInput.num);
     return 0;
 }
