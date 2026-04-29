@@ -113,6 +113,7 @@ int main(int argc, char* args[])
     if (threadHandle == NULL)
     {
         SDL_Log("Worker Thread Initialization Failed");
+        return 1;
     }
 
     SDL_Window *window = NULL;
