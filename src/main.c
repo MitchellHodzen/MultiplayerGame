@@ -18,7 +18,7 @@ int positions_handle;
 int colors_handle;
 int inputs_handle;
 
-bool InitializeComponents(unsigned int entityCount)
+bool InitializeECDB(unsigned int entityCount)
 {
     ec = (struct ECDB*) malloc(sizeof(struct ECDB));
     if (!ECDB_Init(ec, entityCount, 3))
@@ -101,13 +101,13 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    if (InitializeComponents(ENTITY_COUNT))
+    if (InitializeECDB(ENTITY_COUNT))
     {
-        SDL_Log("Components Initialized Successfully");
+        SDL_Log("ECDB Initialized Successfully");
     }
     else
     {
-        SDL_Log("Component Initialization Failed");
+        SDL_Log("ECDB Initialization Failed");
         return 1;
     }
 

@@ -1,5 +1,4 @@
 #include "system_movement.h"
-#include <stdio.h>
 #include "vector2.h"
 #include "ecdb.h"
 #include "component_input.h"
@@ -18,5 +17,4 @@ void s_move(struct ECDB const *const ec, int positions_handle, int inputs_handle
             counter++;
         }
     }
-    printf("entities moved: %i\n", counter);
 }
