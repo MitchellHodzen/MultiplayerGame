@@ -17,12 +17,12 @@ struct ECDB
     size_t* _componentSizes;
 };
 
-bool ECDB_Init(struct ECDB*const ecdb, unsigned int maxEntities, unsigned int maxComponents);
+bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxComponents);
 bool ECDB_RegisterComponent(struct ECDB*const ecdb, size_t componentSize, int* componentHandle);
 bool ECDB_CreateEntity(struct ECDB const *const ecdb, int* entityId);
 bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int componentHandle);
 void* ECDB_EnableEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle);
 void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle);
-void ECDB_Free(struct ECDB* ecdb);
+void ECDB_Free(struct ECDB** ecdb);
 
 #endif /* ECDBLIB */

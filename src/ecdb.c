@@ -65,13 +65,20 @@ static bool _Init_Components(struct ECDB* ecdb)
     return true;
 }
 
-bool ECDB_Init(struct ECDB*const ecdb, unsigned int maxEntities, unsigned int maxComponents)
+bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxComponents)
 {
-    ecdb->_maxEntities = maxEntities;
-    ecdb->_maxComponents = maxComponents;
-    ecdb->_componentCount = 0;
+    *ecdb = (struct ECDB*) malloc(sizeof(struct ECDB));
+    if (*ecdb == NULL)
+    {
+        // Couldnt instantiate ecdb
+        return false;
+    }
+    
+    (*ecdb)->_maxEntities = maxEntities;
+    (*ecdb)->_maxComponents = maxComponents;
+    (*ecdb)->_componentCount = 0;
 
-    if (_Init_Entity_Tracking(ecdb) == false || _Init_Components(ecdb) == false)
+    if (_Init_Entity_Tracking(*ecdb) == false || _Init_Components(*ecdb) == false)
     {
         ECDB_Free(ecdb);
         return false;
@@ -163,18 +170,18 @@ void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int c
     return ((char*)componentArray) + (entityId * componentSize);
 }
 
-void ECDB_Free(struct ECDB* ecdb)
+void ECDB_Free(struct ECDB** ecdb)
 {
-    IntStack_Free(ecdb->_entityIdStack);
-    for(unsigned int i = 0; i < ecdb->_componentCount; ++i)
+    IntStack_Free((*ecdb)->_entityIdStack);
+    for(unsigned int i = 0; i < (*ecdb)->_componentCount; ++i)
     {
-        free(ecdb->_componentArrays[i]);
-        free(ecdb->_componentValidArrays[i]);
+        free((*ecdb)->_componentArrays[i]);
+        free((*ecdb)->_componentValidArrays[i]);
     }
-    free(ecdb->_componentArrays);
-    free(ecdb->_componentValidArrays);
-    free(ecdb->_componentSizes);
-    free(ecdb->_validEntities);
-    free(ecdb);
-    ecdb = NULL;
+    free((*ecdb)->_componentArrays);
+    free((*ecdb)->_componentValidArrays);
+    free((*ecdb)->_componentSizes);
+    free((*ecdb)->_validEntities);
+    free(*ecdb);
+    *ecdb = NULL;
 }

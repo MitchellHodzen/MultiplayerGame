@@ -15,16 +15,7 @@ bool ECDB_Handler_Init(struct ECDB_Handler** ecdb_handler, unsigned int maxEntit
         return false;
     }
 
-    (*ecdb_handler)->ecdb = (struct ECDB*) malloc(sizeof(struct ECDB));
-
-    if ((*ecdb_handler)->ecdb == NULL)
-    {
-        // Couldnt instantiate an ecdb
-        ECDB_Handler_Free(ecdb_handler);
-        return false;
-    }
-
-    if (!ECDB_Init((*ecdb_handler)->ecdb, maxEntities, 3))
+    if (!ECDB_Init(&((*ecdb_handler)->ecdb), maxEntities, 3))
     {
         // Couldn't initialize the ecdb
         ECDB_Handler_Free(ecdb_handler);
@@ -54,7 +45,7 @@ bool ECDB_Handler_Init(struct ECDB_Handler** ecdb_handler, unsigned int maxEntit
 
 void ECDB_Handler_Free(struct ECDB_Handler** ecdb_handler)
 {
-    ECDB_Free((*ecdb_handler)->ecdb);
+    ECDB_Free(&((*ecdb_handler)->ecdb));
     free(*ecdb_handler);
     *ecdb_handler = NULL;
 }
