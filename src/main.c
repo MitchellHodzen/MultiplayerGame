@@ -9,59 +9,27 @@
 #include "system_render.h"
 #include "intstack.h"
 #include "component_input.h"
+#include "ecdb_handler.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 #define ENTITY_COUNT 100
 
-struct ECDB* ec = NULL;
-int positions_handle;
-int colors_handle;
-int inputs_handle;
-
-bool InitializeECDB(unsigned int entityCount)
-{
-    ec = (struct ECDB*) malloc(sizeof(struct ECDB));
-    if (!ECDB_Init(ec, entityCount, 3))
-    {
-        SDL_Log("Couldn't initialize component DB");
-        return false;
-    }
-
-    if (!ECDB_RegisterComponent(ec, sizeof(struct Vector2), &positions_handle))
-    {
-        SDL_Log("Couldn't initialize positions component");
-        ECDB_Free(ec);
-        return false;
-    }
-    if (!ECDB_RegisterComponent(ec, sizeof(SDL_FColor), &colors_handle))
-    {
-        SDL_Log("Couldn't initialize colors component");
-        ECDB_Free(ec);
-        return false;
-    }
-    if (!ECDB_RegisterComponent(ec, sizeof(struct C_Input), &inputs_handle))
-    {
-        SDL_Log("Couldn't initialize input component");
-        ECDB_Free(ec);
-        return false;
-    }
-    return true;
-}
+struct ECDB_Handler* ech = NULL;
 
 bool AddSquare(struct Vector2 position, SDL_FColor color, float speed, int* entityId)
 {
-    if (ECDB_CreateEntity(ec, entityId) == false)
+    if (ECDB_CreateEntity(ech->ecdb, entityId) == false)
     {
         SDL_Log("Couldn't create square");
         return false;
     }
 
-    struct Vector2* entityPos = ECDB_EnableEntityComponent(ec, *entityId, positions_handle);
+    struct Vector2* entityPos = ECDB_EnableEntityComponent(ech->ecdb, *entityId, ech->positions_handle);
     memcpy(entityPos, &position, sizeof(struct Vector2));
-    SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, colors_handle);
+    SDL_FColor* entityCol = ECDB_EnableEntityComponent(ech->ecdb, *entityId, ech->colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
-    struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, *entityId, inputs_handle);
+    struct C_Input* entityInput = ECDB_EnableEntityComponent(ech->ecdb, *entityId, ech->inputs_handle);
     entityInput->speed=speed;
     return true;
 }
@@ -129,13 +97,13 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    if (InitializeECDB(ENTITY_COUNT))
+    if (ECDB_Handler_Init(&ech, ENTITY_COUNT))
     {
-        SDL_Log("ECDB Initialized Successfully");
+        SDL_Log("ECDB Handler Initialized Successfully");
     }
     else
     {
-        SDL_Log("ECDB Initialization Failed");
+        SDL_Log("ECDB Handler Initialization Failed");
         return 1;
     }
 
@@ -201,10 +169,10 @@ int main(int argc, char* args[])
             }
         }
 
-        struct C_Input* inputs = (struct C_Input*) ec->_componentArrays[inputs_handle];
-        for(unsigned int i = 0; i < ec->_maxEntities; ++i)
+        struct C_Input* inputs = ECDB_Handler_Get_Inputs(ech);
+        for(unsigned int i = 0; i < ech->ecdb->_maxEntities; ++i)
         {
-            if(ECDB_EntityHasComponent(ec, i, inputs_handle))
+            if(ECDB_Handler_EntityHasInput(ech, i))
             {
                 inputs[i].direction.x = direction.x;
                 inputs[i].direction.y = direction.y;
@@ -215,15 +183,15 @@ int main(int argc, char* args[])
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(renderer);
 
-        s_move(ec, positions_handle, inputs_handle, deltaTimeS);
-        s_render(ec, positions_handle, colors_handle, renderer);
+        s_move(ech, deltaTimeS);
+        s_render(ech, renderer);
 
         // Draw to screen
         SDL_RenderPresent(renderer);
     }
 
     // Close up
-    ECDB_Free(ec);
+    ECDB_Handler_Free(&ech);
     SDL_DestroyRenderer(renderer);
     renderer = NULL;
     SDL_DestroyWindow(window);
