@@ -12,7 +12,7 @@ SDLIMG_LOC := $(LIBS)/SDL3_image-3.4.2/x86_64-w64-mingw32
 SDL_FLAGS  := -I$(SDL_LOC)/include -L$(SDL_LOC)/lib -I$(SDLIMG_LOC)/include -L$(SDLIMG_LOC)/lib -lSDL3 -lSDL3_image
 SRCS       := $(wildcard $(SRC)/*.c)
 OBJS       := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
-EXE        := $(BIN)/main.exe
+EXE        := $(BIN)/client.exe
 
 .PHONY: all run clean
 
