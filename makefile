@@ -1,37 +1,24 @@
-MKDIR      := mkdir
-RMDIR      := rm -r
-CC         := gcc
-LIBS       := C:/Libs
-BIN        := ./bin
-OBJ        := $(BIN)/obj
-INCLUDE    := ./include
-SRC        := ./src
-CFLAGS     := -I$(INCLUDE) -Wall -Wextra -pedantic
-SDL_LOC    := $(LIBS)/SDL3-3.4.4/x86_64-w64-mingw32
-SDLIMG_LOC := $(LIBS)/SDL3_image-3.4.2/x86_64-w64-mingw32
-SDL_FLAGS  := -I$(SDL_LOC)/include -L$(SDL_LOC)/lib -I$(SDLIMG_LOC)/include -L$(SDLIMG_LOC)/lib -lSDL3 -lSDL3_image
-SRCS       := $(wildcard $(SRC)/*.c)
-OBJS       := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
-EXE        := $(BIN)/main.exe
+CLIENT_DIR = client
+SERVER_DIR = server
 
-.PHONY: all run clean
+c:
+	cd $(CLIENT_DIR); make;
 
-all: $(EXE)
+cclean:
+	cd $(CLIENT_DIR); make clean;
 
-$(EXE): $(OBJS) | $(BIN)
-	$(CC) $^ -o $@ $(CFLAGS) $(SDL_FLAGS) 
+crun:
+	cd $(CLIENT_DIR); make run;
 
-$(OBJ)/%.o: $(SRC)/%.c | $(OBJ)
-	$(CC) $(CFLAGS) $(SDL_FLAGS) -c $< -o $@
+s:
+	cd $(SERVER_DIR); make;
 
-$(OBJ): | $(BIN)
-	$(MKDIR) $@
+sclean:
+	cd $(SERVER_DIR); make clean;
 
-$(BIN) $(OBJ):
-	$(MKDIR) $@
-
-run: $(EXE)
-	$<
+srun:
+	cd $(SERVER_DIR); make run;
 
 clean:
-	$(RMDIR) $(OBJ) $(BIN)
+	cd $(CLIENT_DIR); make clean;
+	cd $(SERVER_DIR); make clean;
