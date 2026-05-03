@@ -1,17 +1,16 @@
 #include <SDL3/SDL.H>
 #include "system_movement.h"
 #include "vector2.h"
-#include "ecdb_handler.h"
 #include "ecdb.h"
 
-void s_render(struct ECDB_Handler const *const ecdb_handler, struct SDL_Renderer* renderer)
+void s_render(struct ECDB const *const ec, int positions_handle, int colors_handle, SDL_Renderer* renderer)
 {
     float length = 200;
-    struct Vector2* positions = ECDB_Handler_Get_Positions(ecdb_handler);
-    SDL_FColor* colors = ECDB_Handler_Get_Colors(ecdb_handler);
-    for(unsigned int i = 0; i < ecdb_handler->ecdb->_maxEntities; ++i)
+    struct Vector2* positions = (struct Vector2*) ec->_componentArrays[positions_handle];
+    SDL_FColor* colors = (SDL_FColor*) ec->_componentArrays[colors_handle];
+    for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
-        if(ECDB_Handler_EntityHasColor(ecdb_handler, i) && ECDB_Handler_EntityHasPosition(ecdb_handler, i))
+        if(ECDB_EntityHasComponent(ec, i, colors_handle) && ECDB_EntityHasComponent(ec, i, positions_handle))
         {
             float halfLength = length / 2;
             SDL_FColor color = colors[i];

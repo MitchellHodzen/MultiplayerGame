@@ -1,9 +1,9 @@
 #ifndef SYSTEM_RENDER
 #define SYSTEM_RENDER
 
-struct ECDB_Handler;
+struct ECDB;
 struct SDL_Renderer;
 
-void s_render(struct ECDB_Handler const *const ecdb_handler, struct SDL_Renderer* renderer);
+void s_render(struct ECDB const *const ec, int positions_handle, int colors_handle, struct SDL_Renderer* renderer);
 
 #endif /* SYSTEM_RENDER */
