@@ -1,23 +1,21 @@
 MKDIR      := mkdir
 RMDIR      := rm -r
 CC         := gcc
-LIBS       := C:/Libs
 BIN        := ./bin
 OBJ        := $(BIN)/obj
 INCLUDE    := ./include
 SRC        := ./src
-CMN_LIB    := ../common
-CFLAGS     := -I$(INCLUDE) -Wall -Wextra -pedantic -I$(CMN_LIB)/include -L$(CMN_LIB)/bin -lcommon
+CFLAGS     := -I$(INCLUDE) -Wall -Wextra -pedantic
 SRCS       := $(wildcard $(SRC)/*.c)
 OBJS       := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
-EXE        := $(BIN)/server.exe
+LIBOUT     := $(BIN)/libcommon.a
 
 .PHONY: all run clean
 
-all: $(EXE)
+all: $(LIBOUT)
 
-$(EXE): $(OBJS) | $(BIN)
-	$(CC) $^ -o $@ $(CFLAGS)
+$(LIBOUT): $(OBJS) | $(BIN)
+	ar rsc $@ -o $^
 
 $(OBJ)/%.o: $(SRC)/%.c | $(OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
