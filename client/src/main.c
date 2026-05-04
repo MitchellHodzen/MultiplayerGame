@@ -9,6 +9,7 @@
 #include "system_render.h"
 #include "intstack.h"
 #include "component_input.h"
+#include <enet/enet.h>
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -30,19 +31,19 @@ bool InitializeECDB(unsigned int entityCount)
     if (!ECDB_RegisterComponent(ec, sizeof(struct Vector2), &positions_handle))
     {
         SDL_Log("Couldn't initialize positions component");
-        ECDB_Free(ec);
+        ECDB_Free(&ec);
         return false;
     }
     if (!ECDB_RegisterComponent(ec, sizeof(SDL_FColor), &colors_handle))
     {
         SDL_Log("Couldn't initialize colors component");
-        ECDB_Free(ec);
+        ECDB_Free(&ec);
         return false;
     }
     if (!ECDB_RegisterComponent(ec, sizeof(struct C_Input), &inputs_handle))
     {
         SDL_Log("Couldn't initialize input component");
-        ECDB_Free(ec);
+        ECDB_Free(&ec);
         return false;
     }
     return true;

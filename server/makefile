@@ -8,6 +8,8 @@ INCLUDE    := ./include
 SRC        := ./src
 CMN_LIB    := ../common
 CFLAGS     := -I$(INCLUDE) -Wall -Wextra -pedantic -I$(CMN_LIB)/include -L$(CMN_LIB)/bin -lcommon
+ENET_LOC   := $(LIBS)/enet-1.3.18
+ENET_FLAGS := -I$(ENET_LOC)/include -L$(ENET_LOC) -lenet64 -lws2_32 -lwinmm
 SRCS       := $(wildcard $(SRC)/*.c)
 OBJS       := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
 EXE        := $(BIN)/server.exe
@@ -17,10 +19,10 @@ EXE        := $(BIN)/server.exe
 all: $(EXE)
 
 $(EXE): $(OBJS) | $(BIN)
-	$(CC) $^ -o $@ $(CFLAGS)
+	$(CC) $^ -o $@ $(CFLAGS) $(ENET_FLAGS) 
 
 $(OBJ)/%.o: $(SRC)/%.c | $(OBJ)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(ENET_FLAGS) -c $< -o $@
 
 $(OBJ): | $(BIN)
 	$(MKDIR) $@
