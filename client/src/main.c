@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <enet/enet.h>
 #include <windows.h> 
 #include <SDL3/SDL.H>
 #include <SDL3/SDL_main.h>
@@ -9,7 +10,6 @@
 #include "system_render.h"
 #include "intstack.h"
 #include "component_input.h"
-#include <enet/enet.h>
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -87,34 +87,110 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer)
     return true;
 }
 
-struct WorkerThreadInput
+struct NetworkingThreadInput
 {
     const bool* QuitFlag;
     int num;
+    ENetHost* client;
 };
 
-DWORD WINAPI PrintEverySecond(struct WorkerThreadInput* input)
+DWORD WINAPI NetworkingThread(struct NetworkingThreadInput* input)
 {
+    SDL_Log("Connecting to server");
+    ENetAddress address;
+    ENetEvent event;
+    ENetPeer *peer;
+    
+    enet_address_set_host (& address, "localhost");
+    address.port = 1234;
+    
+    // Initiate the connection, allocating the two channels 0 and 1.
+    peer = enet_host_connect(input->client, &address, 2, 0);    
+    
+    if (peer == NULL)
+    {
+        SDL_Log("No available peers for initiating an ENet connection.\n");
+        return 1;
+    }
+    
+    // Wait up to 5 seconds for the connection attempt to succeed.
+    if (enet_host_service(input->client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
+    {
+        SDL_Log("Connection succeeded.");
+        peer->data = "my special server";
+    }
+    else
+    {
+        // Either the 5 seconds are up or a disconnect event was received.
+        SDL_Log("Connection failed.");
+        enet_peer_reset(peer);
+        return 1;
+    }
+
     while(*(input->QuitFlag) == false)
     {
         input->num++;
         printf("hello world %i\n", input->num);
+
+        // Create a reliable packet of size 7 containing "packet\0" */
+        ENetPacket * packet = enet_packet_create("packet", strlen("packet") + 1, ENET_PACKET_FLAG_RELIABLE);
+        
+        // Send the packet to the peer over channel id 0.
+        enet_peer_send(peer, 0, packet);
+
+        while (enet_host_service (input->client, &event, 1000) > 0)
+        {
+            switch (event.type)
+            {
+            case ENET_EVENT_TYPE_RECEIVE:
+                printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
+                        event.packet -> dataLength,
+                        event.packet -> data,
+                        event.peer -> data,
+                        event.channelID);
+        
+                // Clean up the packet now that we're done using it.
+                enet_packet_destroy (event.packet);
+                
+                break;
+            
+            case ENET_EVENT_TYPE_DISCONNECT:
+                SDL_Log("Disconnected from the server.");
+            }
+        }
         sleep(1);
     }
 
+    SDL_Log("Disconnecting from server.");
+
+    // Disconnect after exit is hit
+    enet_peer_disconnect(peer, 0);
+    
+    // Allow up to 3 seconds for the disconnect to succeed.
+    while (enet_host_service(input->client, & event, 3000) > 0)
+    {
+        switch (event.type)
+        {
+        case ENET_EVENT_TYPE_RECEIVE:
+            enet_packet_destroy (event.packet);
+            break;
+    
+        case ENET_EVENT_TYPE_DISCONNECT:
+            SDL_Log("Disconnection succeeded.");
+            goto done;
+        }
+    }
+    
+    // We've arrived here, so the disconnect attempt didn't succeed yet. Force the connection down.
+    enet_peer_reset(peer);
+
+done:
     return 0;
 }
 
 int main(int argc, char* args[])
 {
     bool quit = false;
-    struct WorkerThreadInput threadInput = {.num = 0, .QuitFlag = &quit};
-    HANDLE threadHandle = CreateThread(NULL, 0, PrintEverySecond, &threadInput, 0, NULL);
-    if (threadHandle == NULL)
-    {
-        SDL_Log("Worker Thread Initialization Failed");
-        return 1;
-    }
 
     SDL_Window *window = NULL;
     SDL_Renderer *renderer = NULL;
@@ -136,6 +212,37 @@ int main(int argc, char* args[])
     else
     {
         SDL_Log("ECDB Initialization Failed");
+        return 1;
+    }
+
+    if (enet_initialize() == 0)
+    {
+        SDL_Log("ENet Initialized Successfully");
+    }
+    else
+    {
+        SDL_Log("ENet Initialization Failed");
+        return 1;
+    }
+
+    // Create a client to receive messages from the server
+    ENetHost* client;
+    client = enet_host_create(NULL, 1, 2, 0, 0);
+    if (client != NULL)
+    {
+        SDL_Log("Client Host Created Successfully");
+    }
+    else
+    {
+        SDL_Log("Client Host Creation Failed");
+        return 1;
+    }
+
+    struct NetworkingThreadInput threadInput = {.client = client, .num = 0, .QuitFlag = &quit};
+    HANDLE networkingThreadHandle = CreateThread(NULL, 0, NetworkingThread, &threadInput, 0, NULL);
+    if (networkingThreadHandle == NULL)
+    {
+        SDL_Log("Networking Thread Initialization Failed");
         return 1;
     }
 
@@ -223,6 +330,10 @@ int main(int argc, char* args[])
     }
 
     // Close up
+    WaitForSingleObject(networkingThreadHandle, INFINITE);
+    enet_host_destroy(client);
+    enet_deinitialize();
+
     ECDB_Free(&ec);
     SDL_DestroyRenderer(renderer);
     renderer = NULL;
@@ -230,7 +341,6 @@ int main(int argc, char* args[])
     window = NULL;
     SDL_Quit();
 
-    WaitForSingleObject(threadHandle, INFINITE);
-    printf("final thread value: %i", threadInput.num);
+    printf("final thread value: %i\n", threadInput.num);
     return 0;
 }
