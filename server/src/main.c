@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <enet/enet.h>
+#include "packets.h"
 
 #define MAX_CONNECTIONS 10
 #define CHANNELS 2
@@ -38,13 +39,20 @@ int main(int argc, char* args[])
         
                 break;
         
-            case ENET_EVENT_TYPE_RECEIVE:
-                printf ("A packet of length %u containing %i was received from %s on channel %u.\n",
-                        event.packet -> dataLength,
-                        *(event.packet -> data),
-                        event.peer -> data,
-                        event.channelID);
-        
+            case ENET_EVENT_TYPE_RECEIVE:;
+                // look at the first field in the packet to see what type it is
+                enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
+                switch(type)
+                {
+                case ADD_SQUARE:;
+                    struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
+                    printf ("Add square packet received. Position: (%f, %f)\n", packetData->position.x, packetData->position.y);
+                    break;
+                default:
+                    printf ("Some weird packet of type %i\n", type);
+                    break;
+                }
+
                 // Clean up the packet now that we're done using it.
                 enet_packet_destroy (event.packet);
                 break;

@@ -10,6 +10,7 @@
 #include "system_render.h"
 #include "intstack.h"
 #include "component_input.h"
+#include "packets.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -132,10 +133,8 @@ DWORD WINAPI NetworkingThread(struct NetworkingThreadInput* input)
         input->num++;
         SDL_Log("hello world %i\n", input->num);
 
-        // Send the num to the server
-        ENetPacket * packet = enet_packet_create(&(input->num), sizeof(int), ENET_PACKET_FLAG_RELIABLE);
-        
-        // Send the packet to the peer over channel id 0.
+        struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = (struct Vector2){.x = 293.44, .y = 8.0}};
+        ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), ENET_PACKET_FLAG_RELIABLE);
         enet_peer_send(peer, 0, packet);
 
         while (enet_host_service(input->client, &event, 1000) > 0)
