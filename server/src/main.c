@@ -39,18 +39,14 @@ int main(int argc, char* args[])
                 break;
         
             case ENET_EVENT_TYPE_RECEIVE:
-                printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
+                printf ("A packet of length %u containing %i was received from %s on channel %u.\n",
                         event.packet -> dataLength,
-                        event.packet -> data,
+                        *(event.packet -> data),
                         event.peer -> data,
                         event.channelID);
         
                 // Clean up the packet now that we're done using it.
                 enet_packet_destroy (event.packet);
-
-                //disconnect the client
-                enet_peer_disconnect(event.peer, 0);
-                
                 break;
             
             case ENET_EVENT_TYPE_DISCONNECT:

@@ -101,7 +101,7 @@ DWORD WINAPI NetworkingThread(struct NetworkingThreadInput* input)
     ENetEvent event;
     ENetPeer *peer;
     
-    enet_address_set_host (& address, "localhost");
+    enet_address_set_host (&address, "localhost");
     address.port = 1234;
     
     // Initiate the connection, allocating the two channels 0 and 1.
@@ -130,35 +130,35 @@ DWORD WINAPI NetworkingThread(struct NetworkingThreadInput* input)
     while(*(input->QuitFlag) == false)
     {
         input->num++;
-        printf("hello world %i\n", input->num);
+        SDL_Log("hello world %i\n", input->num);
 
-        // Create a reliable packet of size 7 containing "packet\0" */
-        ENetPacket * packet = enet_packet_create("packet", strlen("packet") + 1, ENET_PACKET_FLAG_RELIABLE);
+        // Send the num to the server
+        ENetPacket * packet = enet_packet_create(&(input->num), sizeof(int), ENET_PACKET_FLAG_RELIABLE);
         
         // Send the packet to the peer over channel id 0.
         enet_peer_send(peer, 0, packet);
 
-        while (enet_host_service (input->client, &event, 1000) > 0)
+        while (enet_host_service(input->client, &event, 1000) > 0)
         {
             switch (event.type)
             {
             case ENET_EVENT_TYPE_RECEIVE:
-                printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
+                SDL_Log("A packet of length %u containing %s was received from %s on channel %u.\n",
                         event.packet -> dataLength,
                         event.packet -> data,
                         event.peer -> data,
                         event.channelID);
         
                 // Clean up the packet now that we're done using it.
-                enet_packet_destroy (event.packet);
+                enet_packet_destroy(event.packet);
                 
                 break;
             
             case ENET_EVENT_TYPE_DISCONNECT:
                 SDL_Log("Disconnected from the server.");
+                goto done;
             }
         }
-        sleep(1);
     }
 
     SDL_Log("Disconnecting from server.");
@@ -183,6 +183,7 @@ DWORD WINAPI NetworkingThread(struct NetworkingThreadInput* input)
     
     // We've arrived here, so the disconnect attempt didn't succeed yet. Force the connection down.
     enet_peer_reset(peer);
+    SDL_Log("Disconnection failed, force leaving.");
 
 done:
     return 0;
