@@ -275,15 +275,8 @@ int main(int argc, char* args[])
             }
         }
 
-        // Clear previous render before drawing
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
-        SDL_RenderClear(renderer);
-
         s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
-
-        // Draw to screen
-        SDL_RenderPresent(renderer);
     }
 
     // Disconnect if connected

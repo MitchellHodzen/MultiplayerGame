@@ -5,6 +5,11 @@
 
 void s_render(struct ECDB const *const ec, int positions_handle, int colors_handle, SDL_Renderer* renderer)
 {
+    // Clear previous render before drawing
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
+    SDL_RenderClear(renderer);
+
+    // Draw the squares
     float length = 200;
     struct Vector2* positions = (struct Vector2*) ec->_componentArrays[positions_handle];
     SDL_FColor* colors = (SDL_FColor*) ec->_componentArrays[colors_handle];
@@ -19,4 +24,7 @@ void s_render(struct ECDB const *const ec, int positions_handle, int colors_hand
             SDL_RenderFillRect(renderer, &rect);
         }
     }
+    
+    // Draw to screen
+    SDL_RenderPresent(renderer);
 }
