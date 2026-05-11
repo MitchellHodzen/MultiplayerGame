@@ -11,6 +11,7 @@ cclean:
 	cd $(CLIENT_DIR); make clean;
 
 crun:
+	cd $(COMMON_DIR); make;
 	cd $(CLIENT_DIR); make run;
 
 s:
@@ -22,6 +23,7 @@ sclean:
 	cd $(SERVER_DIR); make clean;
 
 srun:
+	cd $(COMMON_DIR); make;
 	cd $(SERVER_DIR); make run;
 
 clean:

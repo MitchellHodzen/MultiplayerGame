@@ -1,5 +1,4 @@
 #include "ecdb.h"
-#include <stdio.h>
 #include <string.h>
 #include "intstack.h"
 
@@ -147,7 +146,6 @@ void* ECDB_EnableEntityComponent(struct ECDB const *const ecdb, int entityId, in
     if (ECDB_EntityHasComponent(ecdb, entityId, componentHandle))
     {
         // entity already has the component, return it
-        printf("entityhascomponent");
         return ECDB_GetEntityComponent(ecdb, entityId, componentHandle);
     }
 
