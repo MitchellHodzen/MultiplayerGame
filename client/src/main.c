@@ -177,12 +177,55 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    int playerId;
-    int secondSquareId;
-    AddSquare((struct Vector2){.x = SCREEN_WIDTH / 2, .y = SCREEN_HEIGHT / 2}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId);
-    AddSquare((struct Vector2){.x = SCREEN_WIDTH / 2 - 200, .y = SCREEN_HEIGHT / 2 - 200}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 50, &secondSquareId);
-    struct Vector2 direction = {.x = 0, .y = 0};
+    // Request to join the game
+    SDL_Log("Attempting to join game");
+    enum Packet_Type joinPacketType = REQUEST_JOIN;
+    ENetPacket * request_join_packet = enet_packet_create(&joinPacketType, sizeof(enum Packet_Type), ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(peer, 0, request_join_packet);
 
+    int playerId;
+    bool joined = false;
+
+    // Wait up to 5 seconds to join the server
+    while (enet_host_service(client, &event, 5000) > 0)
+    {
+        switch (event.type)
+        {
+        case ENET_EVENT_TYPE_RECEIVE:;
+            // look at the first field in the packet to see what type it is
+            enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
+            switch(type)
+            {
+            case ADD_SQUARE:;
+                struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
+                AddSquare((struct Vector2){.x = packetData->position.x, .y = packetData->position.y}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId);
+                joined = true;
+                SDL_Log("Successfully joined at position %f,%f", packetData->position.x,  packetData->position.y);
+                goto game_joined;
+            default:
+                printf ("Received non-join packet of type %i\n", type);
+                break;
+            }
+    
+            // Clean up the packet now that we're done using it.
+            enet_packet_destroy(event.packet);
+            break;
+        
+        case ENET_EVENT_TYPE_DISCONNECT:
+            SDL_Log("Disconnected from the server.");
+            goto disconnect;
+        }
+    }
+    
+    // Check if we successfully joined
+    if (joined == false)
+    {
+        SDL_Log("Could not join game");
+        goto disconnect;
+    }
+
+game_joined:;
+    struct Vector2 direction = {.x = 0, .y = 0};
     SDL_Event e;
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
@@ -193,9 +236,9 @@ int main(int argc, char* args[])
         currentFrameTimeMs = SDL_GetTicks();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
-        struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = (struct Vector2){.x = 293.44, .y = 8.0}};
+        /*struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = (struct Vector2){.x = 293.44, .y = 8.0}};
         ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), 0);
-        enet_peer_send(peer, 0, packet);
+        enet_peer_send(peer, 0, packet);*/
 
         // Get network events
         while (enet_host_service(client, &event, 0) > 0)
@@ -271,6 +314,7 @@ int main(int argc, char* args[])
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
     }
 
+disconnect:
     // Disconnect if connected
     if (connected == true)
     {

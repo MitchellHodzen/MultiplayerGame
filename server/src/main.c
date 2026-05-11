@@ -44,6 +44,12 @@ int main(int argc, char* args[])
                 enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
                 switch(type)
                 {
+                case REQUEST_JOIN:;
+                    printf ("Request to join from: (%s)\n", event.peer->data);
+                    struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = (struct Vector2){.x = 293.44, .y = 350.0}};
+                    ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), 0);
+                    enet_peer_send(event.peer, 0, packet);
+                    break;
                 case ADD_SQUARE:;
                     struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
                     printf ("Add square packet received. Position: (%f, %f)\n", packetData->position.x, packetData->position.y);

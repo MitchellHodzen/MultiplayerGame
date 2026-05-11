@@ -4,6 +4,7 @@
 
 enum Packet_Type
 {
+    REQUEST_JOIN,
     ADD_SQUARE,
     UNUSED,
 };
@@ -11,6 +12,7 @@ enum Packet_Type
 struct P_Add_Square
 {
     enum Packet_Type type;
+    unsigned int networkId;
     struct Vector2 position;
 };
 
