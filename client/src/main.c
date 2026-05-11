@@ -8,6 +8,7 @@
 #include "vector2.h"
 #include "system_movement.h"
 #include "system_render.h"
+#include "system_apply_input.h"
 #include "intstack.h"
 #include "component_input.h"
 #include "packets.h"
@@ -265,16 +266,7 @@ int main(int argc, char* args[])
             }
         }
 
-        struct C_Input* inputs = (struct C_Input*) ec->_componentArrays[componentHandles.inputs_handle];
-        for(unsigned int i = 0; i < ec->_maxEntities; ++i)
-        {
-            if(ECDB_EntityHasComponent(ec, i, componentHandles.inputs_handle))
-            {
-                inputs[i].direction.x = direction.x;
-                inputs[i].direction.y = direction.y;
-            }
-        }
-
+        s_apply_input(ec, componentHandles.inputs_handle, direction);
         s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
     }
