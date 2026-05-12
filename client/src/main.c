@@ -132,6 +132,9 @@ int main(int argc, char* args[])
         return 1;
     }
 
+    unsigned int * entityNetworkId = NULL;
+    entityNetworkId = calloc(ENTITY_COUNT, sizeof(unsigned int));
+
     // Create a client to receive messages from the server
     ENetHost* client;
     client = enet_host_create(NULL, 1, 2, 0, 0);
@@ -198,10 +201,16 @@ int main(int argc, char* args[])
             {
             case ADD_SQUARE:;
                 struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
-                AddSquare((struct Vector2){.x = packetData->position.x, .y = packetData->position.y}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId);
-                joined = true;
-                SDL_Log("Successfully joined at position %f,%f", packetData->position.x,  packetData->position.y);
-                goto game_joined;
+                if (AddSquare((struct Vector2){.x = packetData->position.x, .y = packetData->position.y}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
+                {
+                    entityNetworkId[playerId] = packetData->networkId;
+                    joined = true;
+                    SDL_Log("Successfully joined at position %f,%f", packetData->position.x,  packetData->position.y);
+                    goto game_joined;
+                }
+                
+                SDL_Log("Failed to create player, disconnecting");
+                goto disconnect;
             default:
                 printf ("Received non-join packet of type %i\n", type);
                 break;
