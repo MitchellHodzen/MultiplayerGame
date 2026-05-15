@@ -12,6 +12,7 @@
 #include "intstack.h"
 #include "component_input.h"
 #include "packets.h"
+#include "net_manager.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -23,9 +24,6 @@ struct Component_Handles
     int colors_handle;
     int inputs_handle;
 };
-
-struct ECDB* ec = NULL;
-struct Component_Handles componentHandles;
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
 {
@@ -77,7 +75,7 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, int screen_widt
     return true;
 }
 
-bool AddSquare(struct Vector2 position, SDL_FColor color, float speed, int* entityId)
+bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, float speed, int* entityId)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
     {
@@ -85,11 +83,11 @@ bool AddSquare(struct Vector2 position, SDL_FColor color, float speed, int* enti
         return false;
     }
 
-    struct Vector2* entityPos = ECDB_EnableEntityComponent(ec, *entityId, componentHandles.positions_handle);
+    struct Vector2* entityPos = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->positions_handle);
     memcpy(entityPos, &position, sizeof(struct Vector2));
-    SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles.colors_handle);
+    SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
-    struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, *entityId, componentHandles.inputs_handle);
+    struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->inputs_handle);
     entityInput->speed=speed;
     return true;
 }
@@ -111,6 +109,9 @@ int main(int argc, char* args[])
         SDL_Log("SDL Initialization Failed");
         return 1;
     }
+
+    struct ECDB* ec = NULL;
+    struct Component_Handles componentHandles;
 
     if (InitializeECDB(&ec, &componentHandles, ENTITY_COUNT))
     {
@@ -135,48 +136,18 @@ int main(int argc, char* args[])
     unsigned int * entityNetworkId = NULL;
     entityNetworkId = calloc(ENTITY_COUNT, sizeof(unsigned int));
 
-    // Create a client to receive messages from the server
-    ENetHost* client;
-    client = enet_host_create(NULL, 1, 2, 0, 0);
-    if (client != NULL)
-    {
-        SDL_Log("Client Host Created Successfully");
-    }
-    else
-    {
-        SDL_Log("Client Host Creation Failed");
-        return 1;
-    }
-
-    SDL_Log("Connecting to server");
     ENetAddress address;
-    ENetEvent event;
-    ENetPeer *peer;
-    
     enet_address_set_host (&address, "localhost");
     address.port = 1234;
-    
-    // Initiate the connection, allocating the two channels 0 and 1.
-    peer = enet_host_connect(client, &address, 2, 0);    
-    
-    if (peer == NULL)
+    struct Net_Manager* netManager;
+    if (Net_Connect(&netManager, &address))
     {
-        SDL_Log("No available peers for initiating an ENet connection.");
-        return 1;
-    }
-    
-    // Wait up to 5 seconds for the connection attempt to succeed.
-    if (enet_host_service(client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
-    {
-        SDL_Log("Connection succeeded.");
-        peer->data = "my special server";
+        SDL_Log("ECDB Initialized Successfully");
         connected = true;
     }
     else
     {
-        // Either the 5 seconds are up or a disconnect event was received.
-        SDL_Log("Connection failed.");
-        enet_peer_reset(peer);
+        SDL_Log("ECDB Initialization Failed");
         return 1;
     }
 
@@ -184,13 +155,15 @@ int main(int argc, char* args[])
     SDL_Log("Attempting to join game");
     enum Packet_Type joinPacketType = REQUEST_JOIN;
     ENetPacket * request_join_packet = enet_packet_create(&joinPacketType, sizeof(enum Packet_Type), ENET_PACKET_FLAG_RELIABLE);
-    enet_peer_send(peer, 0, request_join_packet);
+    enet_peer_send(netManager->serverPeer, 0, request_join_packet);
 
     int playerId;
     bool joined = false;
+    ENetEvent event;
+
 
     // Wait up to 5 seconds to join the server
-    while (enet_host_service(client, &event, 5000) > 0)
+    while (enet_host_service(netManager->client, &event, 5000) > 0)
     {
         switch (event.type)
         {
@@ -201,15 +174,17 @@ int main(int argc, char* args[])
             {
             case ADD_SQUARE:;
                 struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
-                if (AddSquare((struct Vector2){.x = packetData->position.x, .y = packetData->position.y}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
+                if (AddSquare(ec, &componentHandles, (struct Vector2){.x = packetData->position.x, .y = packetData->position.y}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
                 {
                     entityNetworkId[playerId] = packetData->networkId;
                     joined = true;
                     SDL_Log("Successfully joined at position %f,%f", packetData->position.x,  packetData->position.y);
+                    enet_packet_destroy(event.packet);
                     goto game_joined;
                 }
-                
+
                 SDL_Log("Failed to create player, disconnecting");
+                enet_packet_destroy(event.packet);
                 goto disconnect;
             default:
                 printf ("Received non-join packet of type %i\n", type);
@@ -250,7 +225,7 @@ game_joined:;
         enet_peer_send(peer, 0, packet);*/
 
         // Get network events
-        while (enet_host_service(client, &event, 0) > 0)
+        while (enet_host_service(netManager->client, &event, 0) > 0)
         {
             switch (event.type)
             {
@@ -330,10 +305,10 @@ disconnect:
          SDL_Log("Disconnecting from server.");
 
         // Disconnect after exit is hit
-        enet_peer_disconnect(peer, 0);
+        enet_peer_disconnect(netManager->serverPeer, 0);
         
         // Allow up to 3 seconds for the disconnect to succeed.
-        while (enet_host_service(client, & event, 3000) > 0)
+        while (enet_host_service(netManager->client, & event, 3000) > 0)
         {
             switch (event.type)
             {
@@ -349,20 +324,26 @@ disconnect:
         
         // We've arrived here, so the disconnect attempt didn't succeed yet. Force the connection down.
         SDL_Log("Disconnection failed, force leaving.");
-        enet_peer_reset(peer);
+        enet_peer_reset(netManager->serverPeer);
     }
 
 cleanup:
 
     // Close up
-    enet_host_destroy(client);
+    SDL_Log("free netmgr");
+    Net_Free(&netManager);
+    SDL_Log("enet deinit");
     enet_deinitialize();
 
+    SDL_Log("free ecdb");
     ECDB_Free(&ec);
+    SDL_Log("destroy renderer");
     SDL_DestroyRenderer(renderer);
     renderer = NULL;
+    SDL_Log("destroy window");
     SDL_DestroyWindow(window);
     window = NULL;
+    SDL_Log("sdl quit");
     SDL_Quit();
     return 0;
 }
