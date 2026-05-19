@@ -149,7 +149,7 @@ void* ECDB_EnableEntityComponent(struct ECDB const *const ecdb, int entityId, in
         return ECDB_GetEntityComponent(ecdb, entityId, componentHandle);
     }
 
-    // Zero out the position in the array that exists already
+    // Zero out the component in the array that exists already
     void* componentArray = ecdb->_componentArrays[componentHandle];
     size_t componentSize = ecdb->_componentSizes[componentHandle];
     void* component = ((char*)componentArray) + (entityId * componentSize);

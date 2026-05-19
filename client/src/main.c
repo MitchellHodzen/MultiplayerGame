@@ -197,7 +197,7 @@ int main(int argc, char* args[])
         
         case ENET_EVENT_TYPE_DISCONNECT:
             SDL_Log("Disconnected from the server.");
-            goto disconnect;
+            goto cleanup;
         }
     }
     
