@@ -156,6 +156,7 @@ int main(int argc, char* args[])
                     printf("Player %i disconnected.\n", playerId);
                     ECDB_DestroyEntity(ecdb, playerId);
                     // Reset the peer's client information.
+                    free(event.peer->data);
                     event.peer -> data = NULL;
                 }        
             }
