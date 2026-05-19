@@ -142,12 +142,12 @@ int main(int argc, char* args[])
     struct Net_Manager* netManager;
     if (Net_Connect(&netManager, &address))
     {
-        SDL_Log("ECDB Initialized Successfully");
+        SDL_Log("Connected to server Successfully");
         connected = true;
     }
     else
     {
-        SDL_Log("ECDB Initialization Failed");
+        SDL_Log("Connection to server Failed");
         return 1;
     }
 

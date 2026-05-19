@@ -152,7 +152,9 @@ int main(int argc, char* args[])
                 }
                 else
                 {
-                    printf("Player %i disconnected.\n", *(int*)event.peer->data);
+                    int playerId = *(int*)event.peer->data;
+                    printf("Player %i disconnected.\n", playerId);
+                    ECDB_DestroyEntity(ecdb, playerId);
                     // Reset the peer's client information.
                     event.peer -> data = NULL;
                 }        

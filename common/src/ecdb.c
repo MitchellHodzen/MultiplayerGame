@@ -87,7 +87,7 @@ bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxCom
 }
 
 // TODO: If this fails, component handle will be whatever is passed in which is probably 0, which is a valid component. Change in some way
-bool ECDB_RegisterComponent(struct ECDB*const ecdb, size_t componentSize, int* componentHandle)
+bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* componentHandle)
 {
     // Check if we can add another component
     if (ecdb->_componentCount >= ecdb->_maxComponents)
@@ -123,7 +123,7 @@ bool ECDB_RegisterComponent(struct ECDB*const ecdb, size_t componentSize, int* c
     return true;
 }
 
-bool ECDB_CreateEntity(struct ECDB const *const ecdb, int* entityId)
+bool ECDB_CreateEntity(struct ECDB* ecdb, int* entityId)
 {
     // Get an entity ID from the stack
     if (!IntStack_Pop(ecdb->_entityIdStack, entityId))
@@ -136,12 +136,27 @@ bool ECDB_CreateEntity(struct ECDB const *const ecdb, int* entityId)
     return true;
 }
 
+void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId)
+{
+    // Disable the entity
+    ecdb->_validEntities[entityId] = false;
+
+    // Disable all components for the entity
+    for (int componentHandle = 0; componentHandle < ecdb->_maxComponents; ++componentHandle)
+    {
+        ecdb->_componentValidArrays[componentHandle][entityId] = false;
+    }
+
+    // Make the entity Id available for use again
+    IntStack_Push(ecdb->_entityIdStack, entityId);
+}
+
 bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
 {
     return ecdb->_componentValidArrays[componentHandle][entityId];
 }
 
-void* ECDB_EnableEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
+void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle)
 {
     if (ECDB_EntityHasComponent(ecdb, entityId, componentHandle))
     {
