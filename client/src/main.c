@@ -95,7 +95,6 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
 int main(int argc, char* args[])
 {
     bool quit = false;
-    bool connected = false;
 
     SDL_Window *window = NULL;
     SDL_Renderer *renderer = NULL;
@@ -147,7 +146,6 @@ int main(int argc, char* args[])
     if (Net_Connect(&netManager, &address))
     {
         SDL_Log("Connected to server Successfully");
-        connected = true;
     }
     else
     {
@@ -156,71 +154,32 @@ int main(int argc, char* args[])
     }
 
     // Request to join the game
-    SDL_Log("Attempting to join game");
-    enum Packet_Type joinPacketType = REQUEST_JOIN;
-    ENetPacket * request_join_packet = enet_packet_create(&joinPacketType, sizeof(enum Packet_Type), ENET_PACKET_FLAG_RELIABLE);
-    enet_peer_send(netManager->serverPeer, 0, request_join_packet);
+    struct P_Add_Square joinGamePacket;
+    if (Net_Join_Game(netManager, &joinGamePacket) == false)
+    {
+        SDL_Log("Connection to server Failed");
+        return 1;
+    }
 
     int playerId;
-    bool joined = false;
-    ENetEvent event;
-
-
-    // Wait up to 5 seconds to join the server
-    while (enet_host_service(netManager->client, &event, 5000) > 0)
+    if (!AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
     {
-        switch (event.type)
-        {
-        case ENET_EVENT_TYPE_RECEIVE:;
-            // look at the first field in the packet to see what type it is
-            enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
-            switch(type)
-            {
-            case ADD_SQUARE:;
-                struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
-                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
-                {
-                    entityNetworkId[playerId] = packetData->networkId;
-                    networkIdEntity[packetData->networkId] = playerId;
-                    validNetworkIds[packetData->networkId] = true;
-                    joined = true;
-                    SDL_Log("Successfully joined at position %f,%f with network ID of %i", packetData->position.x,  packetData->position.y, packetData->networkId);
-                    enet_packet_destroy(event.packet);
-                    goto game_joined;
-                }
-
-                SDL_Log("Failed to create player, disconnecting");
-                enet_packet_destroy(event.packet);
-                goto disconnect;
-            default:
-                printf ("Received non-join packet of type %i\n", type);
-                break;
-            }
-    
-            // Clean up the packet now that we're done using it.
-            enet_packet_destroy(event.packet);
-            break;
-        
-        case ENET_EVENT_TYPE_DISCONNECT:
-            SDL_Log("Disconnected from the server.");
-            goto cleanup;
-        }
-    }
-    
-    // Check if we successfully joined
-    if (joined == false)
-    {
-        SDL_Log("Could not join game");
+        SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
     }
 
-game_joined:;
+    entityNetworkId[playerId] = joinGamePacket.networkId;
+    networkIdEntity[joinGamePacket.networkId] = playerId;
+    validNetworkIds[joinGamePacket.networkId] = true;
+    SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.networkId);
+
     struct Vector2 direction = {.x = 0, .y = 0};
     SDL_Event e;
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
 
-    while( quit == false && connected == true)
+    ENetEvent event;
+    while(quit == false)
     {
         previousFrameTimeMs = currentFrameTimeMs;
         currentFrameTimeMs = SDL_GetTicks();
@@ -277,7 +236,7 @@ game_joined:;
             case ENET_EVENT_TYPE_DISCONNECT:
             {
                 SDL_Log("Disconnected from the server.");
-                connected = false;
+                netManager->connected = false;
                 break;
             }
             }
@@ -352,33 +311,7 @@ game_joined:;
     }
 
 disconnect:
-    // Disconnect if connected
-    if (connected == true)
-    {
-         SDL_Log("Disconnecting from server.");
-
-        // Disconnect after exit is hit
-        enet_peer_disconnect(netManager->serverPeer, 0);
-        
-        // Allow up to 3 seconds for the disconnect to succeed.
-        while (enet_host_service(netManager->client, & event, 3000) > 0)
-        {
-            switch (event.type)
-            {
-            case ENET_EVENT_TYPE_RECEIVE:
-                enet_packet_destroy (event.packet);
-                break;
-        
-            case ENET_EVENT_TYPE_DISCONNECT:
-                SDL_Log("Disconnection succeeded.");
-                goto cleanup;
-            }
-        }
-        
-        // We've arrived here, so the disconnect attempt didn't succeed yet. Force the connection down.
-        SDL_Log("Disconnection failed, force leaving.");
-        enet_peer_reset(netManager->serverPeer);
-    }
+    Net_Disconnect(netManager);
 
 cleanup:
 
