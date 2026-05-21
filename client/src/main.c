@@ -135,6 +135,10 @@ int main(int argc, char* args[])
 
     unsigned int * entityNetworkId = NULL;
     entityNetworkId = calloc(ENTITY_COUNT, sizeof(unsigned int));
+    unsigned int * networkIdEntity = NULL;
+    networkIdEntity = calloc(ENTITY_COUNT, sizeof(unsigned int));
+    bool* validNetworkIds = NULL;
+    validNetworkIds = calloc(ENTITY_COUNT, sizeof(bool));
 
     ENetAddress address;
     enet_address_set_host (&address, "localhost");
@@ -174,11 +178,13 @@ int main(int argc, char* args[])
             {
             case ADD_SQUARE:;
                 struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
-                if (AddSquare(ec, &componentHandles, (struct Vector2){.x = packetData->position.x, .y = packetData->position.y}, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
+                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
                 {
                     entityNetworkId[playerId] = packetData->networkId;
+                    networkIdEntity[packetData->networkId] = playerId;
+                    validNetworkIds[packetData->networkId] = true;
                     joined = true;
-                    SDL_Log("Successfully joined at position %f,%f", packetData->position.x,  packetData->position.y);
+                    SDL_Log("Successfully joined at position %f,%f with network ID of %i", packetData->position.x,  packetData->position.y, packetData->networkId);
                     enet_packet_destroy(event.packet);
                     goto game_joined;
                 }
@@ -220,33 +226,64 @@ game_joined:;
         currentFrameTimeMs = SDL_GetTicks();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
-        /*struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = (struct Vector2){.x = 293.44, .y = 8.0}};
-        ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), 0);
-        enet_peer_send(peer, 0, packet);*/
-
         // Get network events
         while (enet_host_service(netManager->client, &event, 0) > 0)
         {
             switch (event.type)
             {
             case ENET_EVENT_TYPE_RECEIVE:
-                SDL_Log("A packet of length %u containing %s was received from %s on channel %u.\n",
-                        event.packet -> dataLength,
-                        event.packet -> data,
-                        event.peer -> data,
-                        event.channelID);
-        
-                // Clean up the packet now that we're done using it.
-                enet_packet_destroy(event.packet);
-                
+            {
+                enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
+                switch(type)
+                {
+                case UPDATE:
+                {
+                    struct P_Update* packetData = (struct P_Update*) event.packet->data;
+                    if (!validNetworkIds[packetData->networkId])
+                    {
+                        // if we don't know about the entity, add it
+                        int entityId;
+                        if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, 0.0f}, 100, &entityId))
+                        {
+                            entityNetworkId[entityId] = packetData->networkId;
+                            networkIdEntity[packetData->networkId] = entityId;
+                            validNetworkIds[packetData->networkId] = true;
+                            SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
+                        }
+                        else
+                        {
+                            SDL_Log("Too many entities received from server. Disconnecting.");
+                            goto disconnect;
+                        }
+                    }
+
+                    int localEntityId = networkIdEntity[packetData->networkId];
+                    if(ECDB_EntityHasComponent(ec, localEntityId, componentHandles.positions_handle))
+                    {
+                        struct Vector2* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(ec, localEntityId, componentHandles.positions_handle);
+                        *actorPosition = packetData->position;
+                    }
+
+                    break;
+                }
+                default:
+                    printf ("Some weird packet of type %i\n", type);
+                    break;
+                }
+
+                enet_packet_destroy (event.packet);
                 break;
-            
+            }
             case ENET_EVENT_TYPE_DISCONNECT:
+            {
                 SDL_Log("Disconnected from the server.");
                 connected = false;
+                break;
+            }
             }
         }
 
+        bool directionChanged = false;
         while( SDL_PollEvent( &e ) == true )
         {
             if( e.type == SDL_EVENT_QUIT )
@@ -258,18 +295,22 @@ game_joined:;
                 if( e.key.key == SDLK_W )
                 {
                     direction.y--;
+                    directionChanged = true;
                 }
                 else if( e.key.key == SDLK_A )
                 {
                     direction.x--;
+                    directionChanged = true;
                 }
                 else if( e.key.key == SDLK_S )
                 {
                     direction.y++;
+                    directionChanged = true;
                 }
                 else if( e.key.key == SDLK_D )
                 {
                     direction.x++;
+                    directionChanged = true;
                 }
             }
             else if( e.type == SDL_EVENT_KEY_UP && e.key.repeat == 0)
@@ -277,24 +318,36 @@ game_joined:;
                 if( e.key.key == SDLK_W )
                 {
                     direction.y++;
+                    directionChanged = true;
                 }
                 else if( e.key.key == SDLK_A )
                 {
                     direction.x++;
+                    directionChanged = true;
                 }
                 else if( e.key.key == SDLK_S )
                 {
                     direction.y--;
+                    directionChanged = true;
                 }
                 else if( e.key.key == SDLK_D )
                 {
                     direction.x--;
+                    directionChanged = true;
                 }
             }
         }
 
-        s_apply_input(ec, componentHandles.inputs_handle, direction);
-        s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
+        if (directionChanged)
+        {
+            // If input has been given, send an input packet
+            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = entityNetworkId[playerId], .direction = direction};
+            ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), 0);
+            enet_peer_send(netManager->serverPeer, 0, packet);
+        }
+
+        //s_apply_input(ec, componentHandles.inputs_handle, direction);
+        //s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
     }
 
