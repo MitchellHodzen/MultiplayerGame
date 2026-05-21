@@ -39,12 +39,14 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         ECDB_Free(ecdb);
         return false;
     }
+
     if (!ECDB_RegisterComponent(*ecdb, sizeof(SDL_FColor), &(componentHandles->colors_handle)))
     {
         SDL_Log("Couldn't initialize colors component");
         ECDB_Free(ecdb);
         return false;
     }
+    
     if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Input), &(componentHandles->inputs_handle)))
     {
         SDL_Log("Couldn't initialize input component");
@@ -87,8 +89,6 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     memcpy(entityPos, &position, sizeof(struct Vector2));
     SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
-    struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->inputs_handle);
-    entityInput->speed=speed;
     return true;
 }
 
@@ -172,6 +172,18 @@ int main(int argc, char* args[])
     networkIdEntity[joinGamePacket.networkId] = playerId;
     validNetworkIds[joinGamePacket.networkId] = true;
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.networkId);
+
+    // create a local copy of the player so we can see movement divergence
+    int localPlayerCopy;
+    if (AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, 1.0f}, 100, &localPlayerCopy))
+    {
+        struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, localPlayerCopy, componentHandles.inputs_handle);
+        entityInput->speed=100;
+    }
+    else
+    {
+        SDL_Log("Failed to create player copy");
+    }
 
     struct Vector2 direction = {.x = 0, .y = 0};
     SDL_Event e;
@@ -305,8 +317,8 @@ int main(int argc, char* args[])
             enet_peer_send(netManager->serverPeer, 0, packet);
         }
 
-        //s_apply_input(ec, componentHandles.inputs_handle, direction);
-        //s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
+        s_apply_input(ec, componentHandles.inputs_handle, direction);
+        s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
     }
 
