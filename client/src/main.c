@@ -17,12 +17,19 @@
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 #define ENTITY_COUNT 100
+#define CHAT_MAX_SIZE 100
 
 struct Component_Handles
 {
     int positions_handle;
     int colors_handle;
     int inputs_handle;
+};
+
+enum Command_Contex
+{
+    COMMAND_STANDARD,
+    COMMAND_CHAT,
 };
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
@@ -90,6 +97,96 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
     return true;
+}
+
+enum Command_Contex Handle_Standard_Input(SDL_Event* event, struct Vector2* direction, bool* directionChanged)
+{
+    if( event->type == SDL_EVENT_KEY_DOWN && event->key.repeat == 0)
+    {
+        // If enter clicked, change context to text context and stop movement
+        if (event->key.key == SDLK_RETURN)
+        {
+            direction->x = 0;
+            direction->y = 0;
+            *directionChanged = true;
+            return COMMAND_CHAT;
+        }
+        if( event->key.key == SDLK_W && direction->y >= 0)
+        {
+            direction->y--;
+            *directionChanged = true;
+        }
+        else if( event->key.key == SDLK_A && direction->x >= 0)
+        {
+            direction->x--;
+            *directionChanged = true;
+        }
+        else if( event->key.key == SDLK_S && direction->y <= 0)
+        {
+            direction->y++;
+            *directionChanged = true;
+        }
+        else if( event->key.key == SDLK_D && direction->x <= 0)
+        {
+            direction->x++;
+            *directionChanged = true;
+        }
+    }
+    else if(event->type == SDL_EVENT_KEY_UP && event->key.repeat == 0)
+    {
+        if(event->key.key == SDLK_W && direction->y < 0)
+        {
+            direction->y++;
+            *directionChanged = true;
+        }
+        else if(event->key.key == SDLK_A && direction->x < 0)
+        {
+            direction->x++;
+            *directionChanged = true;
+        }
+        else if(event->key.key == SDLK_S && direction->y > 0)
+        {
+            direction->y--;
+            *directionChanged = true;
+        }
+        else if(event->key.key == SDLK_D && direction->x > 0)
+        {
+            direction->x--;
+            *directionChanged = true;
+        }
+    }
+
+    // if here, no change in context
+    return COMMAND_STANDARD;
+}
+
+enum Command_Contex Handle_Chat_Input(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor)
+{
+    if( event->type == SDL_EVENT_KEY_DOWN)
+    {
+        if (event->key.key == SDLK_RETURN)
+        {
+            // If enter clicked, change context to standard context
+            SDL_Log("%s", chatBuffer); // write the chat to the output
+            *chatCursor = 0; // reset the buffer
+            return COMMAND_STANDARD;
+        }
+        else
+        {
+            // Any other keys write to the chat buffer if it isn't full. TODO: sanitize input
+            if (*chatCursor < CHAT_MAX_SIZE)
+            {
+                // buffer is chat max size + 1, so we can safely operate < chat max size
+                chatBuffer[*chatCursor] = event->key.key;
+                // always put the string end char after the cursor
+                chatBuffer[*chatCursor + 1] =  '\0';
+                (*chatCursor)++;
+            }
+        }
+    }
+
+    // if here, no change in context
+    return COMMAND_CHAT;
 }
 
 int main(int argc, char* args[])
@@ -190,6 +287,12 @@ int main(int argc, char* args[])
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
 
+    enum Command_Contex command_context = COMMAND_STANDARD;
+
+    char* chatMessageBuffer = NULL;
+    chatMessageBuffer = calloc(CHAT_MAX_SIZE + 1, sizeof(char));
+    unsigned int chatCursor = 0;
+
     ENetEvent event;
     while(quit == false)
     {
@@ -261,51 +364,13 @@ int main(int argc, char* args[])
             {
                 quit = true;
             }
-            else if( e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0)
+            else if (command_context == COMMAND_STANDARD)
             {
-                if( e.key.key == SDLK_W )
-                {
-                    direction.y--;
-                    directionChanged = true;
-                }
-                else if( e.key.key == SDLK_A )
-                {
-                    direction.x--;
-                    directionChanged = true;
-                }
-                else if( e.key.key == SDLK_S )
-                {
-                    direction.y++;
-                    directionChanged = true;
-                }
-                else if( e.key.key == SDLK_D )
-                {
-                    direction.x++;
-                    directionChanged = true;
-                }
+                command_context = Handle_Standard_Input(&e, &direction, &directionChanged);
             }
-            else if( e.type == SDL_EVENT_KEY_UP && e.key.repeat == 0)
+            else if (command_context == COMMAND_CHAT)
             {
-                if( e.key.key == SDLK_W )
-                {
-                    direction.y++;
-                    directionChanged = true;
-                }
-                else if( e.key.key == SDLK_A )
-                {
-                    direction.x++;
-                    directionChanged = true;
-                }
-                else if( e.key.key == SDLK_S )
-                {
-                    direction.y--;
-                    directionChanged = true;
-                }
-                else if( e.key.key == SDLK_D )
-                {
-                    direction.x--;
-                    directionChanged = true;
-                }
+                command_context = Handle_Chat_Input(&e, chatMessageBuffer, &chatCursor);
             }
         }
 
@@ -326,6 +391,10 @@ disconnect:
     Net_Disconnect(netManager);
 
 cleanup:
+    free(entityNetworkId);
+    free(networkIdEntity);
+    free(validNetworkIds);
+    free(chatMessageBuffer);
 
     // Close up
     SDL_Log("free netmgr");
