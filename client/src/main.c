@@ -120,18 +120,13 @@ enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event)
     return COMMAND_STANDARD;
 }
 
-enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor)
+enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor, bool* charWritten)
 {
     if( event->type == SDL_EVENT_KEY_DOWN)
     {
         if (event->key.key == SDLK_RETURN)
         {
             // If enter clicked, change context to standard context
-            printf("\n");
-            SDL_Log("Final string: %s", chatBuffer); // write the chat to the output
-            // reset the buffer
-            *chatCursor = 0;
-            chatBuffer[*chatCursor] =  '\0';
             return COMMAND_STANDARD;
         }
         else
@@ -144,7 +139,7 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
                 // always put the string end char after the cursor
                 chatBuffer[*chatCursor + 1] =  '\0';
                 (*chatCursor)++;
-                printf("%c", event->key.key);
+                *charWritten = true;
             }
         }
     }
@@ -271,42 +266,60 @@ int main(int argc, char* args[])
             {
             case ENET_EVENT_TYPE_RECEIVE:
             {
-                enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
-                switch(type)
+                switch(event.channelID)
                 {
-                case UPDATE:
-                {
-                    struct P_Update* packetData = (struct P_Update*) event.packet->data;
-                    if (!validNetworkIds[packetData->networkId])
+                    case 0: // General packets
                     {
-                        // if we don't know about the entity, add it
-                        int entityId;
-                        if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, 0.0f}, 100, &entityId))
+                        enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
+                        switch(type)
                         {
-                            entityNetworkId[entityId] = packetData->networkId;
-                            networkIdEntity[packetData->networkId] = entityId;
-                            validNetworkIds[packetData->networkId] = true;
-                            SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
-                        }
-                        else
+                        case UPDATE:
                         {
-                            SDL_Log("Too many entities received from server. Disconnecting.");
-                            goto disconnect;
-                        }
-                    }
+                            struct P_Update* packetData = (struct P_Update*) event.packet->data;
+                            if (!validNetworkIds[packetData->networkId])
+                            {
+                                // if we don't know about the entity, add it
+                                int entityId;
+                                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, 0.0f}, 100, &entityId))
+                                {
+                                    entityNetworkId[entityId] = packetData->networkId;
+                                    networkIdEntity[packetData->networkId] = entityId;
+                                    validNetworkIds[packetData->networkId] = true;
+                                    SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
+                                }
+                                else
+                                {
+                                    SDL_Log("Too many entities received from server. Disconnecting.");
+                                    goto disconnect;
+                                }
+                            }
 
-                    int localEntityId = networkIdEntity[packetData->networkId];
-                    if(ECDB_EntityHasComponent(ec, localEntityId, componentHandles.positions_handle))
+                            int localEntityId = networkIdEntity[packetData->networkId];
+                            if(ECDB_EntityHasComponent(ec, localEntityId, componentHandles.positions_handle))
+                            {
+                                struct Vector2* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(ec, localEntityId, componentHandles.positions_handle);
+                                *actorPosition = packetData->position;
+                            }
+
+                            break;
+                        }
+                        default:
+                            printf ("Some weird packet of type %i\n", type);
+                            break;
+                        }
+
+                        break;
+                    }
+                    case 1: // Chat packets
                     {
-                        struct Vector2* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(ec, localEntityId, componentHandles.positions_handle);
-                        *actorPosition = packetData->position;
+                        printf("Chat received: %s\n", event.packet->data);
+                        break;
                     }
-
-                    break;
-                }
-                default:
-                    printf ("Some weird packet of type %i\n", type);
-                    break;
+                    default:
+                    {
+                        printf("Message received from server on unexpected channel %i\n", event.channelID);
+                        break;
+                    }
                 }
 
                 enet_packet_destroy (event.packet);
@@ -346,7 +359,26 @@ int main(int argc, char* args[])
             }
             else if (command_context == COMMAND_CHAT)
             {
-                command_context = Handle_Chat_Input_Event(&e, chatMessageBuffer, &chatCursor);
+                bool charWritten = false;
+                command_context = Handle_Chat_Input_Event(&e, chatMessageBuffer, &chatCursor, &charWritten);
+                if (command_context != COMMAND_CHAT)
+                {
+                    // If we've stopped chatting, send the chat packet
+                    int messageSize = (sizeof(char) * chatCursor) + 1; // Size is number of characters + the null termination character
+                    ENetPacket* chatPacket = enet_packet_create(chatMessageBuffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
+                    enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
+
+                    // reset the buffer
+                    chatCursor = 0;
+                    chatMessageBuffer[0] =  '\0';
+
+                    printf("\n");
+                }
+                else if (charWritten)
+                {
+                    // If still chatting, write the recent character to the console
+                    printf("%c", chatMessageBuffer[chatCursor - 1]); // Chat cursor is always at current char + 1
+                }
             }
         }
 

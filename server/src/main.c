@@ -138,43 +138,64 @@ int main(int argc, char* args[])
                 else
                 {
                     int playerId = *(int*)event.peer->data;
-                    // look at the first field in the packet to see what type it is
-                    enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
-                    switch(type)
+                    // Channel 0 is general packets
+                    switch(event.channelID)
                     {
-                    case REQUEST_JOIN:
-                    {
-                        printf("Request to join from: %i\n", playerId);
-                        struct Vector2 position = {.x = 293.44, .y = 350.0};
-                        PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
-
-                        // Send the join packet with the position information
-                        struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = position, .networkId  = playerId};
-                        ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), 0);
-                        enet_peer_send(event.peer, 0, packet);
-                        break;
-                    }
-                    case ADD_SQUARE:
-                    {
-                        struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
-                        printf ("Add square packet received. Position: (%f, %f)\n", packetData->position.x, packetData->position.y);
-                        break;
-                    }
-                    case INPUT_DIRECTION:
-                    {
-                        struct P_Input_Direction* packetData = (struct P_Input_Direction*) event.packet->data;
-                        // Apply input
-                        if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle))
+                        case 0: // General packets
                         {
-                            struct C_Input* playerInput = (struct C_Input*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.inputs_handle);
-                            playerInput->direction = packetData->direction;
-                        }
+                            // look at the first field in the packet to see what type it is
+                            enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
+                            switch(type)
+                            {
+                            case REQUEST_JOIN:
+                            {
+                                printf("Request to join from: %i\n", playerId);
+                                struct Vector2 position = {.x = 293.44, .y = 350.0};
+                                PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
 
-                        break;
-                    }
-                    default:
-                        printf ("Some weird packet of type %i\n", type);
-                        break;
+                                // Send the join packet with the position information
+                                struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = position, .networkId  = playerId};
+                                ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), 0);
+                                enet_peer_send(event.peer, 0, packet);
+                                break;
+                            }
+                            case ADD_SQUARE:
+                            {
+                                struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
+                                printf ("Add square packet received. Position: (%f, %f)\n", packetData->position.x, packetData->position.y);
+                                break;
+                            }
+                            case INPUT_DIRECTION:
+                            {
+                                struct P_Input_Direction* packetData = (struct P_Input_Direction*) event.packet->data;
+                                // Apply input
+                                if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle))
+                                {
+                                    struct C_Input* playerInput = (struct C_Input*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.inputs_handle);
+                                    playerInput->direction = packetData->direction;
+                                }
+
+                                break;
+                            }
+                            default:
+                                printf ("Some weird packet of type %i\n", type);
+                                break;
+                            }
+
+                            break;
+                        }
+                        case 1: // Chat packets
+                        {
+                            printf("Chat received from %i, length %i: %s\n", playerId, event.packet->dataLength, event.packet->data);
+                            ENetPacket * chatPacket = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
+                            enet_host_broadcast(server, 1, chatPacket);
+                            break;
+                        }
+                        default:
+                        {
+                            printf("Message received from %i on unexpected channel %i\n", playerId, event.channelID);
+                            break;
+                        }
                     }
                 }
 
