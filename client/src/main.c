@@ -99,60 +99,20 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     return true;
 }
 
-enum Command_Contex Handle_Standard_Input(SDL_Event* event, struct Vector2* direction, bool* directionChanged)
+struct Vector2 Get_Direction_From_Input_State()
+{
+    const bool* keyboardStates = SDL_GetKeyboardState(NULL);
+    return (struct Vector2) {.x = -(keyboardStates[SDL_SCANCODE_A]) + keyboardStates[SDL_SCANCODE_D], .y = -(keyboardStates[SDL_SCANCODE_W]) + keyboardStates[SDL_SCANCODE_S]};
+}
+
+enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event)
 {
     if( event->type == SDL_EVENT_KEY_DOWN && event->key.repeat == 0)
     {
-        // If enter clicked, change context to text context and stop movement
+        // If enter clicked, change context to text context
         if (event->key.key == SDLK_RETURN)
         {
-            direction->x = 0;
-            direction->y = 0;
-            *directionChanged = true;
             return COMMAND_CHAT;
-        }
-        if( event->key.key == SDLK_W && direction->y >= 0)
-        {
-            direction->y--;
-            *directionChanged = true;
-        }
-        else if( event->key.key == SDLK_A && direction->x >= 0)
-        {
-            direction->x--;
-            *directionChanged = true;
-        }
-        else if( event->key.key == SDLK_S && direction->y <= 0)
-        {
-            direction->y++;
-            *directionChanged = true;
-        }
-        else if( event->key.key == SDLK_D && direction->x <= 0)
-        {
-            direction->x++;
-            *directionChanged = true;
-        }
-    }
-    else if(event->type == SDL_EVENT_KEY_UP && event->key.repeat == 0)
-    {
-        if(event->key.key == SDLK_W && direction->y < 0)
-        {
-            direction->y++;
-            *directionChanged = true;
-        }
-        else if(event->key.key == SDLK_A && direction->x < 0)
-        {
-            direction->x++;
-            *directionChanged = true;
-        }
-        else if(event->key.key == SDLK_S && direction->y > 0)
-        {
-            direction->y--;
-            *directionChanged = true;
-        }
-        else if(event->key.key == SDLK_D && direction->x > 0)
-        {
-            direction->x--;
-            *directionChanged = true;
         }
     }
 
@@ -160,15 +120,18 @@ enum Command_Contex Handle_Standard_Input(SDL_Event* event, struct Vector2* dire
     return COMMAND_STANDARD;
 }
 
-enum Command_Contex Handle_Chat_Input(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor)
+enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor)
 {
     if( event->type == SDL_EVENT_KEY_DOWN)
     {
         if (event->key.key == SDLK_RETURN)
         {
             // If enter clicked, change context to standard context
-            SDL_Log("%s", chatBuffer); // write the chat to the output
-            *chatCursor = 0; // reset the buffer
+            printf("\n");
+            SDL_Log("Final string: %s", chatBuffer); // write the chat to the output
+            // reset the buffer
+            *chatCursor = 0;
+            chatBuffer[*chatCursor] =  '\0';
             return COMMAND_STANDARD;
         }
         else
@@ -181,6 +144,7 @@ enum Command_Contex Handle_Chat_Input(SDL_Event* event, char* chatBuffer, unsign
                 // always put the string end char after the cursor
                 chatBuffer[*chatCursor + 1] =  '\0';
                 (*chatCursor)++;
+                printf("%c", event->key.key);
             }
         }
     }
@@ -358,6 +322,8 @@ int main(int argc, char* args[])
         }
 
         bool directionChanged = false;
+
+        //  Handle keyboard events
         while( SDL_PollEvent( &e ) == true )
         {
             if( e.type == SDL_EVENT_QUIT )
@@ -366,11 +332,34 @@ int main(int argc, char* args[])
             }
             else if (command_context == COMMAND_STANDARD)
             {
-                command_context = Handle_Standard_Input(&e, &direction, &directionChanged);
+                command_context = Handle_Standard_Input_Event(&e);
+                if (command_context != COMMAND_STANDARD)
+                {
+                    // If the context changed, stop movement
+                    if (direction.x != 0 || direction.y != 0)
+                    {
+                        directionChanged = true;
+                        direction.x = 0;
+                        direction.y = 0;
+                    }
+                }
             }
             else if (command_context == COMMAND_CHAT)
             {
-                command_context = Handle_Chat_Input(&e, chatMessageBuffer, &chatCursor);
+                command_context = Handle_Chat_Input_Event(&e, chatMessageBuffer, &chatCursor);
+            }
+        }
+
+        // Handle keyboard state
+        if (command_context == COMMAND_STANDARD)
+        {
+            struct Vector2 newDirection = Get_Direction_From_Input_State();
+
+            if (direction.x != newDirection.x || direction.y != newDirection.y)
+            {
+                directionChanged = true;
+                direction.x = newDirection.x;
+                direction.y = newDirection.y;
             }
         }
 
