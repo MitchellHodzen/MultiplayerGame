@@ -1,2 +1,7 @@
-C fun
-Requires SDL3, SDL3_image, and ENet
+Networking and C learning project
+Dependencies:
+* SDL3
+* SDL3_image
+* SDL3_ttf
+* ENet
+* Clay
