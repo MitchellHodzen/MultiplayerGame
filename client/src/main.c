@@ -312,7 +312,10 @@ int main(int argc, char* args[])
                     }
                     case 1: // Chat packets
                     {
-                        printf("Chat received: %s\n", event.packet->data);
+                        // Chat packets start with a header followed by the chat string
+                        unsigned int chatNetworkId = ((struct P_Chat_Header*)event.packet->data)->networkId;
+                        char* chatPointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
+                        printf("[Player %i]: %s\n", chatNetworkId, chatPointer);
                         break;
                     }
                     default:

@@ -186,8 +186,20 @@ int main(int argc, char* args[])
                         }
                         case 1: // Chat packets
                         {
-                            printf("Chat received from %i, length %i: %s\n", playerId, event.packet->dataLength, event.packet->data);
-                            ENetPacket * chatPacket = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
+                            // allocate memory on the stack for our custom packet which is the size of the chat string + the chat header
+                            int chatWithHeaderLength = event.packet->dataLength + sizeof(struct P_Chat_Header);
+                            void* chatWithHeader = _malloca(chatWithHeaderLength);
+
+                            // set the first P_Chat_Header bytes to the chat header
+                            struct P_Chat_Header chatHeader = {.networkId = playerId};
+                            *(struct P_Chat_Header*)chatWithHeader = chatHeader;
+
+                            // Append the chat message to the end of the packet
+                            char* chatPtr = ((char*)chatWithHeader) + sizeof(struct P_Chat_Header);
+                            strcpy(chatPtr, event.packet->data);
+
+                            // Build and broadcast the packet; at this point, chatWithHeader is the header followed by the chat string
+                            ENetPacket * chatPacket = enet_packet_create(chatWithHeader, chatWithHeaderLength, ENET_PACKET_FLAG_RELIABLE);
                             enet_host_broadcast(server, 1, chatPacket);
                             break;
                         }

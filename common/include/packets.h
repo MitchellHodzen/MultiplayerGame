@@ -32,5 +32,10 @@ struct P_Update
     struct Vector2 position;
 };
 
+struct P_Chat_Header
+{
+    unsigned int networkId;
+};
+
 
 #endif /* PACKETS */
