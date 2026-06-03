@@ -193,8 +193,8 @@ int main(int argc, char* args[])
 
     // init UI
     uint64_t totalMemorySize = Clay_MinMemorySize();
-    Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
-    Clay_Initialize(arena, (Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler) { LogClayErrors });
+    void* clayArena = malloc(totalMemorySize);
+    Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, clayArena), (Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler) { LogClayErrors });
 
     struct ECDB* ec = NULL;
     struct Component_Handles componentHandles;
@@ -478,6 +478,10 @@ cleanup:
 
     SDL_Log("free ecdb");
     ECDB_Free(&ec);
+
+    SDL_Log("Free clay arena");
+    free(clayArena);
+    
     SDL_Log("destroy renderer");
     SDL_DestroyRenderer(renderer);
     renderer = NULL;
