@@ -4,6 +4,7 @@
 #include <windows.h> 
 #include <SDL3/SDL.H>
 #include <SDL3/SDL_main.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include "ecdb.h"
 #include "vector2.h"
 #include "system_movement.h"
@@ -13,6 +14,9 @@
 #include "component_input.h"
 #include "packets.h"
 #include "net_manager.h"
+#define CLAY_IMPLEMENTATION
+#include <clay.h>
+#include <clay_renderer_SDL3.c>
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -63,7 +67,7 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     return true;
 }
 
-bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, int screen_width, int screen_height)
+bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, TTF_TextEngine** textEngine, int screen_width, int screen_height)
 {
     if (!SDL_SetAppMetadata("mygame", "1.0", "com.mygame"))
     {
@@ -76,8 +80,25 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, int screen_widt
         return false;
     }
 
+    if (!TTF_Init()) {
+        SDL_Log("Couldn't initialize SDL_ttf: %s", SDL_GetError());
+        return false;
+    }
+
     if (!SDL_CreateWindowAndRenderer("gaem", screen_width, screen_height, SDL_WINDOW_RESIZABLE, window, renderer)) {
         SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
+        return false;
+    }
+
+    *textEngine = TTF_CreateRendererTextEngine(*renderer);
+    if (*textEngine == NULL) {
+        SDL_Log("Failed to create text engine from renderer: %s", SDL_GetError());
+        // Clean up SDL
+        SDL_DestroyRenderer(*renderer);
+        *renderer = NULL;
+        SDL_DestroyWindow(*window);
+        *window = NULL;
+        SDL_Quit();
         return false;
     }
 
@@ -97,6 +118,10 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
     return true;
+}
+
+void LogClayErrors(Clay_ErrorData errorData) {
+    SDL_Log("%s", errorData.errorText.chars);
 }
 
 struct Vector2 Get_Direction_From_Input_State()
@@ -152,10 +177,11 @@ int main(int argc, char* args[])
 {
     bool quit = false;
 
-    SDL_Window *window = NULL;
-    SDL_Renderer *renderer = NULL;
+    SDL_Window* window = NULL;
+    SDL_Renderer* renderer = NULL;
+    TTF_TextEngine* textEngine = NULL;
 
-    if (InitializeSDL(&window, &renderer, SCREEN_WIDTH, SCREEN_HEIGHT))
+    if (InitializeSDL(&window, &renderer, &textEngine, SCREEN_WIDTH, SCREEN_HEIGHT))
     {
         SDL_Log("SDL Initialized Successfully");
     }
@@ -164,6 +190,11 @@ int main(int argc, char* args[])
         SDL_Log("SDL Initialization Failed");
         return 1;
     }
+
+    // init UI
+    uint64_t totalMemorySize = Clay_MinMemorySize();
+    Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
+    Clay_Initialize(arena, (Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler) { LogClayErrors });
 
     struct ECDB* ec = NULL;
     struct Component_Handles componentHandles;
@@ -346,6 +377,14 @@ int main(int argc, char* args[])
             {
                 quit = true;
             }
+            else if (e.type == SDL_EVENT_WINDOW_RESIZED)
+            {
+                Clay_SetLayoutDimensions((Clay_Dimensions) { (float) e.window.data1, (float) e.window.data2 });
+            }
+            else if (e.type == SDL_EVENT_MOUSE_WHEEL)
+            {
+                Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, 0.01f);
+            }
             else if (command_context == COMMAND_STANDARD)
             {
                 command_context = Handle_Standard_Input_Event(&e);
@@ -398,6 +437,14 @@ int main(int argc, char* args[])
             }
         }
 
+        // Handle mouse movement
+        struct Vector2 mousePos;
+        Uint32 buttons = SDL_GetMouseState(&(mousePos.x), &(mousePos.y));
+        Clay_SetPointerState(
+            (Clay_Vector2){.x = mousePos.x, .y = mousePos.y},
+            buttons & SDL_BUTTON_LMASK
+        );
+
         if (directionChanged)
         {
             // If input has been given, send an input packet
@@ -409,6 +456,9 @@ int main(int argc, char* args[])
         s_apply_input(ec, componentHandles.inputs_handle, direction);
         s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
+
+        // Draw to screen
+        SDL_RenderPresent(renderer);
     }
 
 disconnect:

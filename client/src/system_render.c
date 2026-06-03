@@ -24,7 +24,4 @@ void s_render(struct ECDB const *const ec, int positions_handle, int colors_hand
             SDL_RenderFillRect(renderer, &rect);
         }
     }
-    
-    // Draw to screen
-    SDL_RenderPresent(renderer);
 }
