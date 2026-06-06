@@ -7,7 +7,7 @@ OBJ        := $(BIN)/obj
 INCLUDE    := ./include
 SRC        := ./src
 CMN_LIB    := ../common
-CFLAGS     := -I$(INCLUDE) -Wall -Wextra -pedantic -I$(CMN_LIB)/include -L$(CMN_LIB)/bin -lcommon
+CFLAGS     := -std=c99 -I$(INCLUDE) -Wall -Wextra -pedantic -I$(CMN_LIB)/include -L$(CMN_LIB)/bin -lcommon
 ENET_LOC   := $(LIBS)/enet-1.3.18
 ENET_FLAGS := -I$(ENET_LOC)/include -L$(ENET_LOC) -lenet64 -lws2_32 -lwinmm
 SRCS       := $(wildcard $(SRC)/*.c)
