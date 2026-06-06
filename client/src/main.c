@@ -105,6 +105,17 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, TTF_TextEngine*
     return true;
 }
 
+bool LoadFont(TTF_Font** font)
+{
+    *font = TTF_OpenFont("resources/fonts/Roboto-Regular.ttf", 24);
+    if (font == NULL) {
+        SDL_Log("Failed to load font");
+        return false;
+    }
+
+    return true;
+}
+
 bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, float speed, int* entityId)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
@@ -122,6 +133,18 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
 
 void LogClayErrors(Clay_ErrorData errorData) {
     SDL_Log("%s", errorData.errorText.chars);
+}
+
+static inline Clay_Dimensions SDL_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData)
+{
+    TTF_Font *font = userData; // Only one font
+    int width, height;
+
+    TTF_SetFontSize(font, config->fontSize);
+    if (!TTF_GetStringSize(font, text.chars, text.length, &width, &height)) {
+        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to measure text: %s", SDL_GetError());
+    }
+    return (Clay_Dimensions) { (float) width, (float) height };
 }
 
 struct Vector2 Get_Direction_From_Input_State()
@@ -173,6 +196,10 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
     return COMMAND_CHAT;
 }
 
+const Clay_Color COLOR_LIGHT = (Clay_Color){224, 215, 210, 255};
+const Clay_Color COLOR_RED = (Clay_Color){168, 66, 28, 255};
+const Clay_Color COLOR_ORANGE = (Clay_Color){225, 138, 50, 255};
+
 int main(int argc, char* args[])
 {
     bool quit = false;
@@ -191,10 +218,22 @@ int main(int argc, char* args[])
         return 1;
     }
 
+    TTF_Font* font = NULL;
+    if (LoadFont(&font))
+    {
+        SDL_Log("Font loaded successfully");
+    }
+    else
+    {
+        SDL_Log("Failed to load font");
+        return 1;
+    }
+
     // init UI
     uint64_t totalMemorySize = Clay_MinMemorySize();
     void* clayArena = malloc(totalMemorySize);
     Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, clayArena), (Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler) { LogClayErrors });
+    Clay_SetMeasureTextFunction(SDL_MeasureText, font);
 
     struct ECDB* ec = NULL;
     struct Component_Handles componentHandles;
@@ -457,6 +496,28 @@ int main(int argc, char* args[])
         s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
 
+        // draw UI
+        Clay_BeginLayout();
+
+        // An example of laying out a UI with a fixed width sidebar and flexible width main content
+        CLAY(CLAY_ID("OuterContainer"), { .layout = { .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = {250,250,255,255} }) {
+            CLAY(CLAY_ID("SideBar"), {
+                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_FIXED(300), .height = CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16 },
+                .backgroundColor = COLOR_LIGHT
+            }) {
+                CLAY(CLAY_ID("ProfilePictureOuter"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_RED }) {
+                    CLAY(CLAY_ID("ProfilePicture"), { .layout = { .sizing = { .width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60) }} }) {}
+                    CLAY_TEXT(CLAY_STRING("Clay - UI Library"), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                }
+
+                CLAY(CLAY_ID("MainContent"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) } }, .backgroundColor = COLOR_LIGHT }) {}
+            }
+        }
+
+        Clay_RenderCommandArray renderCommands = Clay_EndLayout(deltaTimeS);
+        Clay_SDL3RendererData renderData = {.renderer = renderer, .textEngine = textEngine, .fonts = &font};
+        SDL_Clay_RenderClayCommands(&renderData, &renderCommands);
+
         // Draw to screen
         SDL_RenderPresent(renderer);
     }
@@ -481,7 +542,11 @@ cleanup:
 
     SDL_Log("Free clay arena");
     free(clayArena);
-    
+
+    SDL_Log("freeing font");
+    TTF_CloseFont(font);
+    SDL_Log("destroy text engine");
+    TTF_DestroyRendererTextEngine(textEngine);
     SDL_Log("destroy renderer");
     SDL_DestroyRenderer(renderer);
     renderer = NULL;
