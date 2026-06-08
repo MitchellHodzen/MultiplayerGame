@@ -107,7 +107,7 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, TTF_TextEngine*
 
 bool LoadFont(TTF_Font** font)
 {
-    *font = TTF_OpenFont("resources/fonts/Roboto-Regular.ttf", 24);
+    *font = TTF_OpenFont("resources/fonts/PixelGamingRegular-d9w0g.ttf", 24);
     if (font == NULL) {
         SDL_Log("Failed to load font");
         return false;
@@ -195,10 +195,6 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
     // if here, no change in context
     return COMMAND_CHAT;
 }
-
-const Clay_Color COLOR_LIGHT = (Clay_Color){224, 215, 210, 255};
-const Clay_Color COLOR_RED = (Clay_Color){168, 66, 28, 255};
-const Clay_Color COLOR_ORANGE = (Clay_Color){225, 138, 50, 255};
 
 int main(int argc, char* args[])
 {
@@ -323,6 +319,17 @@ int main(int argc, char* args[])
     unsigned int chatCursor = 0;
 
     ENetEvent event;
+
+    // Mock chats
+    int chatCount = 0;
+    #define MAX_CHATS 1000
+    char textBuffers [MAX_CHATS][100];
+    for(int i = 0; i < MAX_CHATS; ++i)
+    {
+        sprintf(textBuffers[i], "Chat %i", i);
+    }
+    float previousChatBottom = 0;
+
     while(quit == false)
     {
         previousFrameTimeMs = currentFrameTimeMs;
@@ -422,7 +429,7 @@ int main(int argc, char* args[])
             }
             else if (e.type == SDL_EVENT_MOUSE_WHEEL)
             {
-                Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, 0.01f);
+                Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, deltaTimeS);
             }
             else if (command_context == COMMAND_STANDARD)
             {
@@ -496,21 +503,48 @@ int main(int argc, char* args[])
         s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
         s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
 
-        // draw UI
+        // Chat box UI
         Clay_BeginLayout();
-
-        // An example of laying out a UI with a fixed width sidebar and flexible width main content
-        CLAY(CLAY_ID("OuterContainer"), { .layout = { .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = {250,250,255,255} }) {
-            CLAY(CLAY_ID("SideBar"), {
-                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_FIXED(300), .height = CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16 },
-                .backgroundColor = COLOR_LIGHT
+        CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
+            CLAY(CLAY_ID("FullChatWindowContainer"), {
+                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .childGap = 3, .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
             }) {
-                CLAY(CLAY_ID("ProfilePictureOuter"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_RED }) {
-                    CLAY(CLAY_ID("ProfilePicture"), { .layout = { .sizing = { .width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60) }} }) {}
-                    CLAY_TEXT(CLAY_STRING("Clay - UI Library"), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
-                }
+                CLAY(CLAY_ID("ChatHistoryContainer"), {
+                .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
+                }) {
+                    for (int i = 0; i < chatCount; ++i)
+                    {
+                        CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, 50 } }) {
+                            CLAY_TEXT(((Clay_String) { .length = strlen(textBuffers[i]), .chars = textBuffers[i] }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                        }
+                    }
 
-                CLAY(CLAY_ID("MainContent"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) } }, .backgroundColor = COLOR_LIGHT }) {}
+                    if (chatCount < MAX_CHATS)
+                    {
+                       chatCount++; 
+                    }
+
+                    Clay_ScrollContainerData scollContainerData = Clay_GetScrollContainerData(CLAY_ID("ChatHistoryContainer"));
+                    if (scollContainerData.scrollPosition != NULL) // Scroll is null on frame 1
+                    {
+                        // If we're at the end, lock scroll to the end
+                        if (scollContainerData.scrollPosition->y == previousChatBottom)
+                        {
+                            float bottomPosition = -(scollContainerData.contentDimensions.height - scollContainerData.scrollContainerDimensions.height);
+                            scollContainerData.scrollPosition->y = bottomPosition;
+                        }
+                    }
+
+                    previousChatBottom = -(scollContainerData.contentDimensions.height - scollContainerData.scrollContainerDimensions.height);
+                }
+                CLAY(CLAY_ID("ChatInputContainer"), {
+                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
+                }) {
+                    CLAY(CLAY_ID("ChatInputBox"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .padding = CLAY_PADDING_ALL(5), .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, 200 } }) {
+                        CLAY_TEXT(CLAY_STRING(">"), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                        CLAY_TEXT(((Clay_String) { .length = strlen(chatMessageBuffer), .chars = chatMessageBuffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                    }
+                }
             }
         }
 
