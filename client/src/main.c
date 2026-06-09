@@ -22,6 +22,7 @@
 #define SCREEN_HEIGHT 480
 #define ENTITY_COUNT 100
 #define CHAT_MAX_SIZE 100
+#define CHAT_HISTORY_SIZE 50
 
 struct Component_Handles
 {
@@ -116,7 +117,7 @@ bool LoadFont(TTF_Font** font)
     return true;
 }
 
-bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, float speed, int* entityId)
+bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, int* entityId)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
     {
@@ -284,7 +285,7 @@ int main(int argc, char* args[])
     }
 
     int playerId;
-    if (!AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, 100, &playerId))
+    if (!AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, &playerId))
     {
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
@@ -297,7 +298,7 @@ int main(int argc, char* args[])
 
     // create a local copy of the player so we can see movement divergence
     int localPlayerCopy;
-    if (AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, 1.0f}, 100, &localPlayerCopy))
+    if (AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, 1.0f}, &localPlayerCopy))
     {
         struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, localPlayerCopy, componentHandles.inputs_handle);
         entityInput->speed=100;
@@ -307,29 +308,24 @@ int main(int argc, char* args[])
         SDL_Log("Failed to create player copy");
     }
 
+    // Chat 
+    char* chatInputMessageBuffer = NULL;
+    chatInputMessageBuffer = calloc(CHAT_MAX_SIZE + 1, sizeof(char));
+    unsigned int chatCursor = 0;
+
+    char (*chatHistoryBuffer)[CHAT_MAX_SIZE] = NULL;
+    chatHistoryBuffer = calloc(CHAT_HISTORY_SIZE, CHAT_MAX_SIZE * sizeof(char));
+    int chatCount = 0;
+    float previousChatBottom = 0;
+
     struct Vector2 direction = {.x = 0, .y = 0};
     SDL_Event e;
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
-
+    ENetEvent event;
     enum Command_Contex command_context = COMMAND_STANDARD;
 
-    char* chatMessageBuffer = NULL;
-    chatMessageBuffer = calloc(CHAT_MAX_SIZE + 1, sizeof(char));
-    unsigned int chatCursor = 0;
-
-    ENetEvent event;
-
-    // Mock chats
-    int chatCount = 0;
-    #define MAX_CHATS 1000
-    char textBuffers [MAX_CHATS][100];
-    for(int i = 0; i < MAX_CHATS; ++i)
-    {
-        sprintf(textBuffers[i], "Chat %i", i);
-    }
-    float previousChatBottom = 0;
-
+    SDL_Log("Starting game loop");
     while(quit == false)
     {
         previousFrameTimeMs = currentFrameTimeMs;
@@ -357,7 +353,7 @@ int main(int argc, char* args[])
                             {
                                 // if we don't know about the entity, add it
                                 int entityId;
-                                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, 0.0f}, 100, &entityId))
+                                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, 0.0f}, &entityId))
                                 {
                                     entityNetworkId[entityId] = packetData->networkId;
                                     networkIdEntity[packetData->networkId] = entityId;
@@ -389,10 +385,15 @@ int main(int argc, char* args[])
                     }
                     case 1: // Chat packets
                     {
-                        // Chat packets start with a header followed by the chat string
-                        unsigned int chatNetworkId = ((struct P_Chat_Header*)event.packet->data)->networkId;
-                        char* chatPointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
-                        printf("[Player %i]: %s\n", chatNetworkId, chatPointer);
+                        if (chatCount < CHAT_HISTORY_SIZE)
+                        {
+                            // Chat packets start with a header followed by the chat string
+                            unsigned int chatNetworkId = ((struct P_Chat_Header*)event.packet->data)->networkId;
+                            char* chatPointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
+                            sprintf(chatHistoryBuffer[chatCount], "Player %i: %s", chatNetworkId, chatPointer);
+                            chatCount++; 
+                        }
+
                         break;
                     }
                     default:
@@ -448,24 +449,24 @@ int main(int argc, char* args[])
             else if (command_context == COMMAND_CHAT)
             {
                 bool charWritten = false;
-                command_context = Handle_Chat_Input_Event(&e, chatMessageBuffer, &chatCursor, &charWritten);
+                command_context = Handle_Chat_Input_Event(&e, chatInputMessageBuffer, &chatCursor, &charWritten);
                 if (command_context != COMMAND_CHAT)
                 {
                     // If we've stopped chatting, send the chat packet
                     int messageSize = (sizeof(char) * chatCursor) + 1; // Size is number of characters + the null termination character
-                    ENetPacket* chatPacket = enet_packet_create(chatMessageBuffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
+                    ENetPacket* chatPacket = enet_packet_create(chatInputMessageBuffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
                     enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
 
                     // reset the buffer
                     chatCursor = 0;
-                    chatMessageBuffer[0] =  '\0';
+                    chatInputMessageBuffer[0] =  '\0';
 
                     printf("\n");
                 }
                 else if (charWritten)
                 {
                     // If still chatting, write the recent character to the console
-                    printf("%c", chatMessageBuffer[chatCursor - 1]); // Chat cursor is always at current char + 1
+                    printf("%c", chatInputMessageBuffer[chatCursor - 1]); // Chat cursor is always at current char + 1
                 }
             }
         }
@@ -510,40 +511,43 @@ int main(int argc, char* args[])
                 .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .childGap = 3, .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
             }) {
                 CLAY(CLAY_ID("ChatHistoryContainer"), {
-                .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
+                .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }
                 }) {
                     for (int i = 0; i < chatCount; ++i)
                     {
-                        CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, 50 } }) {
-                            CLAY_TEXT(((Clay_String) { .length = strlen(textBuffers[i]), .chars = textBuffers[i] }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                        CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
+                            CLAY_TEXT(((Clay_String) { .length = strlen(chatHistoryBuffer[i]), .chars = chatHistoryBuffer[i] }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
                         }
                     }
 
-                    if (chatCount < MAX_CHATS)
+                    Clay_ScrollContainerData scrollContainerData = Clay_GetScrollContainerData(CLAY_ID("ChatHistoryContainer"));
+
+                    // If we're at the end, lock scroll to the end
+                    if (scrollContainerData.scrollPosition->y == previousChatBottom) // Could scrollposition be null here?
                     {
-                       chatCount++; 
+                        float bottomPosition = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
+                        scrollContainerData.scrollPosition->y = bottomPosition;
                     }
 
-                    Clay_ScrollContainerData scollContainerData = Clay_GetScrollContainerData(CLAY_ID("ChatHistoryContainer"));
-                    if (scollContainerData.scrollPosition != NULL) // Scroll is null on frame 1
-                    {
-                        // If we're at the end, lock scroll to the end
-                        if (scollContainerData.scrollPosition->y == previousChatBottom)
-                        {
-                            float bottomPosition = -(scollContainerData.contentDimensions.height - scollContainerData.scrollContainerDimensions.height);
-                            scollContainerData.scrollPosition->y = bottomPosition;
-                        }
-                    }
-
-                    previousChatBottom = -(scollContainerData.contentDimensions.height - scollContainerData.scrollContainerDimensions.height);
+                    previousChatBottom = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
                 }
-                CLAY(CLAY_ID("ChatInputContainer"), {
-                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
-                }) {
-                    CLAY(CLAY_ID("ChatInputBox"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .padding = CLAY_PADDING_ALL(5), .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, 200 } }) {
-                        CLAY_TEXT(CLAY_STRING(">"), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
-                        CLAY_TEXT(((Clay_String) { .length = strlen(chatMessageBuffer), .chars = chatMessageBuffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+
+                float chatInputBoxAlpha = 100;
+                if (command_context == COMMAND_CHAT)
+                {
+                    // if chatting, make the carrot more visible
+                    chatInputBoxAlpha = 200;
+                }
+
+                CLAY(CLAY_ID("ChatInputBox"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .padding = CLAY_PADDING_ALL(5), .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, chatInputBoxAlpha } }) {
+                    float carrotAlpha = 150;
+                    if (command_context == COMMAND_CHAT)
+                    {
+                        // if chatting, make the carrot more visible
+                        carrotAlpha = 255;
                     }
+                    CLAY_TEXT(CLAY_STRING(">"), { .fontSize = 24, .textColor = {255, 255, 255, carrotAlpha} });
+                    CLAY_TEXT(((Clay_String) { .length = strlen(chatInputMessageBuffer), .chars = chatInputMessageBuffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
                 }
             }
         }
@@ -563,7 +567,8 @@ cleanup:
     free(entityNetworkId);
     free(networkIdEntity);
     free(validNetworkIds);
-    free(chatMessageBuffer);
+    free(chatInputMessageBuffer);
+    free(chatHistoryBuffer);
 
     // Close up
     SDL_Log("free netmgr");
