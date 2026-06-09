@@ -17,6 +17,8 @@
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 #include <clay_renderer_SDL3.c>
+#include "initialization.h"
+#include "component_handles.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -24,98 +26,11 @@
 #define CHAT_MAX_SIZE 100
 #define CHAT_HISTORY_SIZE 50
 
-struct Component_Handles
-{
-    int positions_handle;
-    int colors_handle;
-    int inputs_handle;
-};
-
 enum Command_Contex
 {
     COMMAND_STANDARD,
     COMMAND_CHAT,
 };
-
-bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
-{
-    if (!ECDB_Init(ecdb, entityCount, 3))
-    {
-        SDL_Log("Couldn't initialize component DB");
-        return false;
-    }
-
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct Vector2), &(componentHandles->positions_handle)))
-    {
-        SDL_Log("Couldn't initialize positions component");
-        ECDB_Free(ecdb);
-        return false;
-    }
-
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(SDL_FColor), &(componentHandles->colors_handle)))
-    {
-        SDL_Log("Couldn't initialize colors component");
-        ECDB_Free(ecdb);
-        return false;
-    }
-    
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Input), &(componentHandles->inputs_handle)))
-    {
-        SDL_Log("Couldn't initialize input component");
-        ECDB_Free(ecdb);
-        return false;
-    }
-    return true;
-}
-
-bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, TTF_TextEngine** textEngine, int screen_width, int screen_height)
-{
-    if (!SDL_SetAppMetadata("mygame", "1.0", "com.mygame"))
-    {
-        SDL_Log("Couldn't Set SDL Metadata: %s", SDL_GetError());
-        return false;
-    }
-
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
-        return false;
-    }
-
-    if (!TTF_Init()) {
-        SDL_Log("Couldn't initialize SDL_ttf: %s", SDL_GetError());
-        return false;
-    }
-
-    if (!SDL_CreateWindowAndRenderer("gaem", screen_width, screen_height, SDL_WINDOW_RESIZABLE, window, renderer)) {
-        SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
-        return false;
-    }
-
-    *textEngine = TTF_CreateRendererTextEngine(*renderer);
-    if (*textEngine == NULL) {
-        SDL_Log("Failed to create text engine from renderer: %s", SDL_GetError());
-        // Clean up SDL
-        SDL_DestroyRenderer(*renderer);
-        *renderer = NULL;
-        SDL_DestroyWindow(*window);
-        *window = NULL;
-        SDL_Quit();
-        return false;
-    }
-
-    return true;
-}
-
-bool LoadFont(TTF_Font** font)
-{
-    *font = TTF_OpenFont("resources/fonts/PixelGamingRegular-d9w0g.ttf", 24);
-    if (font == NULL) {
-        SDL_Log("Failed to load font");
-        return false;
-    }
-
-    return true;
-}
 
 bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, int* entityId)
 {
@@ -200,73 +115,21 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
 int main(int argc, char* args[])
 {
     bool quit = false;
-
-    SDL_Window* window = NULL;
-    SDL_Renderer* renderer = NULL;
-    TTF_TextEngine* textEngine = NULL;
-
-    if (InitializeSDL(&window, &renderer, &textEngine, SCREEN_WIDTH, SCREEN_HEIGHT))
+    struct Game_Data* gameData = NULL;
+    if(Game_Data_Init(&gameData, SCREEN_WIDTH, SCREEN_HEIGHT, ENTITY_COUNT, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
     {
-        SDL_Log("SDL Initialized Successfully");
+        SDL_Log("Initialization Successful");
     }
     else
     {
-        SDL_Log("SDL Initialization Failed");
+        SDL_Log("Initialization Failed");
         return 1;
     }
-
-    TTF_Font* font = NULL;
-    if (LoadFont(&font))
-    {
-        SDL_Log("Font loaded successfully");
-    }
-    else
-    {
-        SDL_Log("Failed to load font");
-        return 1;
-    }
-
-    // init UI
-    uint64_t totalMemorySize = Clay_MinMemorySize();
-    void* clayArena = malloc(totalMemorySize);
-    Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, clayArena), (Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler) { LogClayErrors });
-    Clay_SetMeasureTextFunction(SDL_MeasureText, font);
-
-    struct ECDB* ec = NULL;
-    struct Component_Handles componentHandles;
-
-    if (InitializeECDB(&ec, &componentHandles, ENTITY_COUNT))
-    {
-        SDL_Log("ECDB Initialized Successfully");
-    }
-    else
-    {
-        SDL_Log("ECDB Initialization Failed");
-        return 1;
-    }
-
-    if (enet_initialize() == 0)
-    {
-        SDL_Log("ENet Initialized Successfully");
-    }
-    else
-    {
-        SDL_Log("ENet Initialization Failed");
-        return 1;
-    }
-
-    unsigned int * entityNetworkId = NULL;
-    entityNetworkId = calloc(ENTITY_COUNT, sizeof(unsigned int));
-    unsigned int * networkIdEntity = NULL;
-    networkIdEntity = calloc(ENTITY_COUNT, sizeof(unsigned int));
-    bool* validNetworkIds = NULL;
-    validNetworkIds = calloc(ENTITY_COUNT, sizeof(bool));
 
     ENetAddress address;
     enet_address_set_host (&address, "localhost");
     address.port = 1234;
-    struct Net_Manager* netManager;
-    if (Net_Connect(&netManager, &address))
+    if (Net_Try_Connect(gameData->netManager, &address))
     {
         SDL_Log("Connected to server Successfully");
     }
@@ -278,29 +141,27 @@ int main(int argc, char* args[])
 
     // Request to join the game
     struct P_Add_Square joinGamePacket;
-    if (Net_Join_Game(netManager, &joinGamePacket) == false)
+    if (Net_Join_Game(gameData->netManager, &joinGamePacket) == false)
     {
         SDL_Log("Connection to server Failed");
         return 1;
     }
 
     int playerId;
-    if (!AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId))
+    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId))
     {
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
     }
 
-    entityNetworkId[playerId] = joinGamePacket.networkId;
-    networkIdEntity[joinGamePacket.networkId] = playerId;
-    validNetworkIds[joinGamePacket.networkId] = true;
+    Net_Add_Networked_Entity(gameData->netManager, playerId, joinGamePacket.networkId);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.networkId);
 
     // create a local copy of the player so we can see movement divergence
     int localPlayerCopy;
-    if (AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy))
+    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy))
     {
-        struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, localPlayerCopy, componentHandles.inputs_handle);
+        struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, localPlayerCopy, gameData->componentHandles.inputs_handle);
         entityInput->speed=100;
     }
     else
@@ -333,7 +194,7 @@ int main(int argc, char* args[])
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
         // Get network events
-        while (enet_host_service(netManager->client, &event, 0) > 0)
+        while (enet_host_service(gameData->netManager->client, &event, 0) > 0)
         {
             switch (event.type)
             {
@@ -349,15 +210,13 @@ int main(int argc, char* args[])
                         case UPDATE:
                         {
                             struct P_Update* packetData = (struct P_Update*) event.packet->data;
-                            if (!validNetworkIds[packetData->networkId])
+                            if (!gameData->netManager->validNetworkIds[packetData->networkId])
                             {
                                 // if we don't know about the entity, add it
                                 int entityId;
-                                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId))
+                                if (AddSquare(gameData->ec, &gameData->componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId))
                                 {
-                                    entityNetworkId[entityId] = packetData->networkId;
-                                    networkIdEntity[packetData->networkId] = entityId;
-                                    validNetworkIds[packetData->networkId] = true;
+                                    Net_Add_Networked_Entity(gameData->netManager, entityId, packetData->networkId);
                                     SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
                                 }
                                 else
@@ -367,10 +226,10 @@ int main(int argc, char* args[])
                                 }
                             }
 
-                            int localEntityId = networkIdEntity[packetData->networkId];
-                            if(ECDB_EntityHasComponent(ec, localEntityId, componentHandles.positions_handle))
+                            int localEntityId = gameData->netManager->networkIdEntityMap[packetData->networkId];
+                            if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.positions_handle))
                             {
-                                struct Vector2* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(ec, localEntityId, componentHandles.positions_handle);
+                                struct Vector2* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.positions_handle);
                                 *actorPosition = packetData->position;
                             }
 
@@ -416,7 +275,7 @@ int main(int argc, char* args[])
             case ENET_EVENT_TYPE_DISCONNECT:
             {
                 SDL_Log("Disconnected from the server.");
-                netManager->connected = false;
+                gameData->netManager->connected = false;
                 break;
             }
             }
@@ -462,7 +321,7 @@ int main(int argc, char* args[])
                     // If we've stopped chatting, send the chat packet
                     int messageSize = (sizeof(char) * chatCursor) + 1; // Size is number of characters + the null termination character
                     ENetPacket* chatPacket = enet_packet_create(chatInputMessageBuffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
-                    enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
+                    enet_peer_send(gameData->netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
 
                     // reset the buffer
                     chatCursor = 0;
@@ -502,14 +361,14 @@ int main(int argc, char* args[])
         if (directionChanged)
         {
             // If input has been given, send an input packet
-            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = entityNetworkId[playerId], .direction = direction};
+            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = gameData->netManager->entityNetworkIdMap[playerId], .direction = direction};
             ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), 0);
-            enet_peer_send(netManager->serverPeer, 0, packet);
+            enet_peer_send(gameData->netManager->serverPeer, 0, packet);
         }
 
-        s_apply_input(ec, componentHandles.inputs_handle, direction);
-        s_move(ec, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
-        s_render(ec, componentHandles.positions_handle, componentHandles.colors_handle, renderer);
+        s_apply_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
+        s_move(gameData->ec, gameData->componentHandles.positions_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
+        s_render(gameData->ec, gameData->componentHandles.positions_handle, gameData->componentHandles.colors_handle, gameData->renderer);
 
         // Chat box UI
         Clay_BeginLayout();
@@ -560,46 +419,21 @@ int main(int argc, char* args[])
         }
 
         Clay_RenderCommandArray renderCommands = Clay_EndLayout(deltaTimeS);
-        Clay_SDL3RendererData renderData = {.renderer = renderer, .textEngine = textEngine, .fonts = &font};
+        Clay_SDL3RendererData renderData = {.renderer = gameData->renderer, .textEngine = gameData->textEngine, .fonts = &gameData->font};
         SDL_Clay_RenderClayCommands(&renderData, &renderCommands);
 
         // Draw to screen
-        SDL_RenderPresent(renderer);
+        SDL_RenderPresent(gameData->renderer);
     }
 
 disconnect:
-    Net_Disconnect(netManager);
+    Net_Disconnect(gameData->netManager);
 
 cleanup:
-    free(entityNetworkId);
-    free(networkIdEntity);
-    free(validNetworkIds);
     free(chatInputMessageBuffer);
     free(chatHistoryBuffer);
 
-    // Close up
-    SDL_Log("free netmgr");
-    Net_Free(&netManager);
-    SDL_Log("enet deinit");
-    enet_deinitialize();
-
-    SDL_Log("free ecdb");
-    ECDB_Free(&ec);
-
-    SDL_Log("Free clay arena");
-    free(clayArena);
-
-    SDL_Log("freeing font");
-    TTF_CloseFont(font);
-    SDL_Log("destroy text engine");
-    TTF_DestroyRendererTextEngine(textEngine);
-    SDL_Log("destroy renderer");
-    SDL_DestroyRenderer(renderer);
-    renderer = NULL;
-    SDL_Log("destroy window");
-    SDL_DestroyWindow(window);
-    window = NULL;
-    SDL_Log("sdl quit");
-    SDL_Quit();
+    Game_Data_Free(&gameData);
+    
     return 0;
 }

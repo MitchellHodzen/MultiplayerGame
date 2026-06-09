@@ -3,7 +3,7 @@
 #include <enet/enet.h>
 #include <stdbool.h>
 
-bool Net_Connect(struct Net_Manager** netManager, ENetAddress* address)
+bool Net_Initialize(struct Net_Manager** netManager, unsigned int maxEntities)
 {
     *netManager = (struct Net_Manager*) malloc(sizeof(struct Net_Manager));
     if (*netManager == NULL)
@@ -12,44 +12,54 @@ bool Net_Connect(struct Net_Manager** netManager, ENetAddress* address)
         return false;
     }
 
-    // Create a client to receive messages from the server
+    // Create a client to receive messages from the server with 1 outgoing connection, 2 channels, and unlimited incoming and outgoing bandwidth
     (*netManager)->client = enet_host_create(NULL, 1, 2, 0, 0);
-    if ((*netManager)->client != NULL)
-    {
-        printf("Client Host Created Successfully\n");
-    }
-    else
+    if ((*netManager)->client == NULL)
     {
         printf("Client Host Creation Failed\n");
         Net_Free(netManager);
         return false;
     }
 
+    (*netManager)->entityNetworkIdMap = calloc(maxEntities, sizeof(unsigned int));
+    (*netManager)->networkIdEntityMap = calloc(maxEntities, sizeof(unsigned int));
+    (*netManager)->validNetworkIds = calloc(maxEntities, sizeof(bool));
+    if ((*netManager)->entityNetworkIdMap == NULL || (*netManager)->networkIdEntityMap == NULL || (*netManager)->validNetworkIds == NULL)
+    {
+        printf("Allocation of entity tracking data structures failed\n");
+        Net_Free(netManager);
+        return false;
+    }
+
+    return true;
+}
+
+bool Net_Try_Connect(struct Net_Manager* netManager, ENetAddress* address)
+{
     printf("Connecting to server at %x:%u.\n", address->host, address->port);
     ENetEvent event;
     
     // Initiate the connection, allocating the two channels 0 and 1.
-    (*netManager)->serverPeer = enet_host_connect((*netManager)->client, address, 2, 0);    
+    netManager->serverPeer = enet_host_connect(netManager->client, address, 2, 0);    
     
-    if ((*netManager)->serverPeer == NULL)
+    if (netManager->serverPeer == NULL)
     {
         printf("No available peers for initiating an ENet connection.\n");
-        Net_Free(netManager);
         return false;
     }
     
     // Wait up to 5 seconds for the connection attempt to succeed.
-    if (enet_host_service((*netManager)->client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
+    if (enet_host_service(netManager->client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
     {
         printf("Connection succeeded.\n");
-        (*netManager)->serverPeer->data = "my special server";
-        (*netManager)->connected = true;
+        netManager->serverPeer->data = "my special server";
+        netManager->connected = true;
         return true;
     }
 
     // Either the 5 seconds are up or a disconnect event was received.
     printf("Connection failed.\n");
-    Net_Free(netManager);
+    enet_peer_reset(netManager->serverPeer);
     return false;
 }
 
@@ -101,6 +111,21 @@ bool Net_Join_Game(struct Net_Manager* netManager, struct P_Add_Square* output)
     return false;
 }
 
+void Net_Add_Networked_Entity(struct Net_Manager* netManager, unsigned int entityId, unsigned int networkId)
+{
+    netManager->entityNetworkIdMap[entityId] = networkId;
+    netManager->networkIdEntityMap[networkId] = entityId;
+    netManager->validNetworkIds[networkId] = true;
+}
+
+void Net_Remove_Networked_Entity(struct Net_Manager* netManager, unsigned int entityId, unsigned int networkId)
+{
+    // TODO: 0 is a valid entity ID, update so this can't happen and valid network ID is no longer needed
+    netManager->entityNetworkIdMap[entityId] = 0;
+    netManager->networkIdEntityMap[networkId] = 0;
+    netManager->validNetworkIds[networkId] = false;
+}
+
 void Net_Disconnect(struct Net_Manager* netManager)
 {
     // If we are connected, disconnect
@@ -135,6 +160,9 @@ void Net_Disconnect(struct Net_Manager* netManager)
 
 void Net_Free(struct Net_Manager** netManager)
 {
+    free((*netManager)->entityNetworkIdMap);
+    free((*netManager)->networkIdEntityMap);
+    free((*netManager)->validNetworkIds);
     enet_peer_reset((*netManager)->serverPeer);
     enet_host_destroy((*netManager)->client);
     free(*netManager);
