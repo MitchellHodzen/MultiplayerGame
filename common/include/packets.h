@@ -32,8 +32,17 @@ struct P_Update
     struct Vector2 position;
 };
 
+enum Message_Importance
+{
+    MESSAGE_IMPORTANCE_STANDARD,
+    MESSAGE_IMPORTANCE_ALERT,
+    MESSAGE_IMPORTANCE_LOW
+};
+
 struct P_Chat_Header
 {
+    enum Message_Importance messageImportance;
+    bool isServerMessage;
     unsigned int networkId;
 };
 

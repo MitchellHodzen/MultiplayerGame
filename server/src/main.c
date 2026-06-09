@@ -64,6 +64,24 @@ void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHand
     entityInput->speed=speed;
 }
 
+void BroadcastChatMessage(ENetHost* server, struct P_Chat_Header header, char* string, size_t strlen)
+{
+    // allocate memory on the stack for our custom packet which is the size of the chat string + the chat header
+    int chatWithHeaderLength = strlen + sizeof(struct P_Chat_Header);
+    void* chatWithHeader = _malloca(chatWithHeaderLength);
+
+    // set the first P_Chat_Header bytes to the chat header
+    *(struct P_Chat_Header*)chatWithHeader = header;
+
+    // Append the chat message to the end of the packet
+    char* chatPtr = ((char*)chatWithHeader) + sizeof(struct P_Chat_Header);
+    strcpy(chatPtr, string);
+
+    // Build and broadcast the packet; at this point, chatWithHeader is the header followed by the chat string
+    ENetPacket * chatPacket = enet_packet_create(chatWithHeader, chatWithHeaderLength, ENET_PACKET_FLAG_RELIABLE);
+    enet_host_broadcast(server, 1, chatPacket);
+}
+
 int main(int argc, char* args[])
 {
     if (enet_initialize () != 0)
@@ -157,6 +175,12 @@ int main(int argc, char* args[])
                                 struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = position, .networkId  = playerId};
                                 ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), 0);
                                 enet_peer_send(event.peer, 0, packet);
+
+                                // Send a chat message indicating a player has joined
+                                struct P_Chat_Header chatHeader = {.isServerMessage = true, .messageImportance = MESSAGE_IMPORTANCE_LOW};
+                                char joinedMessageBuffer[50];
+                                int strlen = sprintf(joinedMessageBuffer, "Player %i has joined the game", playerId);
+                                BroadcastChatMessage(server, chatHeader, joinedMessageBuffer, strlen + 1);
                                 break;
                             }
                             case ADD_SQUARE:
@@ -186,21 +210,9 @@ int main(int argc, char* args[])
                         }
                         case 1: // Chat packets
                         {
-                            // allocate memory on the stack for our custom packet which is the size of the chat string + the chat header
-                            int chatWithHeaderLength = event.packet->dataLength + sizeof(struct P_Chat_Header);
-                            void* chatWithHeader = _malloca(chatWithHeaderLength);
-
-                            // set the first P_Chat_Header bytes to the chat header
-                            struct P_Chat_Header chatHeader = {.networkId = playerId};
-                            *(struct P_Chat_Header*)chatWithHeader = chatHeader;
-
-                            // Append the chat message to the end of the packet
-                            char* chatPtr = ((char*)chatWithHeader) + sizeof(struct P_Chat_Header);
-                            strcpy(chatPtr, event.packet->data);
-
-                            // Build and broadcast the packet; at this point, chatWithHeader is the header followed by the chat string
-                            ENetPacket * chatPacket = enet_packet_create(chatWithHeader, chatWithHeaderLength, ENET_PACKET_FLAG_RELIABLE);
-                            enet_host_broadcast(server, 1, chatPacket);
+                            // Broadcast out the player's message
+                            struct P_Chat_Header chatHeader = {.isServerMessage = false, .messageImportance = MESSAGE_IMPORTANCE_STANDARD, .networkId = playerId};
+                            BroadcastChatMessage(server, chatHeader, event.packet->data, event.packet->dataLength);
                             break;
                         }
                         default:
@@ -225,6 +237,11 @@ int main(int argc, char* args[])
                     int playerId = *(int*)event.peer->data;
                     printf("Player %i disconnected.\n", playerId);
                     ECDB_DestroyEntity(ecdb, playerId);
+                    // Send a chat message indicating a player has left
+                    struct P_Chat_Header chatHeader = {.isServerMessage = true, .messageImportance = MESSAGE_IMPORTANCE_LOW};
+                    char joinedMessageBuffer[50];
+                    int strlen = sprintf(joinedMessageBuffer, "Player %i has left the game", playerId);
+                    BroadcastChatMessage(server, chatHeader, joinedMessageBuffer, strlen + 1);
                     // Reset the peer's client information.
                     free(event.peer->data);
                     event.peer -> data = NULL;

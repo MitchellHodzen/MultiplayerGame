@@ -388,9 +388,16 @@ int main(int argc, char* args[])
                         if (chatCount < CHAT_HISTORY_SIZE)
                         {
                             // Chat packets start with a header followed by the chat string
-                            unsigned int chatNetworkId = ((struct P_Chat_Header*)event.packet->data)->networkId;
+                            struct P_Chat_Header* header = (struct P_Chat_Header*)event.packet->data;
                             char* chatPointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
-                            sprintf(chatHistoryBuffer[chatCount], "Player %i: %s", chatNetworkId, chatPointer);
+                            if (header->isServerMessage)
+                            {
+                                sprintf(chatHistoryBuffer[chatCount], "Server: %s", chatPointer);
+                            }
+                            else
+                            {
+                                sprintf(chatHistoryBuffer[chatCount], "Player %i: %s", header->networkId, chatPointer);
+                            }
                             chatCount++; 
                         }
 
