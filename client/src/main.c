@@ -285,7 +285,7 @@ int main(int argc, char* args[])
     }
 
     int playerId;
-    if (!AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, 1.0f}, &playerId))
+    if (!AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId))
     {
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
@@ -298,7 +298,7 @@ int main(int argc, char* args[])
 
     // create a local copy of the player so we can see movement divergence
     int localPlayerCopy;
-    if (AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, 1.0f}, &localPlayerCopy))
+    if (AddSquare(ec, &componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy))
     {
         struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, localPlayerCopy, componentHandles.inputs_handle);
         entityInput->speed=100;
@@ -353,7 +353,7 @@ int main(int argc, char* args[])
                             {
                                 // if we don't know about the entity, add it
                                 int entityId;
-                                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, 0.0f}, &entityId))
+                                if (AddSquare(ec, &componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId))
                                 {
                                     entityNetworkId[entityId] = packetData->networkId;
                                     networkIdEntity[packetData->networkId] = entityId;
