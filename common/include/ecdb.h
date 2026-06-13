@@ -15,6 +15,7 @@ struct ECDB
     void** _componentArrays;
     bool** _componentValidArrays;
     size_t* _componentSizes;
+    unsigned int invalidEntityId;
     unsigned int invalidComponentId;
 };
 

@@ -40,14 +40,13 @@ static bool _Init_Entity_Tracking(struct ECDB* ecdb)
 static bool _Init_Components(struct ECDB* ecdb)
 {
     // Set up component ID containers
-    ecdb->_componentArrays = (void**) calloc(ecdb->_maxComponents, sizeof(void*));
+    ecdb->_componentArrays = (void**) calloc(ecdb->_maxComponents + 1, sizeof(void*));
     if (ecdb->_componentArrays == NULL)
     {
         // Couldn't create the component array container
         return false;
     }
 
-    // Add one extra for the invalid entity position, which will always be false
     ecdb->_componentValidArrays = (bool**) calloc(ecdb->_maxComponents + 1, sizeof(bool*));
     if (ecdb->_componentValidArrays == NULL)
     {
@@ -55,7 +54,7 @@ static bool _Init_Components(struct ECDB* ecdb)
         return false;
     }
     
-    ecdb->_componentSizes = (size_t*) calloc(ecdb->_maxComponents, sizeof(size_t));
+    ecdb->_componentSizes = (size_t*) calloc(ecdb->_maxComponents + 1, sizeof(size_t));
     if (ecdb->_componentSizes == NULL)
     {
         // Couldn't create the component size array
@@ -77,7 +76,8 @@ bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxCom
     (*ecdb)->_maxEntities = maxEntities;
     (*ecdb)->_maxComponents = maxComponents;
     (*ecdb)->_componentCount = 0;
-    (*ecdb)->invalidComponentId = maxEntities + 1; // Invalid component ID is at the end of the list of valid entities
+    (*ecdb)->invalidEntityId = maxEntities + 1; // Invalid entity ID is at the end of the list of valid entities
+    (*ecdb)->invalidComponentId = maxComponents + 1; // Invalid component ID is at the end of the list of valid components
 
     if (_Init_Entity_Tracking(*ecdb) == false || _Init_Components(*ecdb) == false)
     {
@@ -88,22 +88,23 @@ bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxCom
     return true;
 }
 
-// TODO: If this fails, component handle will be whatever is passed in which is probably 0, which is a valid component. Change in some way
 bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* componentHandle)
 {
     // Check if we can add another component
     if (ecdb->_componentCount >= ecdb->_maxComponents)
     {
+        *componentHandle = ecdb->invalidComponentId;
         return false;
     }
 
-    void* componentArray = calloc(ecdb->_maxEntities, componentSize);
+    // For both component arrays add one extra for the invalid entity
+    void* componentArray = calloc(ecdb->_maxEntities + 1, componentSize);
     if (componentArray == NULL)
     {
         // couldn't instantiate the component array
         return false;
     }
-    bool* componentValidArray = (bool*) calloc(ecdb->_maxEntities, sizeof(bool));
+    bool* componentValidArray = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
     if (componentValidArray == NULL)
     {
         // couldn't instantiate the component validity array
@@ -130,6 +131,7 @@ bool ECDB_CreateEntity(struct ECDB* ecdb, int* entityId)
     // Get an entity ID from the stack
     if (!IntStack_Pop(ecdb->_entityIdStack, entityId))
     {
+        *entityId = ecdb->invalidEntityId;
         return false;
     }
 
