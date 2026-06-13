@@ -170,6 +170,23 @@ int main(int argc, char* args[])
         SDL_Log("Failed to create player copy");
     }
 
+    // create a red square above the player that is parented to show parenting works
+    int childOfPlayer;
+    if (ECDB_CreateEntity(gameData->ec, &childOfPlayer))
+    {
+        struct C_Transform* entityTransform = ECDB_EnableEntityComponent(gameData->ec, childOfPlayer, gameData->componentHandles.transforms_handle);
+        entityTransform->position.x = joinGamePacket.position.x;
+        entityTransform->position.y = joinGamePacket.position.y - 250;
+        entityTransform->parent_id = localPlayerCopy;
+        SDL_FColor* entityCol = ECDB_EnableEntityComponent(gameData->ec, childOfPlayer, gameData->componentHandles.colors_handle);
+        SDL_FColor red = (SDL_FColor){0.89f, 0.494f, 0.38f, SDL_ALPHA_OPAQUE_FLOAT};
+        memcpy(entityCol, &red, sizeof(SDL_FColor));
+    }
+    else
+    {
+        SDL_Log("couldnt create player child");
+    }
+
     // Chat 
     char* chatInputMessageBuffer = NULL;
     chatInputMessageBuffer = calloc(CHAT_MAX_SIZE + 1, sizeof(char));

@@ -30,7 +30,8 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Transform), &(componentHandles->transforms_handle), NULL))
+    struct C_Transform defaultTransform = {.parent_id = (*ecdb)->invalidEntityId};
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Transform), &(componentHandles->transforms_handle), &defaultTransform))
     {
         printf("Couldn't initialize positions component\n");
         ECDB_Free(ecdb);
