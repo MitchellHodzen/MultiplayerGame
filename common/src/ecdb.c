@@ -26,8 +26,8 @@ static bool _Init_Entity_Tracking(struct ECDB* ecdb)
         IntStack_Push(ecdb->_entityIdStack, i);
     }
 
-    // set up valid entity array
-    ecdb->_validEntities = (bool*) calloc(ecdb->_maxEntities, sizeof(bool));
+    // set up valid entity array. One extra for the invalid entity
+    ecdb->_validEntities = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
     if (ecdb->_validEntities == NULL)
     {
         // Couldn't create the valid entities array
@@ -47,7 +47,8 @@ static bool _Init_Components(struct ECDB* ecdb)
         return false;
     }
 
-    ecdb->_componentValidArrays = (bool**) calloc(ecdb->_maxComponents, sizeof(bool*));
+    // Add one extra for the invalid entity position, which will always be false
+    ecdb->_componentValidArrays = (bool**) calloc(ecdb->_maxComponents + 1, sizeof(bool*));
     if (ecdb->_componentValidArrays == NULL)
     {
         // Couldn't create the component valid array container
@@ -76,6 +77,7 @@ bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxCom
     (*ecdb)->_maxEntities = maxEntities;
     (*ecdb)->_maxComponents = maxComponents;
     (*ecdb)->_componentCount = 0;
+    (*ecdb)->invalidComponentId = maxEntities + 1; // Invalid component ID is at the end of the list of valid entities
 
     if (_Init_Entity_Tracking(*ecdb) == false || _Init_Components(*ecdb) == false)
     {

@@ -1,0 +1,2 @@
+make chat max length a server side variable that the client syncs with on join
+make the client chat history buffer a circular buffer so old messages get removed as new ones come in
