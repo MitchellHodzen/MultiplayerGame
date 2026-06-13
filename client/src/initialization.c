@@ -168,7 +168,7 @@ bool Game_Data_Init(struct Game_Data** gameData, int screenWidth, int screenHeig
         return false;
     }
 
-    if (Net_Initialize(&(*gameData)->netManager, (*gameData)->ec->_maxEntities))
+    if (Net_Initialize(&(*gameData)->netManager, (*gameData)->ec))
     {
         SDL_Log("NetManager Initialized");
     }

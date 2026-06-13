@@ -228,7 +228,7 @@ int main(int argc, char* args[])
                         case UPDATE:
                         {
                             struct P_Update* packetData = (struct P_Update*) event.packet->data;
-                            if (!gameData->netManager->validNetworkIds[packetData->networkId])
+                            if (gameData->netManager->networkIdEntityMap[packetData->networkId] == gameData->ec->invalidEntityId)
                             {
                                 // if we don't know about the entity, add it
                                 int entityId;

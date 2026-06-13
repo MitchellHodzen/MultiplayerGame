@@ -2,8 +2,9 @@
 #include "packets.h"
 #include <enet/enet.h>
 #include <stdbool.h>
+#include "ecdb.h"
 
-bool Net_Initialize(struct Net_Manager** netManager, unsigned int maxEntities)
+bool Net_Initialize(struct Net_Manager** netManager, struct ECDB* ecdb)
 {
     *netManager = (struct Net_Manager*) malloc(sizeof(struct Net_Manager));
     if (*netManager == NULL)
@@ -21,14 +22,19 @@ bool Net_Initialize(struct Net_Manager** netManager, unsigned int maxEntities)
         return false;
     }
 
-    (*netManager)->entityNetworkIdMap = calloc(maxEntities, sizeof(unsigned int));
-    (*netManager)->networkIdEntityMap = calloc(maxEntities, sizeof(unsigned int));
-    (*netManager)->validNetworkIds = calloc(maxEntities, sizeof(bool));
-    if ((*netManager)->entityNetworkIdMap == NULL || (*netManager)->networkIdEntityMap == NULL || (*netManager)->validNetworkIds == NULL)
+    (*netManager)->entityNetworkIdMap = calloc(ecdb->_maxEntities, sizeof(unsigned int));
+    (*netManager)->networkIdEntityMap = malloc(sizeof(unsigned int) * ecdb->_maxEntities);
+    if ((*netManager)->entityNetworkIdMap == NULL || (*netManager)->networkIdEntityMap == NULL)
     {
         printf("Allocation of entity tracking data structures failed\n");
         Net_Free(netManager);
         return false;
+    }
+
+    // for each network ID, set the value to the invalid value
+    for(unsigned int i = 0; i < ecdb->_maxEntities; i++)
+    {
+        (*netManager)->networkIdEntityMap[i] = ecdb->invalidEntityId;
     }
 
     return true;
@@ -115,15 +121,12 @@ void Net_Add_Networked_Entity(struct Net_Manager* netManager, unsigned int entit
 {
     netManager->entityNetworkIdMap[entityId] = networkId;
     netManager->networkIdEntityMap[networkId] = entityId;
-    netManager->validNetworkIds[networkId] = true;
 }
 
-void Net_Remove_Networked_Entity(struct Net_Manager* netManager, unsigned int entityId, unsigned int networkId)
+void Net_Remove_Networked_Entity(struct Net_Manager* netManager, struct ECDB* ecdb, unsigned int entityId, unsigned int networkId)
 {
-    // TODO: 0 is a valid entity ID, update so this can't happen and valid network ID is no longer needed
-    netManager->entityNetworkIdMap[entityId] = 0;
-    netManager->networkIdEntityMap[networkId] = 0;
-    netManager->validNetworkIds[networkId] = false;
+    netManager->entityNetworkIdMap[entityId] = ecdb->invalidEntityId;
+    netManager->networkIdEntityMap[networkId] = ecdb->invalidEntityId;
 }
 
 void Net_Disconnect(struct Net_Manager* netManager)
@@ -162,7 +165,6 @@ void Net_Free(struct Net_Manager** netManager)
 {
     free((*netManager)->entityNetworkIdMap);
     free((*netManager)->networkIdEntityMap);
-    free((*netManager)->validNetworkIds);
     enet_peer_reset((*netManager)->serverPeer);
     enet_host_destroy((*netManager)->client);
     free(*netManager);
