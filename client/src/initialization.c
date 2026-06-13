@@ -5,6 +5,7 @@
 #include "ecdb.h"
 #include "vector2.h"
 #include "component_input.h"
+#include "component_transform.h"
 #include <clay.h>
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
@@ -15,9 +16,9 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct Vector2), &(componentHandles->positions_handle)))
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Transform), &(componentHandles->transforms_handle)))
     {
-        SDL_Log("Couldn't initialize positions component");
+        SDL_Log("Couldn't initialize transform component");
         ECDB_Free(ecdb);
         return false;
     }

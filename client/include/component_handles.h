@@ -3,7 +3,7 @@
 
 struct Component_Handles
 {
-    int positions_handle;
+    int transforms_handle;
     int colors_handle;
     int inputs_handle;
 };

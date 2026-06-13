@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "system_reset_input.h"
 #include "system_movement.h"
+#include "component_transform.h"
 #include <windows.h>
 
 #define MAX_CONNECTIONS 10
@@ -17,7 +18,7 @@
 
 struct Component_Handles
 {
-    int positions_handle;
+    int transforms_handle;
     int inputs_handle;
 };
 
@@ -29,7 +30,7 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct Vector2), &(componentHandles->positions_handle)))
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Transform), &(componentHandles->transforms_handle)))
     {
         printf("Couldn't initialize positions component\n");
         ECDB_Free(ecdb);
@@ -58,8 +59,8 @@ bool PlayerAdd(struct ECDB* ec, int* playerId)
 
 void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHandles, int playerId, struct Vector2 position, float speed)
 {
-    struct Vector2* entityPos = ECDB_EnableEntityComponent(ec, playerId, componentHandles->positions_handle);
-    memcpy(entityPos, &position, sizeof(struct Vector2));
+    struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, playerId, componentHandles->transforms_handle);
+    entityTransform->position = position;
     struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, playerId, componentHandles->inputs_handle);
     entityInput->speed=speed;
 }
@@ -250,19 +251,19 @@ int main(int argc, char* args[])
         }
 
         // Sim loop
-        s_move(ecdb, componentHandles.positions_handle, componentHandles.inputs_handle, deltaTimeS);
-        struct Vector2* positions = (struct Vector2*) ecdb->_componentArrays[componentHandles.positions_handle];
+        s_move(ecdb, componentHandles.transforms_handle, componentHandles.inputs_handle, deltaTimeS);
+        struct C_Transform* transforms = (struct C_Transform*) ecdb->_componentArrays[componentHandles.transforms_handle];
         struct C_Input* inputs = (struct C_Input*) ecdb->_componentArrays[componentHandles.inputs_handle];
 
         // broadcast each players position
         for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
         {
-            if(ECDB_EntityHasComponent(ecdb, i, componentHandles.positions_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle))
+            if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle))
             {
                 if (inputs[i].direction.x != 0.0f || inputs[i].direction.y != 0.0f)
                 {
-                    printf("Player %i position: %f, %f\n", i, positions[i].x, positions[i].y);
-                    struct P_Update inputPacket = {.type = UPDATE, .networkId = i, .position = positions[i]};
+                    printf("Player %i position: %f, %f\n", i, transforms[i].position.x, transforms[i].position.y);
+                    struct P_Update inputPacket = {.type = UPDATE, .networkId = i, .position = transforms[i].position};
                     ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Update), 0);
                     enet_host_broadcast(server, 0, packet);
                 }

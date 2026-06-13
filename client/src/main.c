@@ -19,6 +19,7 @@
 #include <clay_renderer_SDL3.c>
 #include "initialization.h"
 #include "component_handles.h"
+#include "component_transform.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -40,8 +41,8 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
         return false;
     }
 
-    struct Vector2* entityPos = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->positions_handle);
-    memcpy(entityPos, &position, sizeof(struct Vector2));
+    struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->transforms_handle);
+    entityTransform->position = position;
     SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
     return true;
@@ -227,10 +228,10 @@ int main(int argc, char* args[])
                             }
 
                             int localEntityId = gameData->netManager->networkIdEntityMap[packetData->networkId];
-                            if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.positions_handle))
+                            if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle))
                             {
-                                struct Vector2* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.positions_handle);
-                                *actorPosition = packetData->position;
+                                struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
+                                actorPosition->position = packetData->position;
                             }
 
                             break;
@@ -367,8 +368,8 @@ int main(int argc, char* args[])
         }
 
         s_apply_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
-        s_move(gameData->ec, gameData->componentHandles.positions_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
-        s_render(gameData->ec, gameData->componentHandles.positions_handle, gameData->componentHandles.colors_handle, gameData->renderer);
+        s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
+        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->renderer);
 
         // Chat box UI
         Clay_BeginLayout();
@@ -434,6 +435,6 @@ cleanup:
     free(chatHistoryBuffer);
 
     Game_Data_Free(&gameData);
-    
+
     return 0;
 }
