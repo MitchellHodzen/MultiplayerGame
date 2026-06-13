@@ -48,6 +48,23 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     return true;
 }
 
+bool AddFloatingTextBox(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
+{
+    if (ECDB_CreateEntity(ec, entityId) == false)
+    {
+        SDL_Log("Couldn't create floating text box");
+        return false;
+    }
+
+    struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->transforms_handle);
+    entityTransform->position = position;
+    entityTransform->parent_id = parentId;
+    char* text = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->text_handle);
+    strcpy(text, input_str);
+    SDL_Log("text len: %i, textlen copy %i", strlen(input_str), strlen(text));
+    return true;
+}
+
 void LogClayErrors(Clay_ErrorData errorData) {
     SDL_Log("%s", errorData.errorText.chars);
 }
@@ -117,7 +134,8 @@ int main(int argc, char* args[])
 {
     bool quit = false;
     struct Game_Data* gameData = NULL;
-    if(Game_Data_Init(&gameData, SCREEN_WIDTH, SCREEN_HEIGHT, ENTITY_COUNT, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
+    struct Init_Vars init_vars = { .screen_width = SCREEN_WIDTH, .screen_height = SCREEN_HEIGHT, .max_entities = ENTITY_COUNT, .max_chat_size = CHAT_MAX_SIZE };
+    if(Game_Data_Init(&gameData, &init_vars, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
     {
         SDL_Log("Initialization Successful");
     }
@@ -170,21 +188,10 @@ int main(int argc, char* args[])
         SDL_Log("Failed to create player copy");
     }
 
-    // create a red square above the player that is parented to show parenting works
-    int childOfPlayer;
-    if (ECDB_CreateEntity(gameData->ec, &childOfPlayer))
+    int floatingTextbox;
+    if (!AddFloatingTextBox(gameData->ec, &gameData->componentHandles, localPlayerCopy, (struct Vector2){ joinGamePacket.position.x, joinGamePacket.position.y - 250}, "hello world", &floatingTextbox))
     {
-        struct C_Transform* entityTransform = ECDB_EnableEntityComponent(gameData->ec, childOfPlayer, gameData->componentHandles.transforms_handle);
-        entityTransform->position.x = joinGamePacket.position.x;
-        entityTransform->position.y = joinGamePacket.position.y - 250;
-        entityTransform->parent_id = localPlayerCopy;
-        SDL_FColor* entityCol = ECDB_EnableEntityComponent(gameData->ec, childOfPlayer, gameData->componentHandles.colors_handle);
-        SDL_FColor red = (SDL_FColor){0.89f, 0.494f, 0.38f, SDL_ALPHA_OPAQUE_FLOAT};
-        memcpy(entityCol, &red, sizeof(SDL_FColor));
-    }
-    else
-    {
-        SDL_Log("couldnt create player child");
+        SDL_Log("Failed to create floating text box");
     }
 
     // Chat 
@@ -386,7 +393,7 @@ int main(int argc, char* args[])
 
         s_apply_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
         s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
-        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->renderer);
+        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->renderer);
 
         // Chat box UI
         Clay_BeginLayout();

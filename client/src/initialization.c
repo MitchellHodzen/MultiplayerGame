@@ -8,9 +8,9 @@
 #include "component_transform.h"
 #include <clay.h>
 
-bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
+bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 3))
+    if (!ECDB_Init(ecdb, entityCount, 4))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -37,6 +37,14 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         ECDB_Free(ecdb);
         return false;
     }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(char) * (max_chat_size + 1), &(componentHandles->text_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize text component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
     return true;
 }
 
@@ -91,25 +99,20 @@ bool LoadFont(TTF_Font** font, const char* path)
 
 bool InitializeClay(void** clayArena, TTF_Font* font, int screenWidth, int screenHeight, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config))
 {
-    SDL_Log("clay alloc");
     uint64_t totalMemorySize = Clay_MinMemorySize();
-    SDL_Log("clay alloc mem size: %i", totalMemorySize);
     *clayArena = malloc(totalMemorySize);
-    SDL_Log("malloc done");
     if ((*clayArena) == NULL)
     {
         SDL_Log("Could not allocate memory for Clay arena");
         return false;
     }
 
-    SDL_Log("clay init");
     Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, *clayArena), (Clay_Dimensions) { screenWidth, screenHeight }, errorHandler);
-    SDL_Log("clay measure text set");
     Clay_SetMeasureTextFunction(measureTextFunction, font);
     return true;
 }
 
-bool Game_Data_Init(struct Game_Data** gameData, int screenWidth, int screenHeight, int entityCount, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config))
+bool Game_Data_Init(struct Game_Data** gameData, struct Init_Vars* init_vars, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config))
 {
     *gameData = (struct Game_Data*) malloc(sizeof(struct Game_Data));
     if (*gameData == NULL)
@@ -118,7 +121,7 @@ bool Game_Data_Init(struct Game_Data** gameData, int screenWidth, int screenHeig
         return false;
     }
 
-    if (InitializeSDL(&(*gameData)->window, &(*gameData)->renderer, &(*gameData)->textEngine, screenWidth, screenHeight))
+    if (InitializeSDL(&(*gameData)->window, &(*gameData)->renderer, &(*gameData)->textEngine, init_vars->screen_width, init_vars->screen_height))
     {
         SDL_Log("SDL Initialized");
     }
@@ -138,7 +141,7 @@ bool Game_Data_Init(struct Game_Data** gameData, int screenWidth, int screenHeig
         return false;
     }
 
-    if (InitializeClay(&(*gameData)->clayArena, (*gameData)->font, screenWidth, screenHeight, errorHandler, measureTextFunction))
+    if (InitializeClay(&(*gameData)->clayArena, (*gameData)->font, init_vars->screen_width, init_vars->screen_height, errorHandler, measureTextFunction))
     {
         SDL_Log("Clay Initialized");
     }
@@ -148,7 +151,7 @@ bool Game_Data_Init(struct Game_Data** gameData, int screenWidth, int screenHeig
         return false;
     }
 
-    if (InitializeECDB(&(*gameData)->ec, &(*gameData)->componentHandles, entityCount))
+    if (InitializeECDB(&(*gameData)->ec, &(*gameData)->componentHandles, init_vars->max_entities, init_vars->max_chat_size))
     {
         SDL_Log("ECDB Initialized");
     }

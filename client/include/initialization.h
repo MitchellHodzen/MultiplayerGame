@@ -11,6 +11,14 @@ struct TTF_TextEngine;
 struct TTF_Font;
 struct Net_Manager;
 
+struct Init_Vars
+{
+    unsigned int screen_width;
+    unsigned int screen_height;
+    unsigned int max_entities;
+    unsigned int max_chat_size;
+};
+
 struct Game_Data
 {
     struct SDL_Window* window;
@@ -23,7 +31,7 @@ struct Game_Data
     struct Net_Manager* netManager;
 };
 
-bool Game_Data_Init(struct Game_Data** gameData, int screenWidth, int screenHeight, int entityCount, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config));
+bool Game_Data_Init(struct Game_Data** gameData, struct Init_Vars* init_vars, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config));
 void Game_Data_Free(struct Game_Data** gameData);
 
 #endif /* INIT_DEF */
