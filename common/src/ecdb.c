@@ -88,7 +88,7 @@ bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxCom
     return true;
 }
 
-bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* componentHandle)
+bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* componentHandle, void* defaultValue)
 {
     // Check if we can add another component
     if (ecdb->_componentCount >= ecdb->_maxComponents)
@@ -102,6 +102,7 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     if (componentArray == NULL)
     {
         // couldn't instantiate the component array
+        *componentHandle = ecdb->invalidComponentId;
         return false;
     }
     bool* componentValidArray = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
@@ -109,7 +110,16 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     {
         // couldn't instantiate the component validity array
         free(componentArray); // Since we created the component array, but total initialization failed, free it
+        *componentHandle = ecdb->invalidComponentId;
         return false;
+    }
+
+    // If there is a default value provided, save it
+    if (defaultValue != NULL)
+    {
+        // Store the default value at the invalid entity, as that should never change
+        void* comp = ((char*)componentArray) + (ecdb->invalidEntityId * componentSize);
+        memcpy(comp, defaultValue, componentSize);
     }
 
     // Add the components array to the component array collections
@@ -168,11 +178,14 @@ void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentH
         return ECDB_GetEntityComponent(ecdb, entityId, componentHandle);
     }
 
-    // Zero out the component in the array that exists already
+    // Get a pointer to the component
     void* componentArray = ecdb->_componentArrays[componentHandle];
     size_t componentSize = ecdb->_componentSizes[componentHandle];
     void* component = ((char*)componentArray) + (entityId * componentSize);
-    memset(component, 0, componentSize);
+
+    // Set the component value to the default, which is held at the invalidEntity index
+    void* defaultComponent = ((char*)componentArray) + (ecdb->invalidEntityId * componentSize);
+    memcpy(component, defaultComponent, componentSize);
 
     // Set the entity to have the component
     ecdb->_componentValidArrays[componentHandle][entityId] = true;

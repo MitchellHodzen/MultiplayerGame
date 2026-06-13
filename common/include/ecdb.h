@@ -20,7 +20,7 @@ struct ECDB
 };
 
 bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxComponents);
-bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* componentHandle);
+bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* componentHandle, void* defaultValue);
 bool ECDB_CreateEntity(struct ECDB* ecdb, int* entityId);
 void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId);
 bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int componentHandle);

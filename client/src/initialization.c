@@ -16,21 +16,22 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Transform), &(componentHandles->transforms_handle)))
+    struct C_Transform defaultTransform = {.parent_id = (*ecdb)->invalidEntityId};
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Transform), &(componentHandles->transforms_handle), &defaultTransform))
     {
         SDL_Log("Couldn't initialize transform component");
         ECDB_Free(ecdb);
         return false;
     }
 
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(SDL_FColor), &(componentHandles->colors_handle)))
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(SDL_FColor), &(componentHandles->colors_handle), NULL))
     {
         SDL_Log("Couldn't initialize colors component");
         ECDB_Free(ecdb);
         return false;
     }
     
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Input), &(componentHandles->inputs_handle)))
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Input), &(componentHandles->inputs_handle), NULL))
     {
         SDL_Log("Couldn't initialize input component");
         ECDB_Free(ecdb);
