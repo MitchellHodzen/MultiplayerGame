@@ -1,10 +1,11 @@
 #include <SDL3/SDL.H>
+#include <SDL3_ttf/SDL_ttf.h>
 #include "system_movement.h"
 #include "vector2.h"
 #include "component_transform.h"
 #include "ecdb.h"
 
-void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, SDL_Renderer* renderer)
+void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
 {
     // Clear previous render before drawing
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
@@ -30,7 +31,26 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
         // draw text
         if(ECDB_EntityHasComponent(ec, i, transforms_handle) && ECDB_EntityHasComponent(ec, i, texts_handle))
         {
-            printf("EntityId: %i Text \"%s\" at (%f,%f)\n", i, texts[i], transforms[i].position.x, transforms[i].position.y);
+            // TODO: Terrible, do not create a ttf text each loop entry
+            TTF_Text* text = TTF_CreateText(textEngine, font, texts[i], 0); // 0 length for null terminated
+
+            // Offset the position based on the text size
+            int textWidth, textHeight;
+            if (TTF_GetTextSize(text, &textWidth, &textHeight))
+            {
+                // transform position is the center of the text, so offset the x by half
+                float newXPos = transforms[i].position.x - (textWidth / 2);
+                if (!TTF_DrawRendererText(text, newXPos, transforms[i].position.y))
+                {
+                    SDL_Log("Failed to render text: %s", SDL_GetError());
+                }
+            }
+            else
+            {
+                SDL_Log("Failed to get text dimsensions: %s", SDL_GetError());
+
+            }
+            TTF_DestroyText(text);
         }
     }
 }

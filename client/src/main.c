@@ -61,7 +61,6 @@ bool AddFloatingTextBox(struct ECDB* ec, struct Component_Handles* componentHand
     entityTransform->parent_id = parentId;
     char* text = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->text_handle);
     strcpy(text, input_str);
-    SDL_Log("text len: %i, textlen copy %i", strlen(input_str), strlen(text));
     return true;
 }
 
@@ -189,7 +188,7 @@ int main(int argc, char* args[])
     }
 
     int floatingTextbox;
-    if (!AddFloatingTextBox(gameData->ec, &gameData->componentHandles, localPlayerCopy, (struct Vector2){ joinGamePacket.position.x, joinGamePacket.position.y - 250}, "hello world", &floatingTextbox))
+    if (!AddFloatingTextBox(gameData->ec, &gameData->componentHandles, localPlayerCopy, (struct Vector2){ joinGamePacket.position.x, joinGamePacket.position.y - 150}, "hello world", &floatingTextbox))
     {
         SDL_Log("Failed to create floating text box");
     }
@@ -393,7 +392,7 @@ int main(int argc, char* args[])
 
         s_apply_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
         s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
-        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->renderer);
+        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->font, gameData->textEngine, gameData->renderer);
 
         // Chat box UI
         Clay_BeginLayout();
