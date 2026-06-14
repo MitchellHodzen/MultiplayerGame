@@ -18,39 +18,54 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
     char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->_componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
-        // draw squares
-        if(ECDB_EntityHasComponent(ec, i, colors_handle) && ECDB_EntityHasComponent(ec, i, transforms_handle))
+        // Only draw if there is a position
+        if (ECDB_EntityHasComponent(ec, i, transforms_handle))
         {
-            float halfLength = length / 2;
-            SDL_FColor color = colors[i];
-            SDL_FRect rect = { .x = transforms[i].position.x - halfLength, .y = transforms[i].position.y - halfLength, .w = length, .h = length};
-            SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
-            SDL_RenderFillRect(renderer, &rect);
-        }
+            // Calculate the position in global space
+            struct Vector2 global_position = { .x = transforms[i].position.x, .y = transforms[i].position.y };
 
-        // draw text
-        if(ECDB_EntityHasComponent(ec, i, transforms_handle) && ECDB_EntityHasComponent(ec, i, texts_handle))
-        {
-            // TODO: Terrible, do not create a ttf text each loop entry
-            TTF_Text* text = TTF_CreateText(textEngine, font, texts[i], 0); // 0 length for null terminated
-
-            // Offset the position based on the text size
-            int textWidth, textHeight;
-            if (TTF_GetTextSize(text, &textWidth, &textHeight))
+            // TODO: This is temporary, only works for one parent, and is cache thrashing
+            unsigned int parentId = transforms[i].parent_id;
+            if(ECDB_EntityHasComponent(ec, parentId, transforms_handle))
             {
-                // transform position is the center of the text, so offset the x by half
-                float newXPos = transforms[i].position.x - (textWidth / 2);
-                if (!TTF_DrawRendererText(text, newXPos, transforms[i].position.y))
+                global_position.x += transforms[parentId].position.x;
+                global_position.y += transforms[parentId].position.y;
+            }
+
+            // draw squares
+            if(ECDB_EntityHasComponent(ec, i, colors_handle))
+            {
+                float halfLength = length / 2;
+                SDL_FColor color = colors[i];
+                SDL_FRect rect = { .x = global_position.x - halfLength, .y = global_position.y - halfLength, .w = length, .h = length};
+                SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
+                SDL_RenderFillRect(renderer, &rect);
+            }
+
+            // draw text
+            if(ECDB_EntityHasComponent(ec, i, texts_handle))
+            {
+                // TODO: Terrible, do not create a ttf text each loop entry
+                TTF_Text* text = TTF_CreateText(textEngine, font, texts[i], 0); // 0 length for null terminated
+
+                // Offset the position based on the text size
+                int textWidth, textHeight;
+                if (TTF_GetTextSize(text, &textWidth, &textHeight))
                 {
-                    SDL_Log("Failed to render text: %s", SDL_GetError());
+                    // transform position is the center of the text, so offset the x by half
+                    float newXPos = global_position.x - (textWidth / 2);
+                    if (!TTF_DrawRendererText(text, newXPos, global_position.y))
+                    {
+                        SDL_Log("Failed to render text: %s", SDL_GetError());
+                    }
                 }
-            }
-            else
-            {
-                SDL_Log("Failed to get text dimsensions: %s", SDL_GetError());
+                else
+                {
+                    SDL_Log("Failed to get text dimsensions: %s", SDL_GetError());
 
+                }
+                TTF_DestroyText(text);
             }
-            TTF_DestroyText(text);
         }
     }
 }

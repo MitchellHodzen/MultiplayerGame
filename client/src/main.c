@@ -66,7 +66,7 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     if (playerName != NULL)
     {
         int nameplate;
-        if (!AddFloatingTextBox(ec, componentHandles, *entityId, (struct Vector2){ entityTransform->position.x, entityTransform->position.y + 100}, playerName, &nameplate))
+        if (!AddFloatingTextBox(ec, componentHandles, *entityId, (struct Vector2){ 0, 100}, playerName, &nameplate))
         {
             SDL_Log("Failed to create nameplate for entity %i", *entityId);
         }
@@ -177,7 +177,7 @@ int main(int argc, char* args[])
     }
 
     int playerId;
-    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId, NULL))
+    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId, "You"))
     {
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
@@ -188,7 +188,7 @@ int main(int argc, char* args[])
 
     // create a local copy of the player so we can see movement divergence
     int localPlayerCopy;
-    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy, "You"))
+    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy, NULL))
     {
         struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, localPlayerCopy, gameData->componentHandles.inputs_handle);
         entityInput->speed=100;
