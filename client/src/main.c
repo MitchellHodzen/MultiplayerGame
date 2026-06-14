@@ -33,21 +33,6 @@ enum Command_Contex
     COMMAND_CHAT,
 };
 
-bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, int* entityId)
-{
-    if (ECDB_CreateEntity(ec, entityId) == false)
-    {
-        SDL_Log("Couldn't create square");
-        return false;
-    }
-
-    struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->transforms_handle);
-    entityTransform->position = position;
-    SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
-    memcpy(entityCol, &color, sizeof(SDL_FColor));
-    return true;
-}
-
 bool AddFloatingTextBox(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
@@ -61,6 +46,32 @@ bool AddFloatingTextBox(struct ECDB* ec, struct Component_Handles* componentHand
     entityTransform->parent_id = parentId;
     char* text = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->text_handle);
     strcpy(text, input_str);
+    return true;
+}
+
+bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, int* entityId, char* playerName)
+{
+    if (ECDB_CreateEntity(ec, entityId) == false)
+    {
+        SDL_Log("Couldn't create square");
+        return false;
+    }
+
+    struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->transforms_handle);
+    entityTransform->position = position;
+    SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
+    memcpy(entityCol, &color, sizeof(SDL_FColor));
+    
+    // If a name was passed in, create a nameplate entity underneath the square
+    if (playerName != NULL)
+    {
+        int nameplate;
+        if (!AddFloatingTextBox(ec, componentHandles, *entityId, (struct Vector2){ entityTransform->position.x, entityTransform->position.y + 100}, playerName, &nameplate))
+        {
+            SDL_Log("Failed to create nameplate for entity %i", *entityId);
+        }
+    }
+
     return true;
 }
 
@@ -166,7 +177,7 @@ int main(int argc, char* args[])
     }
 
     int playerId;
-    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId))
+    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId, NULL))
     {
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
@@ -177,7 +188,7 @@ int main(int argc, char* args[])
 
     // create a local copy of the player so we can see movement divergence
     int localPlayerCopy;
-    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy))
+    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy, "You"))
     {
         struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, localPlayerCopy, gameData->componentHandles.inputs_handle);
         entityInput->speed=100;
@@ -185,12 +196,6 @@ int main(int argc, char* args[])
     else
     {
         SDL_Log("Failed to create player copy");
-    }
-
-    int floatingTextbox;
-    if (!AddFloatingTextBox(gameData->ec, &gameData->componentHandles, localPlayerCopy, (struct Vector2){ joinGamePacket.position.x, joinGamePacket.position.y - 150}, "hello world", &floatingTextbox))
-    {
-        SDL_Log("Failed to create floating text box");
     }
 
     // Chat 
@@ -238,7 +243,9 @@ int main(int argc, char* args[])
                             {
                                 // if we don't know about the entity, add it
                                 int entityId;
-                                if (AddSquare(gameData->ec, &gameData->componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId))
+                                char playerNameBuffer[10];
+                                int strlen = sprintf(playerNameBuffer, "Player %i", packetData->networkId);
+                                if (AddSquare(gameData->ec, &gameData->componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
                                 {
                                     Net_Add_Networked_Entity(gameData->netManager, entityId, packetData->networkId);
                                     SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
