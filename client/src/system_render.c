@@ -12,7 +12,7 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
     SDL_RenderClear(renderer);
 
     // Draw the squares
-    float length = 200;
+    float length = 75;
     struct C_Transform* transforms = (struct C_Transform*) ec->_componentArrays[transforms_handle];
     SDL_FColor* colors = (SDL_FColor*) ec->_componentArrays[colors_handle];
     char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->_componentArrays[texts_handle];

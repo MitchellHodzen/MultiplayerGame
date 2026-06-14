@@ -66,7 +66,7 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     if (playerName != NULL)
     {
         int nameplate;
-        if (!AddFloatingTextBox(ec, componentHandles, *entityId, (struct Vector2){ 0, 100}, playerName, &nameplate))
+        if (!AddFloatingTextBox(ec, componentHandles, *entityId, (struct Vector2){ 0, 40}, playerName, &nameplate))
         {
             SDL_Log("Failed to create nameplate for entity %i", *entityId);
         }
