@@ -7,10 +7,11 @@
 #include "component_input.h"
 #include "component_transform.h"
 #include <clay.h>
+#include "component_lifetime.h"
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 4))
+    if (!ECDB_Init(ecdb, entityCount, 5))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -41,6 +42,13 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(char) * (max_chat_size + 1), &(componentHandles->text_handle), NULL))
     {
         SDL_Log("Couldn't initialize text component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Lifetime), &(componentHandles->lifetimes_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize lifetime component");
         ECDB_Free(ecdb);
         return false;
     }

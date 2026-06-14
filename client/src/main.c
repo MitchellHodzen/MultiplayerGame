@@ -20,6 +20,8 @@
 #include "initialization.h"
 #include "component_handles.h"
 #include "component_transform.h"
+#include "component_lifetime.h"
+#include "system_lifetime.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -33,7 +35,7 @@ enum Command_Contex
     COMMAND_CHAT,
 };
 
-bool AddFloatingTextBox(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
+bool AddParentedText(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
     {
@@ -46,6 +48,20 @@ bool AddFloatingTextBox(struct ECDB* ec, struct Component_Handles* componentHand
     entityTransform->parent_id = parentId;
     char* text = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->text_handle);
     strcpy(text, input_str);
+    return true;
+}
+
+bool AddParentedTextWithLifetime(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, float lifetimeS, int* entityId)
+{
+    if (!AddParentedText(ec, componentHandles, parentId, position, input_str, entityId))
+    {
+        SDL_Log("Couldn't create floating text box");
+        return false;
+    }
+
+    // Delete after some time
+    struct C_Lifetime* lifetime = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->lifetimes_handle);
+    lifetime->lifetimeS = lifetimeS;
     return true;
 }
 
@@ -66,10 +82,16 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     if (playerName != NULL)
     {
         int nameplate;
-        if (!AddFloatingTextBox(ec, componentHandles, *entityId, (struct Vector2){ 0, 40}, playerName, &nameplate))
+        if (!AddParentedText(ec, componentHandles, *entityId, (struct Vector2){ 0, 50}, playerName, &nameplate))
         {
             SDL_Log("Failed to create nameplate for entity %i", *entityId);
         }
+    }
+
+    int joinedText;
+    if (!AddParentedTextWithLifetime(ec, componentHandles, *entityId, (struct Vector2){ 0, -60}, "Joined", 2, &joinedText))
+    {
+        SDL_Log("Failed to create joined text for entity %i", *entityId);
     }
 
     return true;
@@ -287,6 +309,11 @@ int main(int argc, char* args[])
                             else
                             {
                                 sprintf(chatHistoryBuffer[chatCount], "Player %i: %s", header->networkId, chatPointer);
+
+                                // Display text above character
+                                int localEntityId = gameData->netManager->networkIdEntityMap[header->networkId];
+                                int textMessageId;
+                                AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, chatPointer, 2, &textMessageId);
                             }
                             chatCount++; 
                         }
@@ -397,6 +424,8 @@ int main(int argc, char* args[])
             enet_peer_send(gameData->netManager->serverPeer, 0, packet);
         }
 
+        s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
+        s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
         s_apply_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
         s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->font, gameData->textEngine, gameData->renderer);

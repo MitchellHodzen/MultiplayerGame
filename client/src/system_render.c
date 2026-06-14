@@ -54,7 +54,8 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
                 {
                     // transform position is the center of the text, so offset the x by half
                     float newXPos = global_position.x - (textWidth / 2);
-                    if (!TTF_DrawRendererText(text, newXPos, global_position.y))
+                    float newYPos = global_position.y - (textHeight / 2);
+                    if (!TTF_DrawRendererText(text, newXPos, newYPos))
                     {
                         SDL_Log("Failed to render text: %s", SDL_GetError());
                     }

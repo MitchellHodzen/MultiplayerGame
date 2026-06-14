@@ -7,6 +7,7 @@ struct Component_Handles
     int colors_handle;
     int inputs_handle;
     int text_handle;
+    int lifetimes_handle;
 };
 
 #endif /* COMP_HANDLES */
