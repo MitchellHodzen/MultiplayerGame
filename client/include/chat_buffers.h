@@ -1,0 +1,19 @@
+#ifndef CHAT_BUFFERS_DEF
+#define CHAT_BUFFERS_DEF
+#include <stdbool.h>
+
+struct Chat_Buffers
+{
+    char* _chat_input_buffer;
+    char* _chat_history_buffer;
+    unsigned int _input_cursor;
+    unsigned int chat_history_count;
+    unsigned int max_chat_size;
+    unsigned int max_history_size;
+};
+
+bool Chat_Initialize(struct Chat_Buffers** chatBuffers, unsigned int max_chat_size, unsigned int max_history_size);
+char* Get_Message_At(struct Chat_Buffers* chatBuffers, unsigned int chat_history_index);
+void Chat_Free(struct Chat_Buffers** chatBuffers);
+
+#endif /* CHAT_BUFFERS_DEF */

@@ -2,6 +2,7 @@
 #include "component_handles.h"
 #include <SDL3/SDL.H>
 #include "ecdb.h"
+#include "chat_buffers.h"
 #include "vector2.h"
 #include "component_input.h"
 #include "component_transform.h"
@@ -78,7 +79,7 @@ bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** networkIdEntity
     }
 }
 
-bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsigned int max_chat_size)
+bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsigned int max_chat_size, unsigned int chat_history_size)
 {
     *gameData = (struct Game_Data*) malloc(sizeof(struct Game_Data));
     if (*gameData == NULL)
@@ -106,12 +107,26 @@ bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsi
         SDL_Log("Network Entity Tracking Initialization Failed");
         return false;
     }
+
+    if (Chat_Initialize(&(*gameData)->chat_buffers, max_chat_size, chat_history_size))
+    {
+        SDL_Log("Chat buffers Initialized");
+    }
+    else
+    {
+        SDL_Log("Chat buffers Initialization Failed");
+        return false;
+    }
+
     return true;
 }
 
 void Game_Data_Free(struct Game_Data** gameData)
 {
-    // Close up
+    SDL_Log("free chat");
+    Chat_Free(&(*gameData)->chat_buffers);
+    (*gameData)->chat_buffers = NULL;
+
     SDL_Log("free network entity tracking");
     free((*gameData)->networkIdEntityMap);
     (*gameData)->networkIdEntityMap = NULL;

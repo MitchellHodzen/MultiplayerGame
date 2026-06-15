@@ -24,6 +24,7 @@
 #include "system_lifetime.h"
 #include "window_state.h"
 #include "entity_builders.h"
+#include "chat_buffers.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -144,7 +145,7 @@ int main(int argc, char* args[])
     // Init game state based on server info
     struct Game_Data* gameData = NULL;
     unsigned int max_chat_length = joinGamePacket.max_chat_length;
-    if(Game_Data_Init(&gameData, joinGamePacket.max_entities, joinGamePacket.max_chat_length))
+    if(Game_Data_Init(&gameData, joinGamePacket.max_entities, joinGamePacket.max_chat_length, CHAT_HISTORY_SIZE))
     {
         SDL_Log("Game Data Initialization Successful");
     }
@@ -169,11 +170,6 @@ int main(int argc, char* args[])
     char* chatInputMessageBuffer = NULL;
     chatInputMessageBuffer = calloc(max_chat_length + 1, sizeof(char));
     unsigned int chatCursor = 0;
-
-    #define CHAT_MAX_SIZE 100
-    char (*chatHistoryBuffer)[CHAT_MAX_SIZE] = NULL; // TODO: Replace with server driven size
-    chatHistoryBuffer = calloc(CHAT_HISTORY_SIZE, CHAT_MAX_SIZE * sizeof(char));
-    int chatCount = 0;
     float previousChatBottom = 0;
 
     struct Vector2 direction = {.x = 0, .y = 0};
@@ -243,25 +239,25 @@ int main(int argc, char* args[])
                     }
                     case 1: // Chat packets
                     {
-                        if (chatCount < CHAT_HISTORY_SIZE)
+                        if (gameData->chat_buffers->chat_history_count < gameData->chat_buffers->max_history_size)
                         {
                             // Chat packets start with a header followed by the chat string
                             struct P_Chat_Header* header = (struct P_Chat_Header*)event.packet->data;
                             char* chatPointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
                             if (header->isServerMessage)
                             {
-                                sprintf(chatHistoryBuffer[chatCount], "Server: %s", chatPointer);
+                                sprintf(Get_Message_At(gameData->chat_buffers, gameData->chat_buffers->chat_history_count), "Server: %s", chatPointer);
                             }
                             else
                             {
-                                sprintf(chatHistoryBuffer[chatCount], "Player %i: %s", header->networkId, chatPointer);
+                                sprintf(Get_Message_At(gameData->chat_buffers, gameData->chat_buffers->chat_history_count), "Player %i: %s", header->networkId, chatPointer);
 
                                 // Display text above character
                                 int localEntityId = gameData->networkIdEntityMap[header->networkId];
                                 int textMessageId;
                                 AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, chatPointer, 2, &textMessageId);
                             }
-                            chatCount++; 
+                            gameData->chat_buffers->chat_history_count++;
                         }
 
                         break;
@@ -386,10 +382,10 @@ int main(int argc, char* args[])
                 CLAY(CLAY_ID("ChatHistoryContainer"), {
                 .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }
                 }) {
-                    for (int i = 0; i < chatCount; ++i)
+                    for (int i = 0; i < gameData->chat_buffers->chat_history_count; ++i)
                     {
                         CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
-                            CLAY_TEXT(((Clay_String) { .length = strlen(chatHistoryBuffer[i]), .chars = chatHistoryBuffer[i] }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                            CLAY_TEXT(((Clay_String) { .length = strlen(Get_Message_At(gameData->chat_buffers, i)), .chars = Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
                         }
                     }
 
@@ -438,7 +434,6 @@ disconnect:
 
 cleanup:
     free(chatInputMessageBuffer);
-    free(chatHistoryBuffer);
 
     Game_Data_Free(&gameData);
 
