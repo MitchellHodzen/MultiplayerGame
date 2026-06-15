@@ -113,7 +113,7 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    // Join the server
+    // Initialize networking
     struct Net_Manager* netManager;
     if (Net_Initialize(&netManager))
     {
@@ -128,19 +128,14 @@ int main(int argc, char* args[])
     ENetAddress address;
     enet_address_set_host (&address, "localhost");
     address.port = 1234;
-    if (Net_Try_Connect(netManager, &address))
+
+    // Join the server
+    struct P_JOIN_SERVER joinGamePacket;
+    if (Net_Join_Server(netManager, &address, &joinGamePacket))
     {
         SDL_Log("Connected to server Successfully");
     }
     else
-    {
-        SDL_Log("Connection to server Failed");
-        return 1;
-    }
-
-    // Request to join the game
-    struct P_JOIN_SERVER joinGamePacket;
-    if (Net_Join_Server(netManager, &joinGamePacket) == false)
     {
         SDL_Log("Connection to server Failed");
         return 1;
