@@ -23,6 +23,7 @@
 #include "component_lifetime.h"
 #include "system_lifetime.h"
 #include "window_state.h"
+#include "entity_builders.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -33,68 +34,6 @@ enum Command_Contex
     COMMAND_STANDARD,
     COMMAND_CHAT,
 };
-
-bool AddParentedText(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
-{
-    if (ECDB_CreateEntity(ec, entityId) == false)
-    {
-        SDL_Log("Couldn't create floating text box");
-        return false;
-    }
-
-    struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->transforms_handle);
-    entityTransform->position = position;
-    entityTransform->parent_id = parentId;
-    char* text = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->text_handle);
-    strcpy(text, input_str);
-    return true;
-}
-
-bool AddParentedTextWithLifetime(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, float lifetimeS, int* entityId)
-{
-    if (!AddParentedText(ec, componentHandles, parentId, position, input_str, entityId))
-    {
-        SDL_Log("Couldn't create floating text box");
-        return false;
-    }
-
-    // Delete after some time
-    struct C_Lifetime* lifetime = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->lifetimes_handle);
-    lifetime->lifetimeS = lifetimeS;
-    return true;
-}
-
-bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, int* entityId, char* playerName)
-{
-    if (ECDB_CreateEntity(ec, entityId) == false)
-    {
-        SDL_Log("Couldn't create square");
-        return false;
-    }
-
-    struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->transforms_handle);
-    entityTransform->position = position;
-    SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
-    memcpy(entityCol, &color, sizeof(SDL_FColor));
-    
-    // If a name was passed in, create a nameplate entity underneath the square
-    if (playerName != NULL)
-    {
-        int nameplate;
-        if (!AddParentedText(ec, componentHandles, *entityId, (struct Vector2){ 0, 50}, playerName, &nameplate))
-        {
-            SDL_Log("Failed to create nameplate for entity %i", *entityId);
-        }
-    }
-
-    int joinedText;
-    if (!AddParentedTextWithLifetime(ec, componentHandles, *entityId, (struct Vector2){ 0, -60}, "Joined", 2, &joinedText))
-    {
-        SDL_Log("Failed to create joined text for entity %i", *entityId);
-    }
-
-    return true;
-}
 
 struct Vector2 Get_Direction_From_Input_State()
 {
@@ -229,18 +168,6 @@ int main(int argc, char* args[])
 
     Add_Networked_Entity(gameData, playerId, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
-
-    // create a local copy of the player so we can see movement divergence
-    int localPlayerCopy;
-    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &localPlayerCopy, NULL))
-    {
-        struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, localPlayerCopy, gameData->componentHandles.inputs_handle);
-        entityInput->speed=100;
-    }
-    else
-    {
-        SDL_Log("Failed to create player copy");
-    }
 
     // Chat 
     char* chatInputMessageBuffer = NULL;
