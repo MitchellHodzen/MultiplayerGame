@@ -52,7 +52,23 @@ bool LoadFont(TTF_Font** font, const char* path)
     return true;
 }
 
-bool InitializeClay(void** clayArena, TTF_Font* font, int screenWidth, int screenHeight, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config))
+void LogClayErrors(Clay_ErrorData errorData) {
+    SDL_Log("%s", errorData.errorText.chars);
+}
+
+static inline Clay_Dimensions SDL_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData)
+{
+    TTF_Font *font = userData; // Only one font
+    int width, height;
+
+    TTF_SetFontSize(font, config->fontSize);
+    if (!TTF_GetStringSize(font, text.chars, text.length, &width, &height)) {
+        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to measure text: %s", SDL_GetError());
+    }
+    return (Clay_Dimensions) { (float) width, (float) height };
+}
+
+bool InitializeClay(void** clayArena, TTF_Font* font, int screenWidth, int screenHeight)
 {
     uint64_t totalMemorySize = Clay_MinMemorySize();
     *clayArena = malloc(totalMemorySize);
@@ -62,12 +78,12 @@ bool InitializeClay(void** clayArena, TTF_Font* font, int screenWidth, int scree
         return false;
     }
 
-    Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, *clayArena), (Clay_Dimensions) { screenWidth, screenHeight }, errorHandler);
-    Clay_SetMeasureTextFunction(measureTextFunction, font);
+    Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, *clayArena), (Clay_Dimensions) { screenWidth, screenHeight }, (Clay_ErrorHandler) { LogClayErrors });
+    Clay_SetMeasureTextFunction(SDL_MeasureText, font);
     return true;
 }
 
-bool Window_State_Init(struct Window_State** window_state, unsigned int screen_width, unsigned int screen_height, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config))
+bool Window_State_Init(struct Window_State** window_state, unsigned int screen_width, unsigned int screen_height)
 {
     *window_state = (struct Window_State*) malloc(sizeof(struct Window_State));
     if (*window_state == NULL)
@@ -96,7 +112,7 @@ bool Window_State_Init(struct Window_State** window_state, unsigned int screen_w
         return false;
     }
 
-    if (InitializeClay(&(*window_state)->clayArena, (*window_state)->font, screen_width, screen_height, errorHandler, measureTextFunction))
+    if (InitializeClay(&(*window_state)->clayArena, (*window_state)->font, screen_width, screen_height))
     {
         SDL_Log("Clay Initialized");
     }

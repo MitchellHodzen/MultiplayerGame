@@ -96,22 +96,6 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     return true;
 }
 
-void LogClayErrors(Clay_ErrorData errorData) {
-    SDL_Log("%s", errorData.errorText.chars);
-}
-
-static inline Clay_Dimensions SDL_MeasureText(Clay_StringSlice text, Clay_TextElementConfig *config, void *userData)
-{
-    TTF_Font *font = userData; // Only one font
-    int width, height;
-
-    TTF_SetFontSize(font, config->fontSize);
-    if (!TTF_GetStringSize(font, text.chars, text.length, &width, &height)) {
-        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Failed to measure text: %s", SDL_GetError());
-    }
-    return (Clay_Dimensions) { (float) width, (float) height };
-}
-
 struct Vector2 Get_Direction_From_Input_State()
 {
     const bool* keyboardStates = SDL_GetKeyboardState(NULL);
@@ -179,7 +163,7 @@ int main(int argc, char* args[])
 
     // Init window
     struct Window_State* window_state = NULL;
-    if(Window_State_Init(&window_state, SCREEN_WIDTH, SCREEN_HEIGHT, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
+    if(Window_State_Init(&window_state, SCREEN_WIDTH, SCREEN_HEIGHT))
     {
         SDL_Log("Window initialization Successful");
     }

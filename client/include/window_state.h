@@ -1,7 +1,6 @@
 #ifndef WINDOW_STATE_DEF
 #define WINDOW_STATE_DEF
 #include <stdbool.h>
-#include <clay.h>
 
 struct SDL_Window;
 struct SDL_Renderer;
@@ -17,7 +16,7 @@ struct Window_State
     void* clayArena;
 };
 
-bool Window_State_Init(struct Window_State** window_state, unsigned int screen_width, unsigned int screen_height, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config));
+bool Window_State_Init(struct Window_State** window_state, unsigned int screen_width, unsigned int screen_height);
 void Window_State_Free(struct Window_State** window_state);
 
 #endif /* WINDOW_STATE_DEF */
