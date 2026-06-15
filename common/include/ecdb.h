@@ -25,6 +25,7 @@ bool ECDB_CreateEntity(struct ECDB* ecdb, int* entityId);
 void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId);
 bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int componentHandle);
 void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle);
+void ECDB_DisableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle);
 void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle);
 void ECDB_Free(struct ECDB** ecdb);
 

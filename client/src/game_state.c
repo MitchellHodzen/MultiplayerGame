@@ -9,7 +9,7 @@
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 5))
+    if (!ECDB_Init(ecdb, entityCount, 6))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -51,15 +51,21 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(unsigned int), &(componentHandles->network_id_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize network id component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
     return true;
 }
 
-bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** entityNetworkIdMap, unsigned int** networkIdEntityMap)
+bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** networkIdEntityMap)
 {
     unsigned int mapSize = sizeof(unsigned int) * (ecdb->_maxEntities + 1); // Add 1 for the invalid index
-    *entityNetworkIdMap = malloc(mapSize);
     *networkIdEntityMap = malloc(mapSize);
-    if (*entityNetworkIdMap == NULL || *networkIdEntityMap == NULL)
+    if (*networkIdEntityMap == NULL)
     {
         printf("Allocation of entity tracking data structures failed\n");
         return false;
@@ -68,7 +74,6 @@ bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** entityNetworkId
     // for each network ID, set the value to the invalid value
     for(unsigned int i = 0; i < ecdb->_maxEntities + 1; i++)
     {
-        (*entityNetworkIdMap)[i] = ecdb->invalidEntityId;
         (*networkIdEntityMap)[i] = ecdb->invalidEntityId;
     }
 }
@@ -92,7 +97,7 @@ bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsi
         return false;
     }
 
-    if (InitializeNetworkTracking((*gameData)->ec, &(*gameData)->entityNetworkIdMap, &(*gameData)->networkIdEntityMap))
+    if (InitializeNetworkTracking((*gameData)->ec, &(*gameData)->networkIdEntityMap))
     {
         SDL_Log("Network Entity Tracking Initialized");
     }
@@ -108,8 +113,6 @@ void Game_Data_Free(struct Game_Data** gameData)
 {
     // Close up
     SDL_Log("free network entity tracking");
-    free((*gameData)->entityNetworkIdMap);
-    (*gameData)->entityNetworkIdMap = NULL;
     free((*gameData)->networkIdEntityMap);
     (*gameData)->networkIdEntityMap = NULL;
 

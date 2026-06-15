@@ -9,7 +9,6 @@ struct Game_Data
 {
     struct ECDB* ec;
     struct Component_Handles componentHandles;
-    unsigned int* entityNetworkIdMap;
     unsigned int* networkIdEntityMap;
 };
 

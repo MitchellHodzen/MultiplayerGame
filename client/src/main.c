@@ -84,15 +84,16 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
     return COMMAND_CHAT;
 }
 
-void Add_Networked_Entity(struct Game_Data* gameData, unsigned int entityId, unsigned int networkId)
+void Add_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int network_id_handle, unsigned int entityId, unsigned int networkId)
 {
-    gameData->entityNetworkIdMap[entityId] = networkId;
+    unsigned int* network_id_comp = ECDB_EnableEntityComponent(ecdb, entityId, network_id_handle);
+    *network_id_comp = networkId;
     gameData->networkIdEntityMap[networkId] = entityId;
 }
 
-void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, unsigned int entityId, unsigned int networkId)
+void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int network_id_handle, unsigned int entityId, unsigned int networkId)
 {
-    gameData->entityNetworkIdMap[entityId] = ecdb->invalidEntityId;
+    ECDB_DisableEntityComponent(ecdb, entityId, network_id_handle);
     gameData->networkIdEntityMap[networkId] = ecdb->invalidEntityId;
 }
 
@@ -166,7 +167,7 @@ int main(int argc, char* args[])
         goto disconnect;
     }
 
-    Add_Networked_Entity(gameData, playerId, joinGamePacket.network_id);
+    Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, playerId, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
     // Chat 
@@ -219,7 +220,7 @@ int main(int argc, char* args[])
                                 int strlen = sprintf(playerNameBuffer, "Player %i", packetData->networkId);
                                 if (AddSquare(gameData->ec, &gameData->componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
                                 {
-                                    Add_Networked_Entity(gameData, entityId, packetData->networkId);
+                                    Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, packetData->networkId);
                                     SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
                                 }
                                 else
@@ -369,7 +370,8 @@ int main(int argc, char* args[])
         if (directionChanged)
         {
             // If input has been given, send an input packet
-            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = gameData->entityNetworkIdMap[playerId], .direction = direction};
+            unsigned int* entityId = ECDB_GetEntityComponent(gameData->ec, playerId, gameData->componentHandles.network_id_handle);
+            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = *entityId, .direction = direction};
             ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), 0);
             enet_peer_send(netManager->serverPeer, 0, packet);
         }

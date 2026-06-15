@@ -158,7 +158,7 @@ void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId)
     // Disable all components for the entity
     for (int componentHandle = 0; componentHandle < ecdb->_maxComponents; ++componentHandle)
     {
-        ecdb->_componentValidArrays[componentHandle][entityId] = false;
+        ECDB_DisableEntityComponent(ecdb, entityId, componentHandle);
     }
 
     // Make the entity Id available for use again
@@ -190,6 +190,12 @@ void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentH
     // Set the entity to have the component
     ecdb->_componentValidArrays[componentHandle][entityId] = true;
     return component;
+}
+
+void ECDB_DisableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle)
+{
+    // Disable the component for the entity
+    ecdb->_componentValidArrays[componentHandle][entityId] = false;
 }
 
 void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)

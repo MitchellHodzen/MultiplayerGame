@@ -3,6 +3,7 @@
 
 struct Component_Handles
 {
+    int network_id_handle;
     int transforms_handle;
     int colors_handle;
     int inputs_handle;
