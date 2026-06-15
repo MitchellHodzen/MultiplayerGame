@@ -17,11 +17,12 @@
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 #include <clay_renderer_SDL3.c>
-#include "initialization.h"
+#include "game_state.h"
 #include "component_handles.h"
 #include "component_transform.h"
 #include "component_lifetime.h"
 #include "system_lifetime.h"
+#include "window_state.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -176,6 +177,18 @@ int main(int argc, char* args[])
 {
     bool quit = false;
 
+    // Init window
+    struct Window_State* window_state = NULL;
+    if(Window_State_Init(&window_state, SCREEN_WIDTH, SCREEN_HEIGHT, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
+    {
+        SDL_Log("Window initialization Successful");
+    }
+    else
+    {
+        SDL_Log("Window initialization Failed");
+        return 1;
+    }
+
     // Join the server
     struct Net_Manager* netManager;
     if (Net_Initialize(&netManager))
@@ -211,20 +224,19 @@ int main(int argc, char* args[])
 
     // Init game state based on server info
     struct Game_Data* gameData = NULL;
-    struct Init_Vars init_vars = { .screen_width = SCREEN_WIDTH, .screen_height = SCREEN_HEIGHT, .max_entities = joinGamePacket.max_entities, .max_chat_size = joinGamePacket.max_chat_length };
-    if(Game_Data_Init(&gameData, &init_vars, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
+    unsigned int max_chat_length = joinGamePacket.max_chat_length;
+    if(Game_Data_Init(&gameData, joinGamePacket.max_entities, joinGamePacket.max_chat_length))
     {
-        SDL_Log("Initialization Successful");
+        SDL_Log("Game Data Initialization Successful");
     }
     else
     {
-        SDL_Log("Initialization Failed");
+        SDL_Log("Game Data Initialization Failed");
         return 1;
     }
 
-    int playerNetworkId = joinGamePacket.network_id;
-
     int playerId;
+    SDL_Log("Adding square at position %f, %f", joinGamePacket.position.x, joinGamePacket.position.y);
     if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId, "You"))
     {
         SDL_Log("Failed to create player, disconnecting");
@@ -248,7 +260,7 @@ int main(int argc, char* args[])
 
     // Chat 
     char* chatInputMessageBuffer = NULL;
-    chatInputMessageBuffer = calloc(init_vars.max_chat_size + 1, sizeof(char));
+    chatInputMessageBuffer = calloc(max_chat_length + 1, sizeof(char));
     unsigned int chatCursor = 0;
 
     #define CHAT_MAX_SIZE 100
@@ -400,7 +412,7 @@ int main(int argc, char* args[])
             else if (command_context == COMMAND_CHAT)
             {
                 bool charWritten = false;
-                command_context = Handle_Chat_Input_Event(&e, chatInputMessageBuffer, &chatCursor, &charWritten, init_vars.max_chat_size);
+                command_context = Handle_Chat_Input_Event(&e, chatInputMessageBuffer, &chatCursor, &charWritten, max_chat_length);
                 if (command_context != COMMAND_CHAT)
                 {
                     // If we've stopped chatting, send the chat packet
@@ -455,7 +467,7 @@ int main(int argc, char* args[])
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
         s_apply_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
         s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
-        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->font, gameData->textEngine, gameData->renderer);
+        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
 
         // Chat box UI
         Clay_BeginLayout();
@@ -506,11 +518,11 @@ int main(int argc, char* args[])
         }
 
         Clay_RenderCommandArray renderCommands = Clay_EndLayout(deltaTimeS);
-        Clay_SDL3RendererData renderData = {.renderer = gameData->renderer, .textEngine = gameData->textEngine, .fonts = &gameData->font};
+        Clay_SDL3RendererData renderData = {.renderer = window_state->renderer, .textEngine = window_state->textEngine, .fonts = &window_state->font};
         SDL_Clay_RenderClayCommands(&renderData, &renderCommands);
 
         // Draw to screen
-        SDL_RenderPresent(gameData->renderer);
+        SDL_RenderPresent(window_state->renderer);
     }
 
 disconnect:
@@ -525,6 +537,8 @@ cleanup:
     Net_Free(&netManager);
     netManager = NULL;
     enet_deinitialize();
+
+    Window_State_Free(&window_state);
 
     return 0;
 }

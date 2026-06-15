@@ -17,8 +17,6 @@ struct Net_Manager
 bool Net_Initialize(struct Net_Manager** netManager);
 bool Net_Try_Connect(struct Net_Manager* netManager, struct _ENetAddress* address);
 bool Net_Join_Server(struct Net_Manager* netManager, struct P_JOIN_SERVER* output);
-void Net_Add_Networked_Entity(struct Net_Manager* netManager, unsigned int entityId, unsigned int networkId);
-void Net_Remove_Networked_Entity(struct Net_Manager* netManager, struct ECDB* ecdb, unsigned int entityId, unsigned int networkId);
 void Net_Disconnect(struct Net_Manager* netManager);
 void Net_Free(struct Net_Manager** netManager);
 
