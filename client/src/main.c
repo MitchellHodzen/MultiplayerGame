@@ -57,7 +57,7 @@ enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event)
     return COMMAND_STANDARD;
 }
 
-enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor, bool* charWritten, unsigned int chat_max_size)
+enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, struct Chat_Buffers* chat_buffers, bool* charWritten)
 {
     if( event->type == SDL_EVENT_KEY_DOWN)
     {
@@ -69,15 +69,7 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
         else
         {
             // Any other keys write to the chat buffer if it isn't full. TODO: sanitize input
-            if (*chatCursor < chat_max_size)
-            {
-                // buffer is chat max size + 1, so we can safely operate < chat max size
-                chatBuffer[*chatCursor] = event->key.key;
-                // always put the string end char after the cursor
-                chatBuffer[*chatCursor + 1] =  '\0';
-                (*chatCursor)++;
-                *charWritten = true;
-            }
+            *charWritten = Chat_Try_Write_To_Input(chat_buffers, event->key.key);
         }
     }
 
@@ -166,10 +158,7 @@ int main(int argc, char* args[])
     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, playerId, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
-    // Chat 
-    char* chatInputMessageBuffer = NULL;
-    chatInputMessageBuffer = calloc(max_chat_length + 1, sizeof(char));
-    unsigned int chatCursor = 0;
+    // Chat UI tracking
     float previousChatBottom = 0;
 
     struct Vector2 direction = {.x = 0, .y = 0};
@@ -315,24 +304,23 @@ int main(int argc, char* args[])
             else if (command_context == COMMAND_CHAT)
             {
                 bool charWritten = false;
-                command_context = Handle_Chat_Input_Event(&e, chatInputMessageBuffer, &chatCursor, &charWritten, max_chat_length);
+                command_context = Handle_Chat_Input_Event(&e, gameData->chat_buffers, &charWritten);
                 if (command_context != COMMAND_CHAT)
                 {
                     // If we've stopped chatting, send the chat packet
-                    int messageSize = (sizeof(char) * chatCursor) + 1; // Size is number of characters + the null termination character
-                    ENetPacket* chatPacket = enet_packet_create(chatInputMessageBuffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
+                    int messageSize = (sizeof(char) * gameData->chat_buffers->_input_cursor) + 1; // Size is number of characters + the null termination character
+                    ENetPacket* chatPacket = enet_packet_create(gameData->chat_buffers->chat_input_buffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
                     enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
 
                     // reset the buffer
-                    chatCursor = 0;
-                    chatInputMessageBuffer[0] =  '\0';
+                    Chat_Reset_Input_Buffer(gameData->chat_buffers);
 
                     printf("\n");
                 }
                 else if (charWritten)
                 {
                     // If still chatting, write the recent character to the console
-                    printf("%c", chatInputMessageBuffer[chatCursor - 1]); // Chat cursor is always at current char + 1
+                    printf("%c", gameData->chat_buffers->chat_input_buffer[gameData->chat_buffers->_input_cursor - 1]); // Chat cursor is always at current char + 1
                 }
             }
         }
@@ -416,7 +404,7 @@ int main(int argc, char* args[])
                         carrotAlpha = 255;
                     }
                     CLAY_TEXT(CLAY_STRING(">"), { .fontSize = 24, .textColor = {255, 255, 255, carrotAlpha} });
-                    CLAY_TEXT(((Clay_String) { .length = strlen(chatInputMessageBuffer), .chars = chatInputMessageBuffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                    CLAY_TEXT(((Clay_String) { .length = strlen(gameData->chat_buffers->chat_input_buffer), .chars = gameData->chat_buffers->chat_input_buffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
                 }
             }
         }
@@ -433,8 +421,6 @@ disconnect:
     Net_Disconnect(netManager);
 
 cleanup:
-    free(chatInputMessageBuffer);
-
     Game_Data_Free(&gameData);
 
     Net_Free(&netManager);

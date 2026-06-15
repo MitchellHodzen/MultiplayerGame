@@ -4,7 +4,7 @@
 
 struct Chat_Buffers
 {
-    char* _chat_input_buffer;
+    char* chat_input_buffer;
     char* _chat_history_buffer;
     unsigned int _input_cursor;
     unsigned int chat_history_count;
@@ -13,6 +13,8 @@ struct Chat_Buffers
 };
 
 bool Chat_Initialize(struct Chat_Buffers** chatBuffers, unsigned int max_chat_size, unsigned int max_history_size);
+void Chat_Reset_Input_Buffer(struct Chat_Buffers* chatBuffers);
+bool Chat_Try_Write_To_Input(struct Chat_Buffers* chatBuffers, char input);
 char* Get_Message_At(struct Chat_Buffers* chatBuffers, unsigned int chat_history_index);
 void Chat_Free(struct Chat_Buffers** chatBuffers);
 
