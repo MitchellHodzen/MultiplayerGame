@@ -28,7 +28,8 @@ struct Game_Data
     void* clayArena;
     struct ECDB* ec;
     struct Component_Handles componentHandles;
-    struct Net_Manager* netManager;
+    unsigned int* entityNetworkIdMap;
+    unsigned int* networkIdEntityMap;
 };
 
 bool Game_Data_Init(struct Game_Data** gameData, struct Init_Vars* init_vars, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config));

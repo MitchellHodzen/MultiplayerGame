@@ -5,10 +5,20 @@
 enum Packet_Type
 {
     REQUEST_JOIN,
+    JOIN_SERVER,
     ADD_SQUARE,
     INPUT_DIRECTION,
     UPDATE,
     UNUSED,
+};
+
+struct P_JOIN_SERVER
+{
+    enum Packet_Type type;
+    unsigned int max_entities;
+    unsigned int max_chat_length;
+    unsigned int network_id;
+    struct Vector2 position;
 };
 
 struct P_Add_Square

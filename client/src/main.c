@@ -25,8 +25,6 @@
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
-#define ENTITY_COUNT 100
-#define CHAT_MAX_SIZE 100
 #define CHAT_HISTORY_SIZE 50
 
 enum Command_Contex
@@ -134,7 +132,7 @@ enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event)
     return COMMAND_STANDARD;
 }
 
-enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor, bool* charWritten)
+enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, unsigned int* chatCursor, bool* charWritten, unsigned int chat_max_size)
 {
     if( event->type == SDL_EVENT_KEY_DOWN)
     {
@@ -146,7 +144,7 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
         else
         {
             // Any other keys write to the chat buffer if it isn't full. TODO: sanitize input
-            if (*chatCursor < CHAT_MAX_SIZE)
+            if (*chatCursor < chat_max_size)
             {
                 // buffer is chat max size + 1, so we can safely operate < chat max size
                 chatBuffer[*chatCursor] = event->key.key;
@@ -162,25 +160,38 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, char* chatBuffer, 
     return COMMAND_CHAT;
 }
 
+void Add_Networked_Entity(struct Game_Data* gameData, unsigned int entityId, unsigned int networkId)
+{
+    gameData->entityNetworkIdMap[entityId] = networkId;
+    gameData->networkIdEntityMap[networkId] = entityId;
+}
+
+void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, unsigned int entityId, unsigned int networkId)
+{
+    gameData->entityNetworkIdMap[entityId] = ecdb->invalidEntityId;
+    gameData->networkIdEntityMap[networkId] = ecdb->invalidEntityId;
+}
+
 int main(int argc, char* args[])
 {
     bool quit = false;
-    struct Game_Data* gameData = NULL;
-    struct Init_Vars init_vars = { .screen_width = SCREEN_WIDTH, .screen_height = SCREEN_HEIGHT, .max_entities = ENTITY_COUNT, .max_chat_size = CHAT_MAX_SIZE };
-    if(Game_Data_Init(&gameData, &init_vars, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
+
+    // Join the server
+    struct Net_Manager* netManager;
+    if (Net_Initialize(&netManager))
     {
-        SDL_Log("Initialization Successful");
+        SDL_Log("NetManager Initialized");
     }
     else
     {
-        SDL_Log("Initialization Failed");
+        SDL_Log("NetManager Initialization Failed");
         return 1;
     }
 
     ENetAddress address;
     enet_address_set_host (&address, "localhost");
     address.port = 1234;
-    if (Net_Try_Connect(gameData->netManager, &address))
+    if (Net_Try_Connect(netManager, &address))
     {
         SDL_Log("Connected to server Successfully");
     }
@@ -191,12 +202,27 @@ int main(int argc, char* args[])
     }
 
     // Request to join the game
-    struct P_Add_Square joinGamePacket;
-    if (Net_Join_Game(gameData->netManager, &joinGamePacket) == false)
+    struct P_JOIN_SERVER joinGamePacket;
+    if (Net_Join_Server(netManager, &joinGamePacket) == false)
     {
         SDL_Log("Connection to server Failed");
         return 1;
     }
+
+    // Init game state based on server info
+    struct Game_Data* gameData = NULL;
+    struct Init_Vars init_vars = { .screen_width = SCREEN_WIDTH, .screen_height = SCREEN_HEIGHT, .max_entities = joinGamePacket.max_entities, .max_chat_size = joinGamePacket.max_chat_length };
+    if(Game_Data_Init(&gameData, &init_vars, (Clay_ErrorHandler) { LogClayErrors }, SDL_MeasureText))
+    {
+        SDL_Log("Initialization Successful");
+    }
+    else
+    {
+        SDL_Log("Initialization Failed");
+        return 1;
+    }
+
+    int playerNetworkId = joinGamePacket.network_id;
 
     int playerId;
     if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId, "You"))
@@ -205,8 +231,8 @@ int main(int argc, char* args[])
         goto disconnect;
     }
 
-    Net_Add_Networked_Entity(gameData->netManager, playerId, joinGamePacket.networkId);
-    SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.networkId);
+    Add_Networked_Entity(gameData, playerId, joinGamePacket.network_id);
+    SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
     // create a local copy of the player so we can see movement divergence
     int localPlayerCopy;
@@ -222,10 +248,11 @@ int main(int argc, char* args[])
 
     // Chat 
     char* chatInputMessageBuffer = NULL;
-    chatInputMessageBuffer = calloc(CHAT_MAX_SIZE + 1, sizeof(char));
+    chatInputMessageBuffer = calloc(init_vars.max_chat_size + 1, sizeof(char));
     unsigned int chatCursor = 0;
 
-    char (*chatHistoryBuffer)[CHAT_MAX_SIZE] = NULL;
+    #define CHAT_MAX_SIZE 100
+    char (*chatHistoryBuffer)[CHAT_MAX_SIZE] = NULL; // TODO: Replace with server driven size
     chatHistoryBuffer = calloc(CHAT_HISTORY_SIZE, CHAT_MAX_SIZE * sizeof(char));
     int chatCount = 0;
     float previousChatBottom = 0;
@@ -245,7 +272,7 @@ int main(int argc, char* args[])
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
         // Get network events
-        while (enet_host_service(gameData->netManager->client, &event, 0) > 0)
+        while (enet_host_service(netManager->client, &event, 0) > 0)
         {
             switch (event.type)
             {
@@ -261,7 +288,7 @@ int main(int argc, char* args[])
                         case UPDATE:
                         {
                             struct P_Update* packetData = (struct P_Update*) event.packet->data;
-                            if (gameData->netManager->networkIdEntityMap[packetData->networkId] == gameData->ec->invalidEntityId)
+                            if (gameData->networkIdEntityMap[packetData->networkId] == gameData->ec->invalidEntityId)
                             {
                                 // if we don't know about the entity, add it
                                 int entityId;
@@ -269,7 +296,7 @@ int main(int argc, char* args[])
                                 int strlen = sprintf(playerNameBuffer, "Player %i", packetData->networkId);
                                 if (AddSquare(gameData->ec, &gameData->componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
                                 {
-                                    Net_Add_Networked_Entity(gameData->netManager, entityId, packetData->networkId);
+                                    Add_Networked_Entity(gameData, entityId, packetData->networkId);
                                     SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
                                 }
                                 else
@@ -279,7 +306,7 @@ int main(int argc, char* args[])
                                 }
                             }
 
-                            int localEntityId = gameData->netManager->networkIdEntityMap[packetData->networkId];
+                            int localEntityId = gameData->networkIdEntityMap[packetData->networkId];
                             if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle))
                             {
                                 struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
@@ -311,7 +338,7 @@ int main(int argc, char* args[])
                                 sprintf(chatHistoryBuffer[chatCount], "Player %i: %s", header->networkId, chatPointer);
 
                                 // Display text above character
-                                int localEntityId = gameData->netManager->networkIdEntityMap[header->networkId];
+                                int localEntityId = gameData->networkIdEntityMap[header->networkId];
                                 int textMessageId;
                                 AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, chatPointer, 2, &textMessageId);
                             }
@@ -333,7 +360,7 @@ int main(int argc, char* args[])
             case ENET_EVENT_TYPE_DISCONNECT:
             {
                 SDL_Log("Disconnected from the server.");
-                gameData->netManager->connected = false;
+                netManager->connected = false;
                 break;
             }
             }
@@ -373,13 +400,13 @@ int main(int argc, char* args[])
             else if (command_context == COMMAND_CHAT)
             {
                 bool charWritten = false;
-                command_context = Handle_Chat_Input_Event(&e, chatInputMessageBuffer, &chatCursor, &charWritten);
+                command_context = Handle_Chat_Input_Event(&e, chatInputMessageBuffer, &chatCursor, &charWritten, init_vars.max_chat_size);
                 if (command_context != COMMAND_CHAT)
                 {
                     // If we've stopped chatting, send the chat packet
                     int messageSize = (sizeof(char) * chatCursor) + 1; // Size is number of characters + the null termination character
                     ENetPacket* chatPacket = enet_packet_create(chatInputMessageBuffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
-                    enet_peer_send(gameData->netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
+                    enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
 
                     // reset the buffer
                     chatCursor = 0;
@@ -419,9 +446,9 @@ int main(int argc, char* args[])
         if (directionChanged)
         {
             // If input has been given, send an input packet
-            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = gameData->netManager->entityNetworkIdMap[playerId], .direction = direction};
+            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = gameData->entityNetworkIdMap[playerId], .direction = direction};
             ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), 0);
-            enet_peer_send(gameData->netManager->serverPeer, 0, packet);
+            enet_peer_send(netManager->serverPeer, 0, packet);
         }
 
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
@@ -487,13 +514,17 @@ int main(int argc, char* args[])
     }
 
 disconnect:
-    Net_Disconnect(gameData->netManager);
+    Net_Disconnect(netManager);
 
 cleanup:
     free(chatInputMessageBuffer);
     free(chatHistoryBuffer);
 
     Game_Data_Free(&gameData);
+
+    Net_Free(&netManager);
+    netManager = NULL;
+    enet_deinitialize();
 
     return 0;
 }

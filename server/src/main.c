@@ -15,6 +15,7 @@
 #define CHANNELS 2
 #define ENTITY_COUNT 100
 #define TICK_RATE_PER_S 60
+#define MAX_CHAT_LENGTH 100
 
 struct Component_Handles
 {
@@ -173,9 +174,9 @@ int main(int argc, char* args[])
                                 struct Vector2 position = {.x = 293.44, .y = 350.0};
                                 PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
 
-                                // Send the join packet with the position information
-                                struct P_Add_Square addSquareData = {.type = ADD_SQUARE, .position = position, .networkId  = playerId};
-                                ENetPacket * packet = enet_packet_create(&addSquareData, sizeof(struct P_Add_Square), 0);
+                                // Send the join packet
+                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .network_id = playerId, .position = position };
+                                ENetPacket * packet = enet_packet_create(&joinServerData, sizeof(struct P_JOIN_SERVER), ENET_PACKET_FLAG_RELIABLE);
                                 enet_peer_send(event.peer, 0, packet);
 
                                 // Send a chat message indicating a player has joined

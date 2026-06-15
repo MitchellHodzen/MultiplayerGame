@@ -120,6 +120,25 @@ bool InitializeClay(void** clayArena, TTF_Font* font, int screenWidth, int scree
     return true;
 }
 
+bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** entityNetworkIdMap, unsigned int** networkIdEntityMap)
+{
+    unsigned int mapSize = sizeof(unsigned int) * (ecdb->_maxEntities + 1); // Add 1 for the invalid index
+    *entityNetworkIdMap = malloc(mapSize);
+    *networkIdEntityMap = malloc(mapSize);
+    if (*entityNetworkIdMap == NULL || *networkIdEntityMap == NULL)
+    {
+        printf("Allocation of entity tracking data structures failed\n");
+        return false;
+    }
+
+    // for each network ID, set the value to the invalid value
+    for(unsigned int i = 0; i < mapSize; i++)
+    {
+        (*entityNetworkIdMap)[i] = ecdb->invalidEntityId;
+        (*networkIdEntityMap)[i] = ecdb->invalidEntityId;
+    }
+}
+
 bool Game_Data_Init(struct Game_Data** gameData, struct Init_Vars* init_vars, Clay_ErrorHandler errorHandler, Clay_Dimensions (*measureTextFunction)(Clay_StringSlice text, Clay_TextElementConfig *config))
 {
     *gameData = (struct Game_Data*) malloc(sizeof(struct Game_Data));
@@ -169,37 +188,24 @@ bool Game_Data_Init(struct Game_Data** gameData, struct Init_Vars* init_vars, Cl
         return false;
     }
 
-    if (enet_initialize() == 0)
+    if (InitializeNetworkTracking((*gameData)->ec, &(*gameData)->entityNetworkIdMap, &(*gameData)->networkIdEntityMap))
     {
-        SDL_Log("ENet Initialized");
+        SDL_Log("Network Entity Tracking Initialized");
     }
     else
     {
-        SDL_Log("ENet Initialization Failed");
+        SDL_Log("Network Entity Tracking Initialization Failed");
         return false;
     }
-
-    if (Net_Initialize(&(*gameData)->netManager, (*gameData)->ec))
-    {
-        SDL_Log("NetManager Initialized");
-    }
-    else
-    {
-        SDL_Log("NetManager Initialization Failed");
-        return false;
-    }
-
     return true;
 }
 
 void Game_Data_Free(struct Game_Data** gameData)
 {
     // Close up
-    SDL_Log("free netmgr");
-    Net_Free(&(*gameData)->netManager);
-    (*gameData)->netManager = NULL;
-    SDL_Log("enet deinit");
-    enet_deinitialize();
+    SDL_Log("free network entity tracking");
+    free((*gameData)->entityNetworkIdMap);
+    free((*gameData)->networkIdEntityMap);
 
     SDL_Log("free ecdb");
     ECDB_Free(&(*gameData)->ec);
