@@ -4,19 +4,21 @@
 
 struct Chat_Buffers
 {
-    char* chat_input_buffer;
-    char* _chat_history_buffer;
-    unsigned int _input_cursor;
-    unsigned int chat_history_count;
     unsigned int max_chat_size;
+    char* chat_input_buffer;
+    unsigned int _input_cursor;
+    char* _chat_history_buffer;
+    unsigned int chat_history_count;
     unsigned int max_history_size;
+    unsigned int _history_start_index;
+    unsigned int _history_write_index;
 };
 
-bool Chat_Initialize(struct Chat_Buffers** chatBuffers, unsigned int max_chat_size, unsigned int max_history_size);
-void Chat_Reset_Input_Buffer(struct Chat_Buffers* chatBuffers);
-bool Chat_Try_Write_To_Input(struct Chat_Buffers* chatBuffers, char input);
+bool Chat_Initialize(struct Chat_Buffers** chat_buffers, unsigned int max_chat_size, unsigned int max_history_size);
+void Chat_Reset_Input_Buffer(struct Chat_Buffers* chat_buffers);
+bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, char input);
 void Chat_History_Write(struct Chat_Buffers* chat_buffers, char* string, unsigned int strlen);
-char* Chat_Get_Message_At(struct Chat_Buffers* chatBuffers, unsigned int chat_history_index);
-void Chat_Free(struct Chat_Buffers** chatBuffers);
+char* Chat_Get_Message_At(struct Chat_Buffers* chat_buffers, unsigned int chat_history_index);
+void Chat_Free(struct Chat_Buffers** chat_buffers);
 
 #endif /* CHAT_BUFFERS_DEF */
