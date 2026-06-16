@@ -1,5 +1,6 @@
 #include "chat_buffers.h"
 #include <stdlib.h>
+#include <string.h>
 
 void Chat_Reset_Input_Buffer(struct Chat_Buffers* chatBuffers)
 {
@@ -41,11 +42,23 @@ bool Chat_Initialize(struct Chat_Buffers** chatBuffers, unsigned int max_chat_si
     return true;
 }
 
-char* Get_Message_At(struct Chat_Buffers* chatBuffers, unsigned int chat_history_index)
+char* Chat_Get_Message_At(struct Chat_Buffers* chatBuffers, unsigned int chat_history_index)
 {
     // Every message has a max_chat_size + 1 large buffer
     unsigned int index = chat_history_index * ((chatBuffers->max_chat_size + 1)  * sizeof(char));
     return &(chatBuffers->_chat_history_buffer[index]);
+}
+
+void Chat_History_Write(struct Chat_Buffers* chat_buffers, char* string, unsigned int strlen)
+{
+    // TODO: replace with circular buffer such that old messages are replaced as new message come in
+    if (chat_buffers->chat_history_count < chat_buffers->max_history_size && strlen <= chat_buffers->max_chat_size)
+    {
+        char* history_buffer = Chat_Get_Message_At(chat_buffers, chat_buffers->chat_history_count);
+        // TODO: Use the length to not rely on null termination
+        strcpy(history_buffer, string);
+        chat_buffers->chat_history_count++;
+    }
 }
 
 bool Chat_Try_Write_To_Input(struct Chat_Buffers* chatBuffers, char input)

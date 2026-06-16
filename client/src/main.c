@@ -228,26 +228,30 @@ int main(int argc, char* args[])
                     }
                     case 1: // Chat packets
                     {
-                        if (gameData->chat_buffers->chat_history_count < gameData->chat_buffers->max_history_size)
-                        {
-                            // Chat packets start with a header followed by the chat string
-                            struct P_Chat_Header* header = (struct P_Chat_Header*)event.packet->data;
-                            char* chatPointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
-                            if (header->isServerMessage)
-                            {
-                                sprintf(Get_Message_At(gameData->chat_buffers, gameData->chat_buffers->chat_history_count), "Server: %s", chatPointer);
-                            }
-                            else
-                            {
-                                sprintf(Get_Message_At(gameData->chat_buffers, gameData->chat_buffers->chat_history_count), "Player %i: %s", header->networkId, chatPointer);
+                        // Chat packets start with a header followed by the chat string
+                        struct P_Chat_Header* header = (struct P_Chat_Header*)event.packet->data;
+                        char* text_pointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
+                        unsigned int chat_length = strlen(text_pointer);
+                        unsigned int max_prefix_length = 10;
+                        char* prefixed_message_buffer = _malloca(chat_length + max_prefix_length);
+                        unsigned int prefixed_message_length;
 
-                                // Display text above character
-                                int localEntityId = gameData->networkIdEntityMap[header->networkId];
-                                int textMessageId;
-                                AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, chatPointer, 2, &textMessageId);
-                            }
-                            gameData->chat_buffers->chat_history_count++;
+                        if (header->isServerMessage)
+                        {
+                            prefixed_message_length = sprintf(prefixed_message_buffer, "Server: %s", text_pointer);
                         }
+                        else
+                        {
+                            prefixed_message_length = sprintf(prefixed_message_buffer, "Player %i: %s", header->networkId, text_pointer);
+
+                            // Display text above character
+                            int localEntityId = gameData->networkIdEntityMap[header->networkId];
+                            int textMessageId;
+                            AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, text_pointer, 2, &textMessageId);
+                        }
+
+                        // Write the prefixed message to the chat history
+                        Chat_History_Write(gameData->chat_buffers, prefixed_message_buffer, prefixed_message_length);
 
                         break;
                     }
@@ -373,7 +377,7 @@ int main(int argc, char* args[])
                     for (int i = 0; i < gameData->chat_buffers->chat_history_count; ++i)
                     {
                         CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
-                            CLAY_TEXT(((Clay_String) { .length = strlen(Get_Message_At(gameData->chat_buffers, i)), .chars = Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                            CLAY_TEXT(((Clay_String) { .length = strlen(Chat_Get_Message_At(gameData->chat_buffers, i)), .chars = Chat_Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
                         }
                     }
 
