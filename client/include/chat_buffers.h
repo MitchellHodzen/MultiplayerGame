@@ -7,9 +7,9 @@ struct Chat_Buffers
     unsigned int max_chat_size;
     char* chat_input_buffer;
     unsigned int _input_cursor;
-    char* _chat_history_buffer;
     unsigned int chat_history_count;
     unsigned int max_history_size;
+    char* _chat_history_buffer;
     unsigned int _history_start_index;
     unsigned int _history_write_index;
 };

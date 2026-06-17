@@ -9,7 +9,7 @@
 #include "vector2.h"
 #include "system_movement.h"
 #include "system_render.h"
-#include "system_apply_input.h"
+#include "system_write_input.h"
 #include "intstack.h"
 #include "component_input.h"
 #include "packets.h"
@@ -25,6 +25,8 @@
 #include "window_state.h"
 #include "entity_builders.h"
 #include "chat_buffers.h"
+#include "component_physics_2d.h"
+#include "system_physics.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -157,6 +159,21 @@ int main(int argc, char* args[])
 
     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, playerId, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
+
+    // physics test
+    int local_player_copy;
+	if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player_copy, NULL))
+	{
+        struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, local_player_copy, gameData->componentHandles.inputs_handle);
+        entityInput->speed=100;
+
+        struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, local_player_copy, gameData->componentHandles.physics_2d_handle);
+        physics->friction = 25;
+    }
+    else
+    {
+        SDL_Log("Failed to create player copy");
+    }
 
     // Chat UI tracking
     float previousChatBottom = 0;
@@ -361,8 +378,10 @@ int main(int argc, char* args[])
 
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
-        s_apply_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
-        s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
+        s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
+        s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
+        s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
+        //s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
 
         // Chat box UI

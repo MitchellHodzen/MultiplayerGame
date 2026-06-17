@@ -5,6 +5,8 @@
 #include "vector2.h"
 #include "system_movement.h"
 #include "component_input.h"
+#include "component_physics_2d.h"
+#include "system_physics.h"
 #include <stdbool.h>
 #include "system_reset_input.h"
 #include "system_movement.h"
@@ -21,11 +23,12 @@ struct Component_Handles
 {
     int transforms_handle;
     int inputs_handle;
+    int physics_2d_handle;
 };
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
 {
-    if (!ECDB_Init(ecdb, entityCount, 2))
+    if (!ECDB_Init(ecdb, entityCount, 3))
     {
         printf("Couldn't initialize component DB\n");
         return false;
@@ -41,6 +44,12 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Input), &(componentHandles->inputs_handle), NULL))
     {
         printf("Couldn't initialize input component\n");
+        ECDB_Free(ecdb);
+        return false;
+    }
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->physics_2d_handle), NULL))
+    {
+        printf("Couldn't initialize physics component\n");
         ECDB_Free(ecdb);
         return false;
     }
@@ -65,6 +74,8 @@ void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHand
     entityTransform->position = position;
     struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, playerId, componentHandles->inputs_handle);
     entityInput->speed=speed;
+    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(ec, playerId, componentHandles->physics_2d_handle);
+    physics->friction = 25;
 }
 
 void BroadcastChatMessage(ENetHost* server, struct P_Chat_Header header, char* string, size_t strlen)
@@ -253,7 +264,8 @@ int main(int argc, char* args[])
         }
 
         // Sim loop
-        s_move(ecdb, componentHandles.transforms_handle, componentHandles.inputs_handle, deltaTimeS);
+        s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, deltaTimeS);
+        s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, deltaTimeS);
         struct C_Transform* transforms = (struct C_Transform*) ecdb->_componentArrays[componentHandles.transforms_handle];
         struct C_Input* inputs = (struct C_Input*) ecdb->_componentArrays[componentHandles.inputs_handle];
 
@@ -262,13 +274,13 @@ int main(int argc, char* args[])
         {
             if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle))
             {
-                if (inputs[i].direction.x != 0.0f || inputs[i].direction.y != 0.0f)
-                {
-                    printf("Player %i position: %f, %f\n", i, transforms[i].position.x, transforms[i].position.y);
+                //if (inputs[i].direction.x != 0.0f || inputs[i].direction.y != 0.0f)
+                //{
+                    //printf("Player %i position: %f, %f\n", i, transforms[i].position.x, transforms[i].position.y);
                     struct P_Update inputPacket = {.type = UPDATE, .networkId = i, .position = transforms[i].position};
                     ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Update), 0);
                     enet_host_broadcast(server, 0, packet);
-                }
+                //}
             }
         }
 

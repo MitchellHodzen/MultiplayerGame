@@ -7,10 +7,11 @@
 #include "component_input.h"
 #include "component_transform.h"
 #include "component_lifetime.h"
+#include "component_physics_2d.h"
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 6))
+    if (!ECDB_Init(ecdb, entityCount, 7))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -55,6 +56,13 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(unsigned int), &(componentHandles->network_id_handle), NULL))
     {
         SDL_Log("Couldn't initialize network id component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->physics_2d_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize physics component");
         ECDB_Free(ecdb);
         return false;
     }
