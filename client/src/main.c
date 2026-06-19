@@ -149,30 +149,37 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    int playerId;
+    int networked_player;
     SDL_Log("Adding square at position %f, %f", joinGamePacket.position.x, joinGamePacket.position.y);
-    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &playerId, "You"))
+    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &networked_player, "Networked"))
     {
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
     }
 
-    Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, playerId, joinGamePacket.network_id);
+    Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
-    // physics test
-    int local_player_copy;
-	if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player_copy, NULL))
+    // Netowrked player with no interpolation that will be a ghost on top of the interpolated standard one
+    int networked_player_no_interpolation;
+    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.3f, 0.3f, 0.3f, 0.5f}, &networked_player_no_interpolation, NULL))
+    {
+        SDL_Log("Failed to create networked player without interpolation");
+    }
+
+    // create a local player with no networking - physics entirely client side
+    int local_player;
+	if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player, "Local"))
 	{
-        struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, local_player_copy, gameData->componentHandles.inputs_handle);
+        struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.inputs_handle);
         entityInput->speed=100;
 
-        struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, local_player_copy, gameData->componentHandles.physics_2d_handle);
+        struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.physics_2d_handle);
         physics->friction = 25;
     }
     else
     {
-        SDL_Log("Failed to create player copy");
+        SDL_Log("Failed to create local player");
     }
 
     // Chat UI tracking
@@ -232,6 +239,13 @@ int main(int argc, char* args[])
                             {
                                 struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
                                 actorPosition->position = packetData->position;
+
+                                // Special code to make a ghost 
+                                if (localEntityId == networked_player)
+                                {
+                                    struct C_Transform* ghostPos = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, networked_player_no_interpolation, gameData->componentHandles.transforms_handle);
+                                    ghostPos->position = packetData->position;
+                                }
                             }
 
                             break;
@@ -370,7 +384,7 @@ int main(int argc, char* args[])
         if (directionChanged)
         {
             // If input has been given, send an input packet
-            unsigned int* entityId = ECDB_GetEntityComponent(gameData->ec, playerId, gameData->componentHandles.network_id_handle);
+            unsigned int* entityId = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
             struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = *entityId, .direction = direction};
             ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), 0);
             enet_peer_send(netManager->serverPeer, 0, packet);

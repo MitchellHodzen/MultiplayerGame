@@ -16,7 +16,7 @@
 #define MAX_CONNECTIONS 10
 #define CHANNELS 2
 #define ENTITY_COUNT 100
-#define TICK_RATE_PER_S 60
+#define TICK_PER_S 60
 #define MAX_CHAT_LENGTH 100
 
 struct Component_Handles
@@ -127,7 +127,7 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    float targetMsPerFrame = (1.0f / ((float)TICK_RATE_PER_S )) * 1000.0f;
+    float targetMsPerFrame = (1.0f / ((float)TICK_PER_S )) * 1000.0f;
     printf("target ms per frame %f\n", targetMsPerFrame);
     ENetEvent event;
     DWORD currentFrameTimeMs = GetTickCount();
@@ -186,7 +186,7 @@ int main(int argc, char* args[])
                                 PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
 
                                 // Send the join packet
-                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .network_id = playerId, .position = position };
+                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .network_id = playerId, .position = position };
                                 ENetPacket * packet = enet_packet_create(&joinServerData, sizeof(struct P_JOIN_SERVER), ENET_PACKET_FLAG_RELIABLE);
                                 enet_peer_send(event.peer, 0, packet);
 
