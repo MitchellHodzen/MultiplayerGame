@@ -11,7 +11,7 @@
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 7))
+    if (!ECDB_Init(ecdb, entityCount, 8))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -24,7 +24,16 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         ECDB_Free(ecdb);
         return false;
     }
-
+    
+    struct N_C_Transform_Interpolation_Buffer default_trans_buffer;
+    memset(default_trans_buffer._buffer, 0, NET_TRANS_BUF_SIZE * sizeof(struct N_C_Transform_Snapshot));
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct N_C_Transform_Interpolation_Buffer), &(componentHandles->transforms_interpolation_buffer_handle), &default_trans_buffer))
+    {
+        SDL_Log("Couldn't initialize networked transform interpolation buffer component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+    
     if (!ECDB_RegisterComponent(*ecdb, sizeof(SDL_FColor), &(componentHandles->colors_handle), NULL))
     {
         SDL_Log("Couldn't initialize colors component");

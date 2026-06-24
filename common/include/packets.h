@@ -22,13 +22,6 @@ struct P_JOIN_SERVER
     struct Vector2 position;
 };
 
-struct P_Add_Square
-{
-    enum Packet_Type type;
-    unsigned int networkId;
-    struct Vector2 position;
-};
-
 struct P_Input_Direction
 {
     enum Packet_Type type;
@@ -39,6 +32,7 @@ struct P_Input_Direction
 struct P_Update
 {
     enum Packet_Type type;
+    long server_tick;
     unsigned int networkId;
     struct Vector2 position;
 };

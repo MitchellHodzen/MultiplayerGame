@@ -76,8 +76,8 @@ bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxCom
     (*ecdb)->_maxEntities = maxEntities;
     (*ecdb)->_maxComponents = maxComponents;
     (*ecdb)->_componentCount = 0;
-    (*ecdb)->invalidEntityId = maxEntities + 1; // Invalid entity ID is at the end of the list of valid entities
-    (*ecdb)->invalidComponentId = maxComponents + 1; // Invalid component ID is at the end of the list of valid components
+    (*ecdb)->invalidEntityId = maxEntities; // Invalid entity ID is at the end of the list of valid entities
+    (*ecdb)->invalidComponentId = maxComponents; // Invalid component ID is at the end of the list of valid components
 
     if (_Init_Entity_Tracking(*ecdb) == false || _Init_Components(*ecdb) == false)
     {
@@ -102,6 +102,7 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     if (componentArray == NULL)
     {
         // couldn't instantiate the component array
+        printf("cant alloc\n", ecdb->_maxEntities, componentSize);
         *componentHandle = ecdb->invalidComponentId;
         return false;
     }
@@ -117,6 +118,7 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     // If there is a default value provided, save it
     if (defaultValue != NULL)
     {
+        printf("sizeof component: %i. invalid entity id: %i. Offset: %i\n", componentSize, ecdb->invalidEntityId, (ecdb->invalidEntityId * componentSize));
         // Store the default value at the invalid entity, as that should never change
         void* comp = ((char*)componentArray) + (ecdb->invalidEntityId * componentSize);
         memcpy(comp, defaultValue, componentSize);

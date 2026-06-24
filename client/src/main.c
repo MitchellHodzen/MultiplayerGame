@@ -27,6 +27,7 @@
 #include "chat_buffers.h"
 #include "component_physics_2d.h"
 #include "system_physics.h"
+#include "system_interpolation.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -160,13 +161,6 @@ int main(int argc, char* args[])
     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
-    // Netowrked player with no interpolation that will be a ghost on top of the interpolated standard one
-    int networked_player_no_interpolation;
-    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.3f, 0.3f, 0.3f, 0.5f}, &networked_player_no_interpolation, NULL))
-    {
-        SDL_Log("Failed to create networked player without interpolation");
-    }
-
     // create a local player with no networking - physics entirely client side
     int local_player;
 	if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player, "Local"))
@@ -224,6 +218,8 @@ int main(int argc, char* args[])
                                 int strlen = sprintf(playerNameBuffer, "Player %i", packetData->networkId);
                                 if (AddSquare(gameData->ec, &gameData->componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
                                 {
+                                    // all incoming players will have transform interpolation
+                                    ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
                                     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, packetData->networkId);
                                     SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
                                 }
@@ -237,14 +233,26 @@ int main(int argc, char* args[])
                             int localEntityId = gameData->networkIdEntityMap[packetData->networkId];
                             if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle))
                             {
-                                struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
-                                actorPosition->position = packetData->position;
-
-                                // Special code to make a ghost 
-                                if (localEntityId == networked_player)
+                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle))
                                 {
-                                    struct C_Transform* ghostPos = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, networked_player_no_interpolation, gameData->componentHandles.transforms_handle);
-                                    ghostPos->position = packetData->position;
+                                    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                    struct C_Transform* transform = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
+                                    struct N_C_Transform_Snapshot trans_snap = {.server_time = packetData->server_tick, .transform = *transform};
+                                    trans_snap.transform.position = packetData->position;
+                                    Interp_Buf_Add(trans_buf, trans_snap);
+
+                                    printf("%i Buffer state: ", localEntityId);
+                                    for(int j = 0; j < NET_TRANS_BUF_SIZE; ++j)
+                                    {
+                                        printf(" %i ", trans_buf->_buffer[j].server_time);
+                                    }
+                                    printf("\n");
+                                }
+                                else
+                                {
+                                    // If we aren't interpolating, write actor position directly
+                                    struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
+                                    actorPosition->position = packetData->position;
                                 }
                             }
 
@@ -393,11 +401,16 @@ int main(int argc, char* args[])
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
         s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
+        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle);
         s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
         s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
-        //s_move(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
-        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
 
+        // Clear previous render before drawing
+        SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
+        SDL_RenderClear(window_state->renderer);
+
+        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
+        s_render_server_ghost(gameData->ec, gameData->componentHandles.transforms_interpolation_buffer_handle, window_state->renderer);
         // Chat box UI
         Clay_BeginLayout();
         CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {

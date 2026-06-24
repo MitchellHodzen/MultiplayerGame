@@ -7,10 +7,6 @@
 
 void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
 {
-    // Clear previous render before drawing
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
-    SDL_RenderClear(renderer);
-
     // Draw the squares
     float length = 75;
     struct C_Transform* transforms = (struct C_Transform*) ec->_componentArrays[transforms_handle];
@@ -67,6 +63,28 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
                 }
                 TTF_DestroyText(text);
             }
+        }
+    }
+}
+
+void s_render_server_ghost(struct ECDB const *const ec, int trans_buf_handle, struct SDL_Renderer* renderer)
+{
+    // Render a ghost square at the most recently received server position
+    float length = 75;
+    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->_componentArrays[trans_buf_handle];
+    for(unsigned int i = 0; i < ec->_maxEntities; ++i)
+    {
+        if (ECDB_EntityHasComponent(ec, i, trans_buf_handle))
+        {
+            // Get the most recent transform from the server
+            struct C_Transform latest_transform = trans_buf[i]._buffer[0].transform;
+
+            // draw ghost square
+            float halfLength = length / 2;
+            SDL_FColor color = { .r = 1, .g = 1, .b = 1, .a = 0.2};
+            SDL_FRect rect = { .x = latest_transform.position.x - halfLength, .y = latest_transform.position.y - halfLength, .w = length, .h = length};
+            SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
+            SDL_RenderFillRect(renderer, &rect);
         }
     }
 }

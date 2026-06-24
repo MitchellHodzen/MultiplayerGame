@@ -132,6 +132,8 @@ int main(int argc, char* args[])
     ENetEvent event;
     DWORD currentFrameTimeMs = GetTickCount();
     DWORD previousFrameTimeMs = currentFrameTimeMs;
+
+    unsigned int current_tick = 0;
     while(1)
     {
         previousFrameTimeMs = currentFrameTimeMs;
@@ -195,12 +197,6 @@ int main(int argc, char* args[])
                                 char joinedMessageBuffer[50];
                                 int strlen = sprintf(joinedMessageBuffer, "Player %i has joined the game", playerId);
                                 BroadcastChatMessage(server, chatHeader, joinedMessageBuffer, strlen + 1);
-                                break;
-                            }
-                            case ADD_SQUARE:
-                            {
-                                struct P_Add_Square* packetData = (struct P_Add_Square*) event.packet->data;
-                                printf ("Add square packet received. Position: (%f, %f)\n", packetData->position.x, packetData->position.y);
                                 break;
                             }
                             case INPUT_DIRECTION:
@@ -277,7 +273,7 @@ int main(int argc, char* args[])
                 //if (inputs[i].direction.x != 0.0f || inputs[i].direction.y != 0.0f)
                 //{
                     //printf("Player %i position: %f, %f\n", i, transforms[i].position.x, transforms[i].position.y);
-                    struct P_Update inputPacket = {.type = UPDATE, .networkId = i, .position = transforms[i].position};
+                    struct P_Update inputPacket = {.type = UPDATE, .server_tick = current_tick, .networkId = i, .position = transforms[i].position};
                     ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Update), 0);
                     enet_host_broadcast(server, 0, packet);
                 //}
@@ -290,6 +286,9 @@ int main(int argc, char* args[])
         // Each frame should take targetMsPerFrame seconds
         float waitTimeMs = targetMsPerFrame - simTimeMs;
         Sleep(waitTimeMs);
+
+        // Increment tick
+        current_tick++;
     }
 
     enet_host_destroy(server);
