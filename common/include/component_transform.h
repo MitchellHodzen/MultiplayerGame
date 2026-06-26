@@ -14,9 +14,10 @@ struct N_C_Transform_Snapshot
     struct C_Transform transform;
 };
 
-#define NET_TRANS_BUF_SIZE 5
+#define NET_TRANS_BUF_SIZE 100
 struct N_C_Transform_Interpolation_Buffer
 {
+    unsigned int buffer_size;
     struct N_C_Transform_Snapshot _buffer[NET_TRANS_BUF_SIZE];
 };
 

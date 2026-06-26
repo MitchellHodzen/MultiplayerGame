@@ -1,5 +1,6 @@
 #include "component_transform.h"
 
+// TODO: Enet unreliable packets are still sequenced, so we will always get the most recent. always push in front?
 void Interp_Buf_Add(struct N_C_Transform_Interpolation_Buffer* interp_buf, struct N_C_Transform_Snapshot snapshot)
 {
     // Buffer is ordered from most recent to least recent
@@ -16,6 +17,9 @@ void Interp_Buf_Add(struct N_C_Transform_Interpolation_Buffer* interp_buf, struc
 
             // Insert the new snapshot into the buffer
             interp_buf->_buffer[i] = snapshot;
+
+            // Increase buffer size if it isnt maxed out
+            interp_buf->buffer_size += 1 * (interp_buf->buffer_size != NET_TRANS_BUF_SIZE);
 
             break;
         }

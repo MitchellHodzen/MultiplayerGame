@@ -18,6 +18,7 @@
 #define ENTITY_COUNT 100
 #define TICK_PER_S 60
 #define MAX_CHAT_LENGTH 100
+#define TIME_SYNC_SEND_S 15
 
 struct Component_Handles
 {
@@ -133,12 +134,25 @@ int main(int argc, char* args[])
     DWORD currentFrameTimeMs = GetTickCount();
     DWORD previousFrameTimeMs = currentFrameTimeMs;
 
+    float time_packet_accumulator_s = 0;
     unsigned int current_tick = 0;
     while(1)
     {
         previousFrameTimeMs = currentFrameTimeMs;
         currentFrameTimeMs = GetTickCount();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
+
+        time_packet_accumulator_s += deltaTimeS;
+        if (time_packet_accumulator_s > TIME_SYNC_SEND_S)
+        {
+            // Send a time sync packet to all connected users. TODO: Update to send on a per-user basis as needed
+            struct P_Server_Time time = {.type = SERVER_TIME, .server_time_ms = currentFrameTimeMs};
+            ENetPacket * packet = enet_packet_create(&time, sizeof(struct P_Server_Time), 0);
+            enet_host_broadcast(server, 0, packet);
+
+            // pull back the accumulator
+            time_packet_accumulator_s -= TIME_SYNC_SEND_S;
+        }
 
         while (enet_host_service (server, &event, 0) > 0)
         {
@@ -273,7 +287,7 @@ int main(int argc, char* args[])
                 //if (inputs[i].direction.x != 0.0f || inputs[i].direction.y != 0.0f)
                 //{
                     //printf("Player %i position: %f, %f\n", i, transforms[i].position.x, transforms[i].position.y);
-                    struct P_Update inputPacket = {.type = UPDATE, .server_tick = current_tick, .networkId = i, .position = transforms[i].position};
+                    struct P_Update inputPacket = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .networkId = i, .position = transforms[i].position};
                     ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Update), 0);
                     enet_host_broadcast(server, 0, packet);
                 //}

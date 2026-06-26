@@ -32,6 +32,7 @@
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 #define CHAT_HISTORY_SIZE 50
+#define INTERP_DELAY_MS 300
 
 enum Command_Contex
 {
@@ -91,6 +92,12 @@ void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int 
 {
     ECDB_DisableEntityComponent(ecdb, entityId, network_id_handle);
     gameData->networkIdEntityMap[networkId] = ecdb->invalidEntityId;
+}
+
+unsigned long Estimate_Server_Time(int server_time_offset)
+{
+    Uint64 client_time_ms = SDL_GetTicks();
+    return client_time_ms + server_time_offset;
 }
 
 int main(int argc, char* args[])
@@ -186,6 +193,8 @@ int main(int argc, char* args[])
     ENetEvent event;
     enum Command_Contex command_context = COMMAND_STANDARD;
 
+    long server_time_offset = 0;
+
     SDL_Log("Starting game loop");
     while(quit == false)
     {
@@ -235,18 +244,12 @@ int main(int argc, char* args[])
                             {
                                 if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle))
                                 {
+                                    // Unreliable packets are still sequenced, so we know this is the latest transform message
                                     struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
                                     struct C_Transform* transform = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
-                                    struct N_C_Transform_Snapshot trans_snap = {.server_time = packetData->server_tick, .transform = *transform};
+                                    struct N_C_Transform_Snapshot trans_snap = {.server_time =  packetData->server_time_ms, .transform = *transform};
                                     trans_snap.transform.position = packetData->position;
                                     Interp_Buf_Add(trans_buf, trans_snap);
-
-                                    printf("%i Buffer state: ", localEntityId);
-                                    for(int j = 0; j < NET_TRANS_BUF_SIZE; ++j)
-                                    {
-                                        printf(" %i ", trans_buf->_buffer[j].server_time);
-                                    }
-                                    printf("\n");
                                 }
                                 else
                                 {
@@ -256,6 +259,18 @@ int main(int argc, char* args[])
                                 }
                             }
 
+                            break;
+                        }
+                        case SERVER_TIME:
+                        {
+                            struct P_Server_Time* packetData = (struct P_Server_Time*) event.packet->data;
+                            long estimated_server_time_ms = Estimate_Server_Time(server_time_offset);
+                            long corrected_server_time = packetData->server_time_ms - (event.peer->roundTripTime / 2);
+
+                            SDL_Log("Server time: %i. Corrected server time: %i. Estimated server time: %i. Server time diff: %i. Corrected server time diff: %i. Round trip time: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, estimated_server_time_ms - corrected_server_time, event.peer->roundTripTime);
+
+                            Uint64 client_time_ms = SDL_GetTicks(); // TODO: some way to get the time when the packet was read rather than the time it was processed?
+                            server_time_offset = (packetData->server_time_ms - (event.peer->roundTripTime / 2)) - client_time_ms;
                             break;
                         }
                         default:
@@ -401,7 +416,7 @@ int main(int argc, char* args[])
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
         s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
-        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle);
+        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Estimate_Server_Time(server_time_offset), INTERP_DELAY_MS);
         s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
         s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
 

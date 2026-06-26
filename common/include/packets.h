@@ -4,6 +4,7 @@
 
 enum Packet_Type
 {
+    SERVER_TIME,
     REQUEST_JOIN,
     JOIN_SERVER,
     ADD_SQUARE,
@@ -32,9 +33,15 @@ struct P_Input_Direction
 struct P_Update
 {
     enum Packet_Type type;
-    long server_tick;
     unsigned int networkId;
+    unsigned long server_time_ms;
     struct Vector2 position;
+};
+
+struct P_Server_Time
+{
+    enum Packet_Type type;
+    unsigned long server_time_ms;
 };
 
 enum Message_Importance
