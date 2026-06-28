@@ -218,44 +218,51 @@ int main(int argc, char* args[])
                         {
                         case UPDATE:
                         {
-                            struct P_Update* packetData = (struct P_Update*) event.packet->data;
-                            if (gameData->networkIdEntityMap[packetData->networkId] == gameData->ec->invalidEntityId)
-                            {
-                                // if we don't know about the entity, add it
-                                int entityId;
-                                char playerNameBuffer[10];
-                                int strlen = sprintf(playerNameBuffer, "Player %i", packetData->networkId);
-                                if (AddSquare(gameData->ec, &gameData->componentHandles, packetData->position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
-                                {
-                                    // all incoming players will have transform interpolation
-                                    ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                    Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, packetData->networkId);
-                                    SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", packetData->position.x,  packetData->position.y, packetData->networkId, entityId);
-                                }
-                                else
-                                {
-                                    SDL_Log("Too many entities received from server. Disconnecting.");
-                                    goto disconnect;
-                                }
-                            }
+                            // Update packets start with a header followed by an array of updates
+                            struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
+                            struct P_Update_Entity_Data* update_buffer_ptr = ((char*)event.packet->data) + sizeof(struct P_Update_Header);
 
-                            int localEntityId = gameData->networkIdEntityMap[packetData->networkId];
-                            if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle))
+                            for(int i = 0; i < header->updates_count; ++i)
                             {
-                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle))
+                                struct P_Update_Entity_Data update = update_buffer_ptr[i];
+                                if (gameData->networkIdEntityMap[update.networkId] == gameData->ec->invalidEntityId)
                                 {
-                                    // Unreliable packets are still sequenced, so we know this is the latest transform message
-                                    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                    struct C_Transform* transform = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
-                                    struct N_C_Transform_Snapshot trans_snap = {.server_time =  packetData->server_time_ms, .transform = *transform};
-                                    trans_snap.transform.position = packetData->position;
-                                    Interp_Buf_Add(trans_buf, trans_snap);
+                                    // if we don't know about the entity, add it
+                                    int entityId;
+                                    char playerNameBuffer[10];
+                                    int strlen = sprintf(playerNameBuffer, "Player %i", update.networkId);
+                                    if (AddSquare(gameData->ec, &gameData->componentHandles, update.position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
+                                    {
+                                        // all incoming players will have transform interpolation
+                                        ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                        Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, update.networkId);
+                                        SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", update.position.x,  update.position.y, update.networkId, entityId);
+                                    }
+                                    else
+                                    {
+                                        SDL_Log("Too many entities received from server. Disconnecting.");
+                                        goto disconnect;
+                                    }
                                 }
-                                else
+
+                                int localEntityId = gameData->networkIdEntityMap[update.networkId];
+                                if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle))
                                 {
-                                    // If we aren't interpolating, write actor position directly
-                                    struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
-                                    actorPosition->position = packetData->position;
+                                    if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle))
+                                    {
+                                        // Unreliable packets are still sequenced, so we know this is the latest transform message
+                                        struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                        struct C_Transform* transform = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
+                                        struct N_C_Transform_Snapshot trans_snap = {.server_time = header->server_time_ms, .transform = *transform};
+                                        trans_snap.transform.position = update.position;
+                                        Interp_Buf_Add(trans_buf, trans_snap);
+                                    }
+                                    else
+                                    {
+                                        // If we aren't interpolating, write actor position directly
+                                        struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
+                                        actorPosition->position = update.position;
+                                    }
                                 }
                             }
 

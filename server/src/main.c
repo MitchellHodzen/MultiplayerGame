@@ -279,20 +279,37 @@ int main(int argc, char* args[])
         struct C_Transform* transforms = (struct C_Transform*) ecdb->_componentArrays[componentHandles.transforms_handle];
         struct C_Input* inputs = (struct C_Input*) ecdb->_componentArrays[componentHandles.inputs_handle];
 
-        // broadcast each players position
+        // Generate update packet
+        unsigned int entities_to_update = 0;
+
+        // allocate memory on the stack for our custom packet which is the size of the chat string + the chat header. TODO: Too big for stack? make a dedicated malloced buffer before hand and re-use
+        unsigned int max_update_packet_length = sizeof(struct P_Update_Header) + (ecdb->_maxEntities * sizeof(struct P_Update_Entity_Data));
+        void* update_packet_memory = _malloca(max_update_packet_length);
+
+        // Calculate the update buffer pointer by skipping ahead P_Update_Header size
+        struct P_Update_Entity_Data* update_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header);
+
+        // Write updates to the update buffer
         for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
         {
             if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle))
             {
-                //if (inputs[i].direction.x != 0.0f || inputs[i].direction.y != 0.0f)
-                //{
-                    //printf("Player %i position: %f, %f\n", i, transforms[i].position.x, transforms[i].position.y);
-                    struct P_Update inputPacket = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .networkId = i, .position = transforms[i].position};
-                    ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Update), 0);
-                    enet_host_broadcast(server, 0, packet);
-                //}
+                struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position};
+                update_buffer_ptr[entities_to_update] = data;
+                entities_to_update++;
             }
         }
+
+        // set the first P_Update_Header bytes to the update header
+        struct P_Update_Header update_header = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .updates_count = entities_to_update};
+        *(struct P_Update_Header*)update_packet_memory = update_header;
+
+        // calculate the actual packet length with the entities to update count
+        unsigned int actual_update_packet_length = sizeof(struct P_Update_Header) + (entities_to_update * sizeof(struct P_Update_Entity_Data));
+
+        // Build and broadcast the packet. TODO: make packet creation malloc free
+        ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, ENET_PACKET_FLAG_RELIABLE);
+        enet_host_broadcast(server, 0, update_packet);
 
         // before waiting, send all packets
         enet_host_flush(server);
