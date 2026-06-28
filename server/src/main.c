@@ -294,6 +294,9 @@ int main(int argc, char* args[])
             }
         }
 
+        // before waiting, send all packets
+        enet_host_flush(server);
+
         // TODO: bad way to cap tick rate, change it
         DWORD endFrameTimeMs = GetTickCount();
         DWORD simTimeMs = (endFrameTimeMs - currentFrameTimeMs);
