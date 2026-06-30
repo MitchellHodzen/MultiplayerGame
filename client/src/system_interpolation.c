@@ -5,6 +5,12 @@
 
 struct Vector2 calculate_interpolated_position(struct N_C_Transform_Interpolation_Buffer* trans_buf, unsigned long interp_time)
 {
+    if (trans_buf->buffer_size == 0)
+    {
+        // If the buffer is empty, return the zero vector
+        return (struct Vector2) {0.0f, 0.0f};
+    }
+
     // determine which two values to interpolate between
     for (unsigned int i = 0; i < trans_buf->buffer_size; ++i)
     {

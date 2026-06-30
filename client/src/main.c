@@ -28,6 +28,7 @@
 #include "component_physics_2d.h"
 #include "system_physics.h"
 #include "system_interpolation.h"
+#include "input_buffer.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -194,6 +195,9 @@ int main(int argc, char* args[])
     enum Command_Contex command_context = COMMAND_STANDARD;
 
     long server_time_offset = 0;
+
+    // temporarily hold input buffer here
+    struct Input_Snapshot_Buffer input_queue;
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -410,6 +414,10 @@ int main(int argc, char* args[])
             (Clay_Vector2){.x = mousePos.x, .y = mousePos.y},
             buttons & SDL_BUTTON_LMASK
         );
+
+        // save input snapshot
+        struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
+        Input_Buffer_Put(&input_queue, snapshot);
 
         if (directionChanged)
         {
