@@ -1,3 +1,4 @@
 ecdb check if component is already initialized
 move network packet buffer out of ECDB
 remove start position from chat buffer maybe
+malloc in ring buffer means I can't use it in a contiguous array for things like packet history

@@ -2,16 +2,14 @@
 #define CHAT_BUFFERS_DEF
 #include <stdbool.h>
 
+struct Ring_Buffer;
+
 struct Chat_Buffers
 {
     unsigned int max_chat_size;
     char* chat_input_buffer;
     unsigned int _input_cursor;
-    unsigned int chat_history_count;
-    unsigned int max_history_size;
-    char* _chat_history_buffer;
-    unsigned int _history_start_index;
-    unsigned int _history_write_index;
+    struct Ring_Buffer* chat_history_buffer;
 };
 
 bool Chat_Initialize(struct Chat_Buffers** chat_buffers, unsigned int max_chat_size, unsigned int max_history_size);

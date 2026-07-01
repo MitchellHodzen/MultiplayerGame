@@ -192,7 +192,7 @@ int main(int argc, char* args[])
     enum Command_Contex command_context = COMMAND_STANDARD;
 
     // temporarily hold input buffer here
-    struct Input_Snapshot_Buffer input_queue;
+    Input_Snapshot_Buffer* input_queue;
     Input_Buffer_Init(&input_queue);
 
     SDL_Log("Starting game loop");
@@ -411,7 +411,7 @@ int main(int argc, char* args[])
 
         // save input snapshot
         struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
-        Input_Buffer_Put(&input_queue, snapshot);
+        Input_Buffer_Put(input_queue, snapshot);
         
         if (directionChanged)
         {
@@ -444,7 +444,7 @@ int main(int argc, char* args[])
                 CLAY(CLAY_ID("ChatHistoryContainer"), {
                 .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }
                 }) {
-                    for (int i = 0; i < gameData->chat_buffers->chat_history_count; ++i)
+                    for (int i = 0; i < gameData->chat_buffers->chat_history_buffer->buffer_size; ++i)
                     {
                         CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
                             CLAY_TEXT(((Clay_String) { .length = strlen(Chat_Get_Message_At(gameData->chat_buffers, i)), .chars = Chat_Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
@@ -496,6 +496,7 @@ disconnect:
 
 cleanup:
     Game_Data_Free(&gameData);
+    free(input_queue);
 
     Net_Free(&netManager);
     netManager = NULL;

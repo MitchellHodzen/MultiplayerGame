@@ -1,6 +1,8 @@
 #ifndef INPUT_SNAPSHOT_DEF
 #define INPUT_SNAPSHOT_DEF
 #include "Vector2.h"
+#include "stdbool.h"
+#include "ring_buffer.h"
 
 struct Input_Snapshot
 {
@@ -9,14 +11,10 @@ struct Input_Snapshot
 };
 
 #define INPUT_SNAPSHOT_BUF_SIZE 10
-struct Input_Snapshot_Buffer
-{
-    unsigned int buffer_size;
-    unsigned int _write_index;
-    struct Input_Snapshot _buffer[INPUT_SNAPSHOT_BUF_SIZE];
-};
+typedef struct Ring_Buffer Input_Snapshot_Buffer;
 
-struct Input_Snapshot Input_Buffer_Get_At(struct Input_Snapshot_Buffer* buffer, unsigned int index);
-void Input_Buffer_Put(struct Input_Snapshot_Buffer* buffer, struct Input_Snapshot snapshot);
+bool Input_Buffer_Init(Input_Snapshot_Buffer** buffer);
+struct Input_Snapshot Input_Buffer_Get_At(Input_Snapshot_Buffer* buffer, unsigned int index);
+void Input_Buffer_Put(Input_Snapshot_Buffer* buffer, struct Input_Snapshot snapshot);
 
 #endif /* INPUT_SNAPSHOT_DEF */
