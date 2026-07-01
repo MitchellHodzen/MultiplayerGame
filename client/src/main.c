@@ -95,12 +95,6 @@ void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int 
     gameData->networkIdEntityMap[networkId] = ecdb->invalidEntityId;
 }
 
-unsigned long Estimate_Server_Time(int server_time_offset)
-{
-    Uint64 client_time_ms = SDL_GetTicks();
-    return client_time_ms + server_time_offset;
-}
-
 int main(int argc, char* args[])
 {
     bool quit = false;
@@ -144,6 +138,9 @@ int main(int argc, char* args[])
         SDL_Log("Connection to server Failed");
         return 1;
     }
+
+    // Set initial server time offset
+    Net_Calculate_Server_Time_Offset(netManager, SDL_GetTicks(), joinGamePacket.server_time_ms);
 
     // Init game state based on server info
     struct Game_Data* gameData = NULL;
@@ -194,8 +191,6 @@ int main(int argc, char* args[])
     ENetEvent event;
     enum Command_Contex command_context = COMMAND_STANDARD;
 
-    long server_time_offset = 0;
-
     // temporarily hold input buffer here
     struct Input_Snapshot_Buffer input_queue;
     Input_Buffer_Init(&input_queue);
@@ -207,7 +202,7 @@ int main(int argc, char* args[])
         currentFrameTimeMs = SDL_GetTicks();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
-        // Get network events
+        // TODO: move to netmanager? decouple?
         while (enet_host_service(netManager->client, &event, 0) > 0)
         {
             switch (event.type)
@@ -276,13 +271,11 @@ int main(int argc, char* args[])
                         case SERVER_TIME:
                         {
                             struct P_Server_Time* packetData = (struct P_Server_Time*) event.packet->data;
-                            long estimated_server_time_ms = Estimate_Server_Time(server_time_offset);
+                            long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
                             long corrected_server_time = packetData->server_time_ms - (event.peer->roundTripTime / 2);
 
                             SDL_Log("Server time: %i. Corrected server time: %i. Estimated server time: %i. Server time diff: %i. Corrected server time diff: %i. Round trip time: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, estimated_server_time_ms - corrected_server_time, event.peer->roundTripTime);
-
-                            Uint64 client_time_ms = SDL_GetTicks(); // TODO: some way to get the time when the packet was read rather than the time it was processed?
-                            server_time_offset = (packetData->server_time_ms - (event.peer->roundTripTime / 2)) - client_time_ms;
+                            Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms);
                             break;
                         }
                         default:
@@ -432,7 +425,7 @@ int main(int argc, char* args[])
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
         s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
-        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Estimate_Server_Time(server_time_offset), INTERP_DELAY_MS);
+        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, currentFrameTimeMs), INTERP_DELAY_MS);
         s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
         s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
 

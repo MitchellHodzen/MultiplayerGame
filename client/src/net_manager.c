@@ -149,6 +149,17 @@ void Net_Disconnect(struct Net_Manager* netManager)
     netManager->connected = false;
 }
 
+uint64_t Net_Estimate_Server_Time(const struct Net_Manager* netManager, uint64_t client_time_ms)
+{
+    return client_time_ms + netManager->server_time_offset_ms;
+}
+
+void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms)
+{
+    netManager->server_time_offset_ms = (server_time_ms - (netManager->serverPeer->roundTripTime / 2)) - client_time_ms;
+}
+
+
 void Net_Free(struct Net_Manager** netManager)
 {
     enet_peer_reset((*netManager)->serverPeer);

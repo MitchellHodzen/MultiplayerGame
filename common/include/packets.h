@@ -20,6 +20,7 @@ struct P_JOIN_SERVER
     unsigned int max_chat_length;
     unsigned int network_id;
     unsigned int ticks_per_s;
+    unsigned long server_time_ms;
     struct Vector2 position;
 };
 
