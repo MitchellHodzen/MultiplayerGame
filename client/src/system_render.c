@@ -9,9 +9,9 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
 {
     // Draw the squares
     float length = 75;
-    struct C_Transform* transforms = (struct C_Transform*) ec->_componentArrays[transforms_handle];
-    SDL_FColor* colors = (SDL_FColor*) ec->_componentArrays[colors_handle];
-    char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->_componentArrays[texts_handle];
+    struct C_Transform* transforms = (struct C_Transform*) ec->data.componentArrays[transforms_handle];
+    SDL_FColor* colors = (SDL_FColor*) ec->data.componentArrays[colors_handle];
+    char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->data.componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         // Only draw if there is a position
@@ -71,7 +71,7 @@ void s_render_server_ghost(struct ECDB const *const ec, int trans_buf_handle, st
 {
     // Render a ghost square at the most recently received server position
     float length = 75;
-    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->_componentArrays[trans_buf_handle];
+    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->data.componentArrays[trans_buf_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         if (ECDB_EntityHasComponent(ec, i, trans_buf_handle))

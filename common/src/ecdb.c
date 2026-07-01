@@ -27,8 +27,8 @@ static bool _Init_Entity_Tracking(struct ECDB* ecdb)
     }
 
     // set up valid entity array. One extra for the invalid entity
-    ecdb->_validEntities = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
-    if (ecdb->_validEntities == NULL)
+    ecdb->data.validEntities = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
+    if (ecdb->data.validEntities == NULL)
     {
         // Couldn't create the valid entities array
         return false;
@@ -40,15 +40,15 @@ static bool _Init_Entity_Tracking(struct ECDB* ecdb)
 static bool _Init_Components(struct ECDB* ecdb)
 {
     // Set up component ID containers
-    ecdb->_componentArrays = (void**) calloc(ecdb->_maxComponents + 1, sizeof(void*));
-    if (ecdb->_componentArrays == NULL)
+    ecdb->data.componentArrays = (void**) calloc(ecdb->_maxComponents + 1, sizeof(void*));
+    if (ecdb->data.componentArrays == NULL)
     {
         // Couldn't create the component array container
         return false;
     }
 
-    ecdb->_componentValidArrays = (bool**) calloc(ecdb->_maxComponents + 1, sizeof(bool*));
-    if (ecdb->_componentValidArrays == NULL)
+    ecdb->data.componentValidArrays = (bool**) calloc(ecdb->_maxComponents + 1, sizeof(bool*));
+    if (ecdb->data.componentValidArrays == NULL)
     {
         // Couldn't create the component valid array container
         return false;
@@ -125,8 +125,8 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     }
 
     // Add the components array to the component array collections
-    ecdb->_componentArrays[ecdb->_componentCount] = componentArray;
-    ecdb->_componentValidArrays[ecdb->_componentCount] = componentValidArray;
+    ecdb->data.componentArrays[ecdb->_componentCount] = componentArray;
+    ecdb->data.componentValidArrays[ecdb->_componentCount] = componentValidArray;
     ecdb->_componentSizes[ecdb->_componentCount] = componentSize;
 
     // Now that the component has been added, return the handle.
@@ -148,14 +148,14 @@ bool ECDB_CreateEntity(struct ECDB* ecdb, int* entityId)
     }
 
     // Enable the entity
-    ecdb->_validEntities[*entityId] = true;
+    ecdb->data.validEntities[*entityId] = true;
     return true;
 }
 
 void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId)
 {
     // Disable the entity
-    ecdb->_validEntities[entityId] = false;
+    ecdb->data.validEntities[entityId] = false;
 
     // Disable all components for the entity
     for (int componentHandle = 0; componentHandle < ecdb->_maxComponents; ++componentHandle)
@@ -169,7 +169,7 @@ void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId)
 
 bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
 {
-    return ecdb->_componentValidArrays[componentHandle][entityId];
+    return ecdb->data.componentValidArrays[componentHandle][entityId];
 }
 
 void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle)
@@ -181,7 +181,7 @@ void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentH
     }
 
     // Get a pointer to the component
-    void* componentArray = ecdb->_componentArrays[componentHandle];
+    void* componentArray = ecdb->data.componentArrays[componentHandle];
     size_t componentSize = ecdb->_componentSizes[componentHandle];
     void* component = ((char*)componentArray) + (entityId * componentSize);
 
@@ -190,20 +190,20 @@ void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentH
     memcpy(component, defaultComponent, componentSize);
 
     // Set the entity to have the component
-    ecdb->_componentValidArrays[componentHandle][entityId] = true;
+    ecdb->data.componentValidArrays[componentHandle][entityId] = true;
     return component;
 }
 
 void ECDB_DisableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle)
 {
     // Disable the component for the entity
-    ecdb->_componentValidArrays[componentHandle][entityId] = false;
+    ecdb->data.componentValidArrays[componentHandle][entityId] = false;
 }
 
 void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
 {
     // Get a pointer to the component in the components array
-    void* componentArray = ecdb->_componentArrays[componentHandle];
+    void* componentArray = ecdb->data.componentArrays[componentHandle];
     size_t componentSize = ecdb->_componentSizes[componentHandle];
     return ((char*)componentArray) + (entityId * componentSize);
 }
@@ -213,13 +213,13 @@ void ECDB_Free(struct ECDB** ecdb)
     IntStack_Free((*ecdb)->_entityIdStack);
     for(unsigned int i = 0; i < (*ecdb)->_componentCount; ++i)
     {
-        free((*ecdb)->_componentArrays[i]);
-        free((*ecdb)->_componentValidArrays[i]);
+        free((*ecdb)->data.componentArrays[i]);
+        free((*ecdb)->data.componentValidArrays[i]);
     }
-    free((*ecdb)->_componentArrays);
-    free((*ecdb)->_componentValidArrays);
+    free((*ecdb)->data.componentArrays);
+    free((*ecdb)->data.componentValidArrays);
     free((*ecdb)->_componentSizes);
-    free((*ecdb)->_validEntities);
+    free((*ecdb)->data.validEntities);
     free(*ecdb);
     *ecdb = NULL;
 }

@@ -276,8 +276,8 @@ int main(int argc, char* args[])
         // Sim loop
         s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, deltaTimeS);
         s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, deltaTimeS);
-        struct C_Transform* transforms = (struct C_Transform*) ecdb->_componentArrays[componentHandles.transforms_handle];
-        struct C_Input* inputs = (struct C_Input*) ecdb->_componentArrays[componentHandles.inputs_handle];
+        struct C_Transform* transforms = (struct C_Transform*) ecdb->data.componentArrays[componentHandles.transforms_handle];
+        struct C_Input* inputs = (struct C_Input*) ecdb->data.componentArrays[componentHandles.inputs_handle];
 
         // Generate update packet
         unsigned int entities_to_update = 0;

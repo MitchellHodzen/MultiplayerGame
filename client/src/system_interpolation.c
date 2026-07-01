@@ -45,8 +45,8 @@ struct Vector2 calculate_interpolated_position(struct N_C_Transform_Interpolatio
 
 void s_interpolate_position(struct ECDB const *const ec, int transforms_handle, int transforms_buffer_handle, unsigned long estimated_server_time, unsigned int interpolation_delay_ms)
 {
-    struct C_Transform* transforms = (struct C_Transform*) ec->_componentArrays[transforms_handle];
-    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->_componentArrays[transforms_buffer_handle];
+    struct C_Transform* transforms = (struct C_Transform*) ec->data.componentArrays[transforms_handle];
+    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->data.componentArrays[transforms_buffer_handle];
 
     // We interpolate interpolation_delay_ms in the past based on our estimated server time
     unsigned long interp_time = estimated_server_time - interpolation_delay_ms;

@@ -5,7 +5,7 @@
 
 void s_lifetime_iterate(struct ECDB* ecdb, int lifetimes_handle, float deltaTimeS)
 {
-    struct C_Lifetime* lifetimes = (struct C_Lifetime*) ecdb->_componentArrays[lifetimes_handle];
+    struct C_Lifetime* lifetimes = (struct C_Lifetime*) ecdb->data.componentArrays[lifetimes_handle];
     for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
     {
         // If the entity has a lifetime, iterate it
@@ -23,7 +23,7 @@ void s_lifetime_iterate(struct ECDB* ecdb, int lifetimes_handle, float deltaTime
 
 void s_lifetime_remove(struct ECDB* ecdb, int lifetimes_handle)
 {
-    struct C_Lifetime* lifetimes = (struct C_Lifetime*) ecdb->_componentArrays[lifetimes_handle];
+    struct C_Lifetime* lifetimes = (struct C_Lifetime*) ecdb->data.componentArrays[lifetimes_handle];
     for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
     {
         // If the entity has a completed lifetime, remove the entity

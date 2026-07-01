@@ -198,6 +198,7 @@ int main(int argc, char* args[])
 
     // temporarily hold input buffer here
     struct Input_Snapshot_Buffer input_queue;
+    Input_Buffer_Init(&input_queue);
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -418,7 +419,7 @@ int main(int argc, char* args[])
         // save input snapshot
         struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
         Input_Buffer_Put(&input_queue, snapshot);
-
+        
         if (directionChanged)
         {
             // If input has been given, send an input packet
