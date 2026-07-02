@@ -11,7 +11,7 @@ bool Ring_Buffer_Init(struct Ring_Buffer** buffer, size_t element_size, unsigned
         return false;
     }
     
-    (*buffer)->_buffer_max_size = max_buffer_size;
+    (*buffer)->buffer_max_size = max_buffer_size;
     (*buffer)->buffer_size = 0;
     (*buffer)->_write_index = 0;
     (*buffer)->element_size = element_size;
@@ -19,7 +19,7 @@ bool Ring_Buffer_Init(struct Ring_Buffer** buffer, size_t element_size, unsigned
     return true;
 }
 
-void* Get_Buffer_Start(struct Ring_Buffer* buffer)
+inline void* Get_Buffer_Start(struct Ring_Buffer* buffer)
 {
     // The buffer starts at the end of the header
     return (char*)buffer + sizeof(struct Ring_Buffer);
@@ -38,10 +38,10 @@ void* Ring_Buffer_Get_Next(struct Ring_Buffer* buffer)
     // Increment the write index
     buffer->_write_index++;
     // If the write index overflows, reset it to 0
-    buffer->_write_index = buffer->_write_index * (buffer->_write_index != buffer->_buffer_max_size);
+    buffer->_write_index = buffer->_write_index * (buffer->_write_index != buffer->buffer_max_size);
     
     // Increment the buffer count if it isnt full
-    buffer->buffer_size = buffer->buffer_size + (1 * (buffer->buffer_size != buffer->_buffer_max_size));
+    buffer->buffer_size = buffer->buffer_size + (1 * (buffer->buffer_size != buffer->buffer_max_size));
 
     return retval;
 }
@@ -49,13 +49,13 @@ void* Ring_Buffer_Get_Next(struct Ring_Buffer* buffer)
 void* Ring_Buffer_Get_At(const struct Ring_Buffer* buffer, unsigned int index)
 {
     // write index is always one ahead of start, so start is write index - 1. Offset by max buffer size so won't go negative in next step
-    unsigned int start_index = buffer->_buffer_max_size - 1 + buffer->_write_index;
+    unsigned int start_index = buffer->buffer_max_size - 1 + buffer->_write_index;
 
     // Offset the index based on the start index
     index = start_index - index; 
 
     // Don't let index overflow
-    index -= buffer->_buffer_max_size * (index >= buffer->_buffer_max_size);
+    index -= buffer->buffer_max_size * (index >= buffer->buffer_max_size);
     
     return Get_Pointer_At(buffer, index);
 }
