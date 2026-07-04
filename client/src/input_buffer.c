@@ -5,7 +5,15 @@
 
 bool Input_Buffer_Init(Input_Snapshot_Buffer** buffer, unsigned int buffer_max_size)
 {
-    return Ring_Buffer_Init(buffer, sizeof(struct Input_Snapshot), buffer_max_size);
+    *buffer = calloc(1, Ring_Buffer_Calculate_Required_Memory(sizeof(struct Input_Snapshot), buffer_max_size));
+    if ((*buffer) == NULL)
+    {
+        return false;
+    }
+
+    Ring_Buffer_Init(*buffer, sizeof(struct Input_Snapshot), buffer_max_size);
+
+    return true;
 }
 
 struct Input_Snapshot Input_Buffer_Get_At(Input_Snapshot_Buffer* buffer, unsigned int index)

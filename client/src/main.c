@@ -233,8 +233,15 @@ int main(int argc, char* args[])
     Input_Snapshot_Buffer* input_queue;
     Input_Buffer_Init(&input_queue, history_frames_to_save);
 
-    struct Ring_Buffer* game_state_history;
-    Ring_Buffer_Init(&game_state_history, sizeof(struct Game_State_Snapshot), history_frames_to_save);
+    struct Ring_Buffer* game_state_history = calloc(1, Ring_Buffer_Calculate_Required_Memory(sizeof(struct Game_State_Snapshot), history_frames_to_save));
+    if (game_state_history == NULL)
+    {
+        // couldn't instantiate game state history
+        SDL_Log("cant alloc state history buffer");
+        return 1;
+    }
+
+    Ring_Buffer_Init(game_state_history, sizeof(struct Game_State_Snapshot), history_frames_to_save);
 
     struct N_C_Transform_Interpolation_Buffer* network_trans_buffers;
     unsigned int network_trans_buffer_elements = gameData->ec->_maxEntities + 1;

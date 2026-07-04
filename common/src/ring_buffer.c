@@ -1,22 +1,17 @@
 #include "ring_buffer.h"
 
-bool Ring_Buffer_Init(struct Ring_Buffer** buffer, size_t element_size, unsigned int max_buffer_size)
+size_t Ring_Buffer_Calculate_Required_Memory(size_t element_size, unsigned int max_buffer_size)
 {
     // Total buffer size will be the size of the ring buffer header + the max amount of elements in the buffer
-    unsigned int buffer_total_size = sizeof(struct Ring_Buffer) + (element_size * max_buffer_size);
-    *buffer = (struct Ring_Buffer*) calloc(1, buffer_total_size);
-    if (*buffer == NULL)
-    {
-        // Couldnt instantiate ring buffer
-        return false;
-    }
-    
-    (*buffer)->buffer_max_size = max_buffer_size;
-    (*buffer)->buffer_size = 0;
-    (*buffer)->_write_index = 0;
-    (*buffer)->element_size = element_size;
-    
-    return true;
+    return sizeof(struct Ring_Buffer) + (element_size * max_buffer_size);
+}
+
+void Ring_Buffer_Init(struct Ring_Buffer* buffer, size_t element_size, unsigned int max_buffer_size)
+{    
+    buffer->buffer_max_size = max_buffer_size;
+    buffer->buffer_size = 0;
+    buffer->_write_index = 0;
+    buffer->element_size = element_size;
 }
 
 void* Get_Buffer_Start(struct Ring_Buffer* buffer)

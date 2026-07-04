@@ -30,11 +30,14 @@ bool Chat_Initialize(struct Chat_Buffers** chat_buffers, unsigned int max_chat_s
     Chat_Reset_Input_Buffer(*chat_buffers);
 
     // Set up history buffer
-    if (!Ring_Buffer_Init(&((*chat_buffers)->chat_history_buffer), (max_chat_size + 1) * sizeof(char), max_history_size))
+    (*chat_buffers)->chat_history_buffer = calloc(1, Ring_Buffer_Calculate_Required_Memory((max_chat_size + 1) * sizeof(char), max_history_size));
+    if ((*chat_buffers)->chat_history_buffer == NULL)
     {
         Chat_Free(chat_buffers);
         return false;
     }
+
+    Ring_Buffer_Init((*chat_buffers)->chat_history_buffer, (max_chat_size + 1) * sizeof(char), max_history_size);
 
     return true;
 }
