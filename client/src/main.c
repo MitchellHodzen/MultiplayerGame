@@ -243,16 +243,6 @@ int main(int argc, char* args[])
 
     Ring_Buffer_Init(game_state_history, sizeof(struct Game_State_Snapshot), history_frames_to_save);
 
-    struct N_C_Transform_Interpolation_Buffer* network_trans_buffers;
-    unsigned int network_trans_buffer_elements = gameData->ec->_maxEntities + 1;
-    network_trans_buffers = calloc(network_trans_buffer_elements, sizeof(struct N_C_Transform_Interpolation_Buffer));
-    if (network_trans_buffers == NULL)
-    {
-        // couldn't instantiate trans buffers
-        SDL_Log("cant alloc trans buffer");
-        return 1;
-    }
-
     SDL_Log("Starting game loop");
     while(quit == false)
     {
@@ -309,7 +299,7 @@ int main(int argc, char* args[])
                                     if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle))
                                     {
                                         // Unreliable packets are still sequenced, so we know this is the latest transform message
-                                        struct N_C_Transform_Interpolation_Buffer* trans_buf = &(network_trans_buffers[localEntityId]); //(struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                        struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
                                         struct C_Transform* transform = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
                                         struct N_C_Transform_Snapshot trans_snap = {.server_time = header->server_time_ms, .transform = *transform};
                                         trans_snap.transform.position = update.position;
@@ -480,7 +470,7 @@ int main(int argc, char* args[])
         // resolve server to client time - when a sync happens, roll client state back
         // Write input to a buffer
         // check input buffer time, sim any input that is ahead of sim time. for normal iterations, there should only be one. when network synced, shoudl replay all since that server tinme
-        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, network_trans_buffers, Net_Estimate_Server_Time(netManager, currentFrameTimeMs), INTERP_DELAY_MS);
+        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, currentFrameTimeMs), INTERP_DELAY_MS);
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
         s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
@@ -492,7 +482,7 @@ int main(int argc, char* args[])
         SDL_RenderClear(window_state->renderer);
 
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
-        s_render_server_ghost(gameData->ec, gameData->componentHandles.transforms_interpolation_buffer_handle, network_trans_buffers, window_state->renderer);
+        s_render_server_ghost(gameData->ec, gameData->componentHandles.transforms_interpolation_buffer_handle, window_state->renderer);
         // Chat box UI
         Clay_BeginLayout();
         CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
@@ -561,7 +551,6 @@ cleanup:
     Game_Data_Free(&gameData);
     free(input_queue);
     free(game_state_history);
-    free(network_trans_buffers);
 
     Net_Free(&netManager);
     netManager = NULL;

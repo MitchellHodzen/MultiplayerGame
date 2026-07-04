@@ -67,16 +67,17 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
     }
 }
 
-void s_render_server_ghost(struct ECDB const *const ec, int trans_buf_handle, struct N_C_Transform_Interpolation_Buffer* network_trans_buffers, struct SDL_Renderer* renderer)
+void s_render_server_ghost(struct ECDB const *const ec, int trans_buf_handle, struct SDL_Renderer* renderer)
 {
     // Render a ghost square at the most recently received server position
     float length = 75;
+    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->data.componentArrays[trans_buf_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         if (ECDB_EntityHasComponent(ec, i, trans_buf_handle))
         {
             // Get the most recent transform from the server
-            struct C_Transform latest_transform = network_trans_buffers[i]._buffer[0].transform;
+            struct C_Transform latest_transform = trans_buf[i]._buffer[0].transform;
 
             // draw ghost square
             float halfLength = length / 2;
