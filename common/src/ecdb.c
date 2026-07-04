@@ -102,7 +102,6 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     if (componentArray == NULL)
     {
         // couldn't instantiate the component array
-        printf("cant alloc\n", ecdb->_maxEntities, componentSize);
         *componentHandle = ecdb->invalidComponentId;
         return false;
     }
@@ -118,7 +117,6 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     // If there is a default value provided, save it
     if (defaultValue != NULL)
     {
-        printf("sizeof component: %i. invalid entity id: %i. Offset: %i\n", componentSize, ecdb->invalidEntityId, (ecdb->invalidEntityId * componentSize));
         // Store the default value at the invalid entity, as that should never change
         void* comp = ((char*)componentArray) + (ecdb->invalidEntityId * componentSize);
         memcpy(comp, defaultValue, componentSize);

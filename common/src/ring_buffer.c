@@ -19,7 +19,7 @@ bool Ring_Buffer_Init(struct Ring_Buffer** buffer, size_t element_size, unsigned
     return true;
 }
 
-inline void* Get_Buffer_Start(struct Ring_Buffer* buffer)
+void* Get_Buffer_Start(struct Ring_Buffer* buffer)
 {
     // The buffer starts at the end of the header
     return (char*)buffer + sizeof(struct Ring_Buffer);

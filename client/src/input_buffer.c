@@ -3,9 +3,9 @@
 #include <string.h>
 
 
-bool Input_Buffer_Init(Input_Snapshot_Buffer** buffer)
+bool Input_Buffer_Init(Input_Snapshot_Buffer** buffer, unsigned int buffer_max_size)
 {
-    return Ring_Buffer_Init(buffer, sizeof(struct Input_Snapshot), INPUT_SNAPSHOT_BUF_SIZE);
+    return Ring_Buffer_Init(buffer, sizeof(struct Input_Snapshot), buffer_max_size);
 }
 
 struct Input_Snapshot Input_Buffer_Get_At(Input_Snapshot_Buffer* buffer, unsigned int index)

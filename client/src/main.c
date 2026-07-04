@@ -95,6 +95,43 @@ void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int 
     gameData->networkIdEntityMap[networkId] = ecdb->invalidEntityId;
 }
 
+struct Game_State_Snapshot
+{
+    uint64_t client_time_ms;
+    struct ECDB_Data state;
+};
+
+void Save_State_History(struct ECDB* ecdb, struct Ring_Buffer* game_state_history, uint64_t client_time_ms)
+{
+    // TODO: This is just to get it working, ideally we don't want to alloc in the same loop. Make ECDB data structures contiguous in memory and copy them directly. Rewrite this whole thing
+    // also its a humungous memory leak lol
+    struct Game_State_Snapshot* snapshot = Ring_Buffer_Get_Next(game_state_history);
+    snapshot->client_time_ms = client_time_ms;
+
+    // Copy component data
+    snapshot->state.componentArrays = (void**) calloc(ecdb->_maxComponents + 1, sizeof(void*));
+    snapshot->state.componentValidArrays = (bool**) calloc(ecdb->_maxComponents + 1, sizeof(bool*));
+    for (unsigned int component_handle = 0; component_handle < ecdb->_componentCount; ++component_handle)
+    {
+        size_t component_size = ecdb->_componentSizes[component_handle];
+        unsigned int component_array_size = (ecdb->_maxEntities + 1) * component_size;
+        unsigned int component_valid_array_size = (ecdb->_maxEntities + 1) * sizeof(bool);
+
+        void* component_array = malloc(component_array_size);
+        memcpy(component_array, ecdb->data.componentArrays[component_handle], component_array_size);
+        bool* component_valid_array = malloc(component_valid_array_size);
+        memcpy(component_valid_array, ecdb->data.componentValidArrays[component_handle], component_valid_array_size);
+
+        // Add the components array to the component array collections
+        snapshot->state.componentArrays[component_handle] = component_array;
+        snapshot->state.componentValidArrays[component_handle] = component_valid_array;
+    }
+
+    // copy valid entity data
+    snapshot->state.validEntities = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
+    memcpy(snapshot->state.validEntities, ecdb->data.validEntities, (ecdb->_maxEntities + 1) * sizeof(bool));
+}
+
 int main(int argc, char* args[])
 {
     bool quit = false;
@@ -191,9 +228,23 @@ int main(int argc, char* args[])
     ENetEvent event;
     enum Command_Contex command_context = COMMAND_STANDARD;
 
-    // temporarily hold input buffer here
+    // TODO: Move prediction logic elsewhere, only here temporarily
+    unsigned int history_frames_to_save = 100;
     Input_Snapshot_Buffer* input_queue;
-    Input_Buffer_Init(&input_queue);
+    Input_Buffer_Init(&input_queue, history_frames_to_save);
+
+    struct Ring_Buffer* game_state_history;
+    Ring_Buffer_Init(&game_state_history, sizeof(struct Game_State_Snapshot), history_frames_to_save);
+
+    struct N_C_Transform_Interpolation_Buffer* network_trans_buffers;
+    unsigned int network_trans_buffer_elements = gameData->ec->_maxEntities + 1;
+    network_trans_buffers = calloc(network_trans_buffer_elements, sizeof(struct N_C_Transform_Interpolation_Buffer));
+    if (network_trans_buffers == NULL)
+    {
+        // couldn't instantiate trans buffers
+        SDL_Log("cant alloc trans buffer");
+        return 1;
+    }
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -251,7 +302,7 @@ int main(int argc, char* args[])
                                     if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle))
                                     {
                                         // Unreliable packets are still sequenced, so we know this is the latest transform message
-                                        struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                        struct N_C_Transform_Interpolation_Buffer* trans_buf = &(network_trans_buffers[localEntityId]); //(struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
                                         struct C_Transform* transform = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
                                         struct N_C_Transform_Snapshot trans_snap = {.server_time = header->server_time_ms, .transform = *transform};
                                         trans_snap.transform.position = update.position;
@@ -408,10 +459,6 @@ int main(int argc, char* args[])
             (Clay_Vector2){.x = mousePos.x, .y = mousePos.y},
             buttons & SDL_BUTTON_LMASK
         );
-
-        // save input snapshot
-        struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
-        Input_Buffer_Put(input_queue, snapshot);
         
         if (directionChanged)
         {
@@ -422,10 +469,14 @@ int main(int argc, char* args[])
             enet_peer_send(netManager->serverPeer, 0, packet);
         }
 
+        //TODO: 
+        // resolve server to client time - when a sync happens, roll client state back
+        // Write input to a buffer
+        // check input buffer time, sim any input that is ahead of sim time. for normal iterations, there should only be one. when network synced, shoudl replay all since that server tinme
+        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, network_trans_buffers, Net_Estimate_Server_Time(netManager, currentFrameTimeMs), INTERP_DELAY_MS);
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
         s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
-        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, currentFrameTimeMs), INTERP_DELAY_MS);
         s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
         s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
 
@@ -434,7 +485,7 @@ int main(int argc, char* args[])
         SDL_RenderClear(window_state->renderer);
 
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
-        s_render_server_ghost(gameData->ec, gameData->componentHandles.transforms_interpolation_buffer_handle, window_state->renderer);
+        s_render_server_ghost(gameData->ec, gameData->componentHandles.transforms_interpolation_buffer_handle, network_trans_buffers, window_state->renderer);
         // Chat box UI
         Clay_BeginLayout();
         CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
@@ -489,6 +540,11 @@ int main(int argc, char* args[])
 
         // Draw to screen
         SDL_RenderPresent(window_state->renderer);
+
+        // save state
+        struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
+        Input_Buffer_Put(input_queue, snapshot);
+        Save_State_History(gameData->ec, game_state_history, currentFrameTimeMs);
     }
 
 disconnect:
@@ -497,6 +553,8 @@ disconnect:
 cleanup:
     Game_Data_Free(&gameData);
     free(input_queue);
+    free(game_state_history);
+    free(network_trans_buffers);
 
     Net_Free(&netManager);
     netManager = NULL;
