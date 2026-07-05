@@ -19,6 +19,7 @@
 #define TICK_PER_S 60
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
+#define UPDATE_SEND_PER_S 10
 
 struct Component_Handles
 {
@@ -128,13 +129,16 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    float targetMsPerFrame = (1.0f / ((float)TICK_PER_S )) * 1000.0f;
-    printf("target ms per frame %f\n", targetMsPerFrame);
+    float targetSecPerFrame = (1.0f / (float)TICK_PER_S );
+    float targetSecPerUpdate = (1.0f / (float)UPDATE_SEND_PER_S);
+    printf("target ms per frame %f. Target ms per update packet %f\n", targetSecPerFrame * 1000.0f, targetSecPerUpdate * 1000.0f);
     ENetEvent event;
     DWORD currentFrameTimeMs = GetTickCount();
     DWORD previousFrameTimeMs = currentFrameTimeMs;
 
     float time_packet_accumulator_s = 0;
+    float sim_accumulator_s = 0;
+    float update_packet_accumulator_s = 0;
     unsigned int current_tick = 0;
     while(1)
     {
@@ -154,6 +158,7 @@ int main(int argc, char* args[])
             time_packet_accumulator_s -= TIME_SYNC_SEND_S;
         }
 
+        // service enet outside of sim loop to ensure timely message ack
         while (enet_host_service (server, &event, 0) > 0)
         {
             switch (event.type)
@@ -273,53 +278,57 @@ int main(int argc, char* args[])
             }
         }
 
-        // Sim loop
-        s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, deltaTimeS);
-        s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, deltaTimeS);
-        struct C_Transform* transforms = (struct C_Transform*) ecdb->data.componentArrays[componentHandles.transforms_handle];
-        struct C_Input* inputs = (struct C_Input*) ecdb->data.componentArrays[componentHandles.inputs_handle];
-
-        // Generate update packet
-        unsigned int entities_to_update = 0;
-
-        // allocate memory on the stack for our custom packet which is the size of the chat string + the chat header. TODO: Too big for stack? make a dedicated malloced buffer before hand and re-use
-        unsigned int max_update_packet_length = sizeof(struct P_Update_Header) + (ecdb->_maxEntities * sizeof(struct P_Update_Entity_Data));
-        void* update_packet_memory = _malloca(max_update_packet_length);
-
-        // Calculate the update buffer pointer by skipping ahead P_Update_Header size
-        struct P_Update_Entity_Data* update_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header);
-
-        // Write updates to the update buffer
-        for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+        sim_accumulator_s += deltaTimeS;
+        if (sim_accumulator_s > targetSecPerFrame)
         {
-            if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle))
-            {
-                struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position};
-                update_buffer_ptr[entities_to_update] = data;
-                entities_to_update++;
-            }
+            // Run the sim
+            s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, deltaTimeS);
+            s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, deltaTimeS);
+
+            // pull back the accumulator
+            sim_accumulator_s -= targetSecPerFrame;
         }
 
-        // set the first P_Update_Header bytes to the update header
-        struct P_Update_Header update_header = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .updates_count = entities_to_update};
-        *(struct P_Update_Header*)update_packet_memory = update_header;
+        update_packet_accumulator_s += deltaTimeS;
+        if (update_packet_accumulator_s > targetSecPerUpdate)
+        {
+            struct C_Transform* transforms = (struct C_Transform*) ecdb->data.componentArrays[componentHandles.transforms_handle];
+            // Generate update packet
+            unsigned int entities_to_update = 0;
 
-        // calculate the actual packet length with the entities to update count
-        unsigned int actual_update_packet_length = sizeof(struct P_Update_Header) + (entities_to_update * sizeof(struct P_Update_Entity_Data));
+            // allocate memory on the stack for our custom packet which is the size of the chat string + the chat header. TODO: Too big for stack? make a dedicated malloced buffer before hand and re-use
+            unsigned int max_update_packet_length = sizeof(struct P_Update_Header) + (ecdb->_maxEntities * sizeof(struct P_Update_Entity_Data));
+            void* update_packet_memory = _malloca(max_update_packet_length);
 
-        // Build and broadcast the packet. TODO: make packet creation malloc free
-        ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, ENET_PACKET_FLAG_RELIABLE);
-        enet_host_broadcast(server, 0, update_packet);
+            // Calculate the update buffer pointer by skipping ahead P_Update_Header size
+            struct P_Update_Entity_Data* update_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header);
 
-        // before waiting, send all packets
-        enet_host_flush(server);
+            // Write updates to the update buffer
+            for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+            {
+                if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle))
+                {
+                    struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position};
+                    update_buffer_ptr[entities_to_update] = data;
+                    entities_to_update++;
+                }
+            }
 
-        // TODO: bad way to cap tick rate, change it
-        DWORD endFrameTimeMs = GetTickCount();
-        DWORD simTimeMs = (endFrameTimeMs - currentFrameTimeMs);
-        // Each frame should take targetMsPerFrame seconds
-        float waitTimeMs = targetMsPerFrame - simTimeMs;
-        Sleep(waitTimeMs);
+            // set the first P_Update_Header bytes to the update header
+            struct P_Update_Header update_header = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .updates_count = entities_to_update};
+            *(struct P_Update_Header*)update_packet_memory = update_header;
+
+            // calculate the actual packet length with the entities to update count
+            unsigned int actual_update_packet_length = sizeof(struct P_Update_Header) + (entities_to_update * sizeof(struct P_Update_Entity_Data));
+
+            // Build and broadcast the packet. TODO: make packet creation malloc free
+            ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, ENET_PACKET_FLAG_RELIABLE);
+
+            enet_host_broadcast(server, 0, update_packet);
+
+            // pull back the accumulator
+            update_packet_accumulator_s -= targetSecPerUpdate;
+        }
 
         // Increment tick
         current_tick++;
