@@ -229,7 +229,7 @@ int main(int argc, char* args[])
     enum Command_Contex command_context = COMMAND_STANDARD;
 
     // TODO: Move prediction logic elsewhere, only here temporarily
-    unsigned int history_frames_to_save = 100;
+    unsigned int history_frames_to_save = 3000;
     Input_Snapshot_Buffer* input_queue;
     Input_Buffer_Init(&input_queue, history_frames_to_save);
 
@@ -250,6 +250,8 @@ int main(int argc, char* args[])
         currentFrameTimeMs = SDL_GetTicks();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
+        //SDL_Log("Corrected client time: %lu", Net_Estimate_Server_Time(netManager, currentFrameTimeMs));
+
         // TODO: move to netmanager? decouple?
         while (enet_host_service(netManager->client, &event, 0) > 0)
         {
@@ -268,6 +270,23 @@ int main(int argc, char* args[])
                         {
                             // Update packets start with a header followed by an array of updates
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
+
+                            // When we receive an update header, revert to the state that was right before that in server time
+                            for(unsigned int i = 0; i < game_state_history->buffer_size; ++i)
+                            {
+                                struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Buffer_Get_At(game_state_history, i);
+                                uint64_t state_calculated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
+                                //SDL_Log("Server time: %lu, client time: %lu", header->server_time_ms, state_calculated_server_time);
+                                if (state_calculated_server_time <= header->server_time_ms)
+                                {
+                                    // this state occurs before the server time, use it
+                                    SDL_Log("Using history value %i", i);
+                                    gameData->ec->data = state->state; //TODO: This leaks, only doing for testing
+                                    break;
+                                }
+                            }
+
+                            // Record updates
                             struct P_Update_Entity_Data* update_buffer_ptr = ((char*)event.packet->data) + sizeof(struct P_Update_Header);
 
                             for(int i = 0; i < header->updates_count; ++i)
@@ -310,6 +329,9 @@ int main(int argc, char* args[])
                                         // If we aren't interpolating, write actor position directly
                                         struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
                                         actorPosition->position = update.position;
+
+                                        struct C_Transform* localPlayerPos = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, local_player, gameData->componentHandles.transforms_handle);
+                                        localPlayerPos->position = update.position;
                                     }
                                 }
                             }
