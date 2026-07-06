@@ -6,7 +6,7 @@
 
 void s_reset_input(struct ECDB const *const ecdb, int input_handle)
 {
-    struct C_Input* inputs = (struct C_Input*) ecdb->data.componentArrays[input_handle];
+    struct C_Input* inputs = (struct C_Input*) ecdb->componentArrays[input_handle];
     for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
     {
         // Don't check if we have input since we're 0ing it out

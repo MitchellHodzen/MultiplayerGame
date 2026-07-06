@@ -6,8 +6,8 @@
 
 void s_move(struct ECDB const *const ec, int transforms_handle, int inputs_handle, float deltaTimeS)
 {
-    struct C_Transform* transforms = (struct C_Transform*) ec->data.componentArrays[transforms_handle];
-    struct C_Input* inputs = (struct C_Input*) ec->data.componentValidArrays[inputs_handle];
+    struct C_Transform* transforms = (struct C_Transform*) ec->componentArrays[transforms_handle];
+    struct C_Input* inputs = (struct C_Input*) ec->componentValidArrays[inputs_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         // if input is being done, apply it

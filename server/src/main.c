@@ -12,6 +12,7 @@
 #include "system_movement.h"
 #include "component_transform.h"
 #include <windows.h>
+#include "ring_buffer.h"
 
 #define MAX_CONNECTIONS 10
 #define CHANNELS 2
@@ -98,6 +99,15 @@ void BroadcastChatMessage(ENetHost* server, struct P_Chat_Header header, char* s
     enet_host_broadcast(server, 1, chatPacket);
 }
 
+#define SCHEDULED_PACKET_BUFFER_SIZE 1000
+struct Scheduled_Packet
+{
+    bool sent;
+    ENetPacket* packet;
+    ENetPeer* peer; // Null to broadcast
+    DWORD send_time;
+};
+
 int main(int argc, char* args[])
 {
     if (enet_initialize () != 0)
@@ -129,6 +139,20 @@ int main(int argc, char* args[])
         return 1;
     }
 
+    // Buffer packets being scheduled
+    // TODO: Memory leak: if any packet is not sent before being removed from the buffer it will not be freed
+    // TODO: Remove packets from buffer that have been sent
+    size_t scheduled_packets_buffer_size = Ring_Buffer_Calculate_Required_Memory(sizeof(struct Scheduled_Packet), SCHEDULED_PACKET_BUFFER_SIZE);
+    struct Ring_Buffer* scheduled_packets_buffer = calloc(1, scheduled_packets_buffer_size);
+    if (scheduled_packets_buffer == NULL)
+    {
+        // couldn't instantiate game state history
+        printf("cant alloc scheduled packets buffer\n");
+        return 1;
+    }
+
+    Ring_Buffer_Init(scheduled_packets_buffer, sizeof(struct Scheduled_Packet), SCHEDULED_PACKET_BUFFER_SIZE);
+
     float targetSecPerFrame = (1.0f / (float)TICK_PER_S );
     float targetSecPerUpdate = (1.0f / (float)UPDATE_SEND_PER_S);
     printf("target ms per frame %f. Target ms per update packet %f\n", targetSecPerFrame * 1000.0f, targetSecPerUpdate * 1000.0f);
@@ -145,6 +169,28 @@ int main(int argc, char* args[])
         previousFrameTimeMs = currentFrameTimeMs;
         currentFrameTimeMs = GetTickCount();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
+
+        // Check if any scheduled packets need to be sent
+        for(unsigned int i = 0; i < scheduled_packets_buffer->buffer_size; ++i)
+        {
+            // loop backwards so we send older packets first
+            unsigned int index =  (scheduled_packets_buffer->buffer_size - 1) - i;
+            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_At(scheduled_packets_buffer, index);
+
+            // Send any unsent packets scheduled in the past
+            if (scheduled_packet->sent == false && scheduled_packet->send_time <= currentFrameTimeMs)
+            {
+                if (scheduled_packet->peer == NULL)
+                {
+                    enet_host_broadcast(server, 0, scheduled_packet->packet);
+                }
+                else
+                {
+                    enet_peer_send(event.peer, 0, scheduled_packet->packet);
+                }
+                scheduled_packet->sent = true;
+            }
+        }
 
         time_packet_accumulator_s += deltaTimeS;
         if (time_packet_accumulator_s > TIME_SYNC_SEND_S)
@@ -292,7 +338,7 @@ int main(int argc, char* args[])
         update_packet_accumulator_s += deltaTimeS;
         if (update_packet_accumulator_s > targetSecPerUpdate)
         {
-            struct C_Transform* transforms = (struct C_Transform*) ecdb->data.componentArrays[componentHandles.transforms_handle];
+            struct C_Transform* transforms = (struct C_Transform*) ecdb->componentArrays[componentHandles.transforms_handle];
             // Generate update packet
             unsigned int entities_to_update = 0;
 
@@ -324,7 +370,13 @@ int main(int argc, char* args[])
             // Build and broadcast the packet. TODO: make packet creation malloc free
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, ENET_PACKET_FLAG_RELIABLE);
 
-            enet_host_broadcast(server, 0, update_packet);
+            //enet_host_broadcast(server, 0, update_packet);
+            unsigned int packet_delay_ms = 250;
+            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
+            scheduled_packet->packet = update_packet;
+            scheduled_packet->sent = false;
+            scheduled_packet->peer = NULL;
+            scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;
 
             // pull back the accumulator
             update_packet_accumulator_s -= targetSecPerUpdate;

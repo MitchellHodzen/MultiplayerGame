@@ -9,9 +9,9 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
 {
     // Draw the squares
     float length = 75;
-    struct C_Transform* transforms = (struct C_Transform*) ec->data.componentArrays[transforms_handle];
-    SDL_FColor* colors = (SDL_FColor*) ec->data.componentArrays[colors_handle];
-    char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->data.componentArrays[texts_handle];
+    struct C_Transform* transforms = (struct C_Transform*) ec->componentArrays[transforms_handle];
+    SDL_FColor* colors = (SDL_FColor*) ec->componentArrays[colors_handle];
+    char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         // Only draw if there is a position
@@ -67,22 +67,22 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
     }
 }
 
-void s_render_server_ghost(struct ECDB const *const ec, int trans_buf_handle, struct SDL_Renderer* renderer)
+void s_render_server_ghost(struct ECDB const *const ec, int last_server_position_handle, struct SDL_Renderer* renderer)
 {
     // Render a ghost square at the most recently received server position
     float length = 75;
-    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->data.componentArrays[trans_buf_handle];
+    struct Vector2* last_server_position_buffer = (struct Vector2*) ec->componentArrays[last_server_position_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
-        if (ECDB_EntityHasComponent(ec, i, trans_buf_handle))
+        if (ECDB_EntityHasComponent(ec, i, last_server_position_handle))
         {
             // Get the most recent transform from the server
-            struct C_Transform latest_transform = trans_buf[i]._buffer[0].transform;
+            struct Vector2 last_server_position = last_server_position_buffer[i];
 
             // draw ghost square
             float halfLength = length / 2;
             SDL_FColor color = { .r = 1, .g = 1, .b = 1, .a = 0.2};
-            SDL_FRect rect = { .x = latest_transform.position.x - halfLength, .y = latest_transform.position.y - halfLength, .w = length, .h = length};
+            SDL_FRect rect = { .x = last_server_position.x - halfLength, .y = last_server_position.y - halfLength, .w = length, .h = length};
             SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
             SDL_RenderFillRect(renderer, &rect);
         }

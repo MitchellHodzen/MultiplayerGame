@@ -6,6 +6,7 @@ struct Component_Handles
     int network_id_handle;
     int transforms_handle;
     int transforms_interpolation_buffer_handle;
+    int last_server_position_handle;
     int colors_handle;
     int inputs_handle;
     int text_handle;

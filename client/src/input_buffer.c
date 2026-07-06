@@ -18,6 +18,8 @@ bool Input_Buffer_Init(Input_Snapshot_Buffer** buffer, unsigned int buffer_max_s
 
 struct Input_Snapshot Input_Buffer_Get_At(Input_Snapshot_Buffer* buffer, unsigned int index)
 {
+    // Read input from oldest to newest
+    index =  (buffer->buffer_size - 1) - index;
     return *((struct Input_Snapshot*)Ring_Buffer_Get_At(buffer, index));
 }
 

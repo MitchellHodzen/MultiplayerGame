@@ -35,8 +35,8 @@ float apply_friction_on_axis(float velocity_leg, float friction, float deltaTime
 
 void s_update_physics(struct ECDB const *const ecdb, int physics_2d_handle, int inputs_handle, float deltaTimeS)
 {
-    struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->data.componentArrays[physics_2d_handle];
-    struct C_Input* inputs = (struct C_Input*) ecdb->data.componentArrays[inputs_handle];
+    struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[physics_2d_handle];
+    struct C_Input* inputs = (struct C_Input*) ecdb->componentArrays[inputs_handle];
     for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
     {
         // if input is being done, apply it to physics
@@ -54,8 +54,8 @@ void s_update_physics(struct ECDB const *const ecdb, int physics_2d_handle, int 
 
 void s_apply_physics(struct ECDB const *const ecdb, int physics_2d_handle, int transforms_handle, float deltaTimeS)
 {
-    struct C_Transform* transforms = (struct C_Transform*) ecdb->data.componentArrays[transforms_handle];
-    struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->data.componentArrays[physics_2d_handle];
+    struct C_Transform* transforms = (struct C_Transform*) ecdb->componentArrays[transforms_handle];
+    struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[physics_2d_handle];
     for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
     {
         // if input is being done, apply it

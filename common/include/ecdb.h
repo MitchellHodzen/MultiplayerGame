@@ -5,13 +5,6 @@
 
 struct IntStack;
 
-struct ECDB_Data
-{
-    bool* validEntities;
-    void** componentArrays;
-    bool** componentValidArrays;
-};
-
 struct ECDB
 {
     unsigned int _maxEntities;
@@ -19,9 +12,11 @@ struct ECDB
     unsigned int _componentCount;
     struct IntStack* _entityIdStack;
     size_t* _componentSizes;
+    bool* validEntities;
+    void** componentArrays;
+    bool** componentValidArrays;
     unsigned int invalidEntityId;
     unsigned int invalidComponentId;
-    struct ECDB_Data data;
 };
 
 bool ECDB_Init(struct ECDB** ecdb, unsigned int maxEntities, unsigned int maxComponents);
@@ -32,6 +27,9 @@ bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int co
 void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle);
 void ECDB_DisableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle);
 void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle);
+size_t ECDB_Snapshot_Size(struct ECDB const *const ecdb);
+void ECDB_Generate_Snapshot(struct ECDB const *const ecdb, void* snapshot);
+void ECDB_Apply_Snapshot(struct ECDB* ecdb, void* snapshot);
 void ECDB_Free(struct ECDB** ecdb);
 
 #endif /* ECDBLIB */

@@ -29,6 +29,7 @@
 #include "system_physics.h"
 #include "system_interpolation.h"
 #include "input_buffer.h"
+#include "ring_stack.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -98,38 +99,16 @@ void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int 
 struct Game_State_Snapshot
 {
     uint64_t client_time_ms;
-    struct ECDB_Data state;
 };
 
-void Save_State_History(struct ECDB* ecdb, struct Ring_Buffer* game_state_history, uint64_t client_time_ms)
+void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history_stack, uint64_t client_time_ms)
 {
-    // TODO: This is just to get it working, ideally we don't want to alloc in the same loop. Make ECDB data structures contiguous in memory and copy them directly. Rewrite this whole thing
-    // also its a humungous memory leak lol
-    struct Game_State_Snapshot* snapshot = Ring_Buffer_Get_Next(game_state_history);
+    struct Game_State_Snapshot* snapshot = Ring_Stack_Push(game_state_history_stack);
     snapshot->client_time_ms = client_time_ms;
-
-    // Copy component data
-    snapshot->state.componentArrays = (void**) calloc(ecdb->_maxComponents + 1, sizeof(void*));
-    snapshot->state.componentValidArrays = (bool**) calloc(ecdb->_maxComponents + 1, sizeof(bool*));
-    for (unsigned int component_handle = 0; component_handle < ecdb->_componentCount; ++component_handle)
-    {
-        size_t component_size = ecdb->_componentSizes[component_handle];
-        unsigned int component_array_size = (ecdb->_maxEntities + 1) * component_size;
-        unsigned int component_valid_array_size = (ecdb->_maxEntities + 1) * sizeof(bool);
-
-        void* component_array = malloc(component_array_size);
-        memcpy(component_array, ecdb->data.componentArrays[component_handle], component_array_size);
-        bool* component_valid_array = malloc(component_valid_array_size);
-        memcpy(component_valid_array, ecdb->data.componentValidArrays[component_handle], component_valid_array_size);
-
-        // Add the components array to the component array collections
-        snapshot->state.componentArrays[component_handle] = component_array;
-        snapshot->state.componentValidArrays[component_handle] = component_valid_array;
-    }
-
-    // copy valid entity data
-    snapshot->state.validEntities = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
-    memcpy(snapshot->state.validEntities, ecdb->data.validEntities, (ecdb->_maxEntities + 1) * sizeof(bool));
+    
+    // Snapshot data is after the struct header
+    void* ecdb_state_snapshot = (char*)snapshot + sizeof(struct Game_State_Snapshot);
+    ECDB_Generate_Snapshot(ecdb, ecdb_state_snapshot);
 }
 
 int main(int argc, char* args[])
@@ -200,23 +179,16 @@ int main(int argc, char* args[])
         goto disconnect;
     }
 
+    struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.inputs_handle);
+    entityInput->speed=100;
+
+    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
+    physics->friction = 25;
+
+    ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
+
     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
-
-    // create a local player with no networking - physics entirely client side
-    int local_player;
-	if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){0.80f, 0.80f, 0.80f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player, "Local"))
-	{
-        struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.inputs_handle);
-        entityInput->speed=100;
-
-        struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.physics_2d_handle);
-        physics->friction = 25;
-    }
-    else
-    {
-        SDL_Log("Failed to create local player");
-    }
 
     // Chat UI tracking
     float previousChatBottom = 0;
@@ -233,15 +205,19 @@ int main(int argc, char* args[])
     Input_Snapshot_Buffer* input_queue;
     Input_Buffer_Init(&input_queue, history_frames_to_save);
 
-    struct Ring_Buffer* game_state_history = calloc(1, Ring_Buffer_Calculate_Required_Memory(sizeof(struct Game_State_Snapshot), history_frames_to_save));
-    if (game_state_history == NULL)
+    // Game state snapshot is the snapshot struct + the actual game state
+    size_t ecdb_snapshot_size = ECDB_Snapshot_Size(gameData->ec);
+    size_t game_state_ring_stack_size = Ring_Stack_Calculate_Required_Memory(sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
+    SDL_Log("ECDB Snapshot Size: %i. Buffer size: %i", ecdb_snapshot_size, game_state_ring_stack_size);
+    struct Ring_Stack* game_state_history_stack = calloc(1, game_state_ring_stack_size);
+    if (game_state_history_stack == NULL)
     {
         // couldn't instantiate game state history
         SDL_Log("cant alloc state history buffer");
         return 1;
     }
 
-    Ring_Buffer_Init(game_state_history, sizeof(struct Game_State_Snapshot), history_frames_to_save);
+    Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -272,18 +248,23 @@ int main(int argc, char* args[])
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
 
                             // When we receive an update header, revert to the state that was right before that in server time
-                            for(unsigned int i = 0; i < game_state_history->buffer_size; ++i)
+                            // TODO: Handle when it is so far back that we don't have history
+                            uint64_t revert_frame_time_ms;
+                            int testindex = 0;
+                            while(game_state_history_stack->buffer_size > 0)
                             {
-                                struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Buffer_Get_At(game_state_history, i);
+                                struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
                                 uint64_t state_calculated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
-                                //SDL_Log("Server time: %lu, client time: %lu", header->server_time_ms, state_calculated_server_time);
                                 if (state_calculated_server_time <= header->server_time_ms)
                                 {
                                     // this state occurs before the server time, use it
-                                    SDL_Log("Using history value %i", i);
-                                    gameData->ec->data = state->state; //TODO: This leaks, only doing for testing
+                                    SDL_Log("Using history value %i", testindex);
+                                    void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
+                                    ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
+                                    revert_frame_time_ms = state->client_time_ms;
                                     break;
                                 }
+                                testindex++;
                             }
 
                             // Record updates
@@ -302,6 +283,7 @@ int main(int argc, char* args[])
                                     {
                                         // all incoming players will have transform interpolation
                                         ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                        ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.last_server_position_handle);
                                         Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, update.networkId);
                                         SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", update.position.x,  update.position.y, update.networkId, entityId);
                                     }
@@ -319,7 +301,7 @@ int main(int argc, char* args[])
                                     {
                                         // Unreliable packets are still sequenced, so we know this is the latest transform message
                                         struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                        struct C_Transform* transform = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
+                                        struct C_Transform* transform = (struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
                                         struct N_C_Transform_Snapshot trans_snap = {.server_time = header->server_time_ms, .transform = *transform};
                                         trans_snap.transform.position = update.position;
                                         Interp_Buf_Add(trans_buf, trans_snap);
@@ -327,12 +309,32 @@ int main(int argc, char* args[])
                                     else
                                     {
                                         // If we aren't interpolating, write actor position directly
-                                        struct C_Transform* actorPosition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
+                                        struct C_Transform* actorPosition = (struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
                                         actorPosition->position = update.position;
-
-                                        struct C_Transform* localPlayerPos = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, local_player, gameData->componentHandles.transforms_handle);
-                                        localPlayerPos->position = update.position;
                                     }
+
+                                    // record last position for debugging
+                                    if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.last_server_position_handle))
+                                    {
+                                        struct Vector2* lastposition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.last_server_position_handle);
+                                        *lastposition = update.position;
+                                    }
+                                }
+                            }
+
+                            // Re-run simulation to bring it back up to current time
+                            for(unsigned int i = 0; i < input_queue->buffer_size; ++i)
+                            {
+                                struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
+                                // Re-play any input captured after the last frame
+                                if (input.client_time >= revert_frame_time_ms)
+                                {
+                                    s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
+                                    s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
+                                    s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
+                                    s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, input.direction); // <- direction applied
+                                    s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
+                                    s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
                                 }
                             }
 
@@ -504,7 +506,8 @@ int main(int argc, char* args[])
         SDL_RenderClear(window_state->renderer);
 
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
-        s_render_server_ghost(gameData->ec, gameData->componentHandles.transforms_interpolation_buffer_handle, window_state->renderer);
+        s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
+
         // Chat box UI
         Clay_BeginLayout();
         CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
@@ -563,7 +566,73 @@ int main(int argc, char* args[])
         // save state
         struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
         Input_Buffer_Put(input_queue, snapshot);
+        Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
+        /*Save_State_History(gameData->ec, game_state_history, currentFrameTimeMs);
         Save_State_History(gameData->ec, game_state_history, currentFrameTimeMs);
+        struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Buffer_Get_At(game_state_history, 2);
+        void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
+        //ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
+        //return;
+
+        // compare snapshot to game state
+        // Copy the valid entities array at the start of the snapshot
+        size_t bool_array_size = (gameData->ec->_maxEntities + 1) * sizeof(bool);
+        printf("from array: ");
+        for(int i = 0; i < bool_array_size; ++i)
+        {
+            printf("%i ", gameData->ec->validEntities[i]);
+        }
+        printf("\n");
+
+        printf("  to array: ");
+        for(int i = 0; i < bool_array_size; ++i)
+        {
+            printf("%i ", ((bool*)ecdb_state_snapshot)[i]);
+        }
+        printf("\n");
+
+        ecdb_state_snapshot = (char*)ecdb_state_snapshot + bool_array_size;
+
+        // Copy the valid component arrays next
+        for(unsigned int i = 0; i < gameData->ec->_componentCount; ++i)
+        {
+            printf("from array: ", i);
+            for(int j = 0; j < bool_array_size; ++j)
+            {
+                printf("%i ", gameData->ec->componentValidArrays[i][j]);
+            }
+            printf("\n");
+
+            printf("  to array: ", i);
+            for(int j = 0; j < bool_array_size; ++j)
+            {
+                printf("%i ", ((bool*)ecdb_state_snapshot)[j]);
+            }
+            printf("\n");
+
+            ecdb_state_snapshot = (char*)ecdb_state_snapshot + bool_array_size;
+
+        }
+
+        // Lastly, copy over all actual component data
+        for(unsigned int i = 0; i < gameData->ec->_componentCount; ++i)
+        {
+            // Each component array is max entities + 1 of the size of the component
+            size_t arr_len = (gameData->ec->_maxEntities + 1) * gameData->ec->_componentSizes[i];
+
+            for(int j = 0; j < arr_len; ++j)
+            {
+                unsigned char original_byte = ((unsigned char*)(gameData->ec->componentArrays[i]))[j];
+                unsigned char new_byte = ((unsigned char*)ecdb_state_snapshot)[j];
+                if (original_byte != new_byte)
+                {
+                    printf("there's a problem\n");
+                }
+            }
+
+            ecdb_state_snapshot = (char*)ecdb_state_snapshot + arr_len;
+        }
+        return;*/
     }
 
 disconnect:
@@ -572,7 +641,7 @@ disconnect:
 cleanup:
     Game_Data_Free(&gameData);
     free(input_queue);
-    free(game_state_history);
+    free(game_state_history_stack);
 
     Net_Free(&netManager);
     netManager = NULL;

@@ -11,7 +11,7 @@
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 8))
+    if (!ECDB_Init(ecdb, entityCount, 9))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -30,6 +30,13 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(struct N_C_Transform_Interpolation_Buffer), &(componentHandles->transforms_interpolation_buffer_handle), &default_trans_buffer))
     {
         SDL_Log("Couldn't initialize networked transform interpolation buffer component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct Vector2), &(componentHandles->last_server_position_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize last server position component");
         ECDB_Free(ecdb);
         return false;
     }
