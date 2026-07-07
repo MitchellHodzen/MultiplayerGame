@@ -21,6 +21,7 @@ bool Net_Join_Server(struct Net_Manager* netManager, struct _ENetAddress* addres
 void Net_Disconnect(struct Net_Manager* netManager);
 void Net_Free(struct Net_Manager** netManager);
 uint64_t Net_Estimate_Server_Time(const struct Net_Manager* netManager, uint64_t client_time_ms);
-void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms);
+uint64_t Net_Estimate_Client_Time(const struct Net_Manager* netManager, uint64_t server_time_ms);
+void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms, unsigned int mocked_latency_ms);
 
 #endif /* NET_MANAGER */

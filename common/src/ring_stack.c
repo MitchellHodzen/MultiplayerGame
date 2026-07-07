@@ -9,9 +9,14 @@ size_t Ring_Stack_Calculate_Required_Memory(size_t element_size, unsigned int ma
 void Ring_Stack_Init(struct Ring_Stack* stack, size_t element_size, unsigned int max_stack_size)
 {    
     stack->buffer_max_size = max_stack_size;
+    stack->element_size = element_size;
+    Ring_Stack_Clear(stack);
+}
+
+void Ring_Stack_Clear(struct Ring_Stack* stack)
+{
     stack->buffer_size = 0;
     stack->_write_index = 0;
-    stack->element_size = element_size;
 }
 
 void* Ring_Stack_Get_Buffer_Start(struct Ring_Stack* stack)
@@ -61,6 +66,18 @@ void* Ring_Stack_Peek(const struct Ring_Stack* stack)
     return Ring_Stack_Peek_Unsafe(stack);
 }
 
+void* Ring_Stack_Peek_Back(const struct Ring_Stack* stack)
+{
+    if (stack->buffer_size == 0)
+    {
+        return NULL;
+    }
+
+    unsigned int end_index = stack->buffer_max_size + stack->_write_index - stack->buffer_size;
+    end_index -= stack->buffer_max_size * (end_index >= stack->buffer_max_size);
+    return Ring_Stack_Get_Pointer_At(stack, end_index);
+}
+
 void* Ring_Stack_Pop(struct Ring_Stack* stack)
 {
     if (stack->buffer_size == 0)
@@ -74,8 +91,8 @@ void* Ring_Stack_Pop(struct Ring_Stack* stack)
     stack->buffer_size--;
 
     // decrement the write index and overflow
-    unsigned int _write_index = stack->buffer_max_size - 1 + stack->_write_index;
-    _write_index -= stack->buffer_max_size * (_write_index >= stack->buffer_max_size);
-
+    unsigned int new_write_index = stack->buffer_max_size - 1 + stack->_write_index;
+    new_write_index -= stack->buffer_max_size * (new_write_index >= stack->buffer_max_size);
+    stack->_write_index = new_write_index;
     return retval;
 }

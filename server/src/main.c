@@ -21,6 +21,7 @@
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
 #define UPDATE_SEND_PER_S 10
+#define MOCKED_LATENCY_MS 250
 
 struct Component_Handles
 {
@@ -196,12 +197,12 @@ int main(int argc, char* args[])
         if (time_packet_accumulator_s > TIME_SYNC_SEND_S)
         {
             // Send a time sync packet to all connected users. TODO: Update to send on a per-user basis as needed
-            struct P_Server_Time time = {.type = SERVER_TIME, .server_time_ms = currentFrameTimeMs};
+            struct P_Server_Time time = {.type = SERVER_TIME, .server_time_ms = currentFrameTimeMs, .mocked_latency_ms = MOCKED_LATENCY_MS};
             ENetPacket * packet = enet_packet_create(&time, sizeof(struct P_Server_Time), 0);
             enet_host_broadcast(server, 0, packet);
 
-            // pull back the accumulator
-            time_packet_accumulator_s -= TIME_SYNC_SEND_S;
+            // reset accumulator
+            time_packet_accumulator_s = 0;
         }
 
         // service enet outside of sim loop to ensure timely message ack
@@ -253,7 +254,7 @@ int main(int argc, char* args[])
                                 PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
 
                                 // Send the join packet
-                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .server_time_ms = currentFrameTimeMs, .network_id = playerId, .position = position };
+                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .server_time_ms = currentFrameTimeMs, .mocked_latency_ms = MOCKED_LATENCY_MS, .network_id = playerId, .position = position };
                                 ENetPacket * packet = enet_packet_create(&joinServerData, sizeof(struct P_JOIN_SERVER), ENET_PACKET_FLAG_RELIABLE);
                                 enet_peer_send(event.peer, 0, packet);
 
@@ -325,7 +326,7 @@ int main(int argc, char* args[])
         }
 
         sim_accumulator_s += deltaTimeS;
-        if (sim_accumulator_s > targetSecPerFrame)
+        while (sim_accumulator_s > targetSecPerFrame)
         {
             // Run the sim
             s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, targetSecPerFrame);
@@ -371,15 +372,15 @@ int main(int argc, char* args[])
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, ENET_PACKET_FLAG_RELIABLE);
 
             //enet_host_broadcast(server, 0, update_packet);
-            unsigned int packet_delay_ms = 30;
+            unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
             struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
             scheduled_packet->packet = update_packet;
             scheduled_packet->sent = false;
             scheduled_packet->peer = NULL;
             scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;
 
-            // pull back the accumulator
-            update_packet_accumulator_s -= targetSecPerUpdate;
+            // reset the accumulator
+            update_packet_accumulator_s = 0;
         }
 
         // Increment tick

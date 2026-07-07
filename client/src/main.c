@@ -156,7 +156,7 @@ int main(int argc, char* args[])
     }
 
     // Set initial server time offset
-    Net_Calculate_Server_Time_Offset(netManager, SDL_GetTicks(), joinGamePacket.server_time_ms);
+    Net_Calculate_Server_Time_Offset(netManager, SDL_GetTicks(), joinGamePacket.server_time_ms, joinGamePacket.mocked_latency_ms);
 
     // Init game state based on server info
     struct Game_Data* gameData = NULL;
@@ -201,7 +201,7 @@ int main(int argc, char* args[])
     enum Command_Contex command_context = COMMAND_STANDARD;
 
     // TODO: Move prediction logic elsewhere, only here temporarily
-    unsigned int history_frames_to_save = 3000;
+    unsigned int history_frames_to_save = 5000;
     Input_Snapshot_Buffer* input_queue;
     Input_Buffer_Init(&input_queue, history_frames_to_save);
 
@@ -218,6 +218,9 @@ int main(int argc, char* args[])
     }
 
     Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
+
+    bool enable_client_prediction = true;
+    bool enable_interpolation = true;
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -248,19 +251,49 @@ int main(int argc, char* args[])
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
 
                             // When we receive an update header, revert to the state that was right before that in server time
-                            uint64_t effective_client_time_ms = currentFrameTimeMs;
-                            while(game_state_history_stack->buffer_size > 0)
+                            uint64_t effective_client_time_ms = Net_Estimate_Client_Time(netManager, header->server_time_ms);
+                            int going_back_frames = 0;
+                            bool found_past_frame = false;
+                            uint64_t oldest_time_checked = 0;
+                            uint64_t latest_time_checked = 0;
+
+                            // check if the oldest state is before the server time. if not, then no need to revert as there are no states to revert to
+                            struct Game_State_Snapshot* oldest_state = Ring_Stack_Peek_Back(game_state_history_stack);
+                            uint64_t oldestVal = Net_Estimate_Server_Time(netManager, oldest_state->client_time_ms);
+                            if (Net_Estimate_Server_Time(netManager, oldest_state->client_time_ms) <= header->server_time_ms)
                             {
-                                struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
-                                uint64_t state_calculated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
-                                if (state_calculated_server_time <= header->server_time_ms)
+                                while(game_state_history_stack->buffer_size > 0)
                                 {
-                                    // this state occurs before the server time, use it
-                                    void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
-                                    ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
-                                    effective_client_time_ms = state->client_time_ms;
-                                    break;
+                                    struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
+                                    uint64_t state_calculated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
+                                    if (latest_time_checked == 0)
+                                    {
+                                        latest_time_checked = state_calculated_server_time;
+                                    }
+                                    oldest_time_checked = state_calculated_server_time;
+                                    going_back_frames++;
+                                    // TODO: Better to take the oldest state that meets this criteria rather than the newest?
+                                    if (state_calculated_server_time <= header->server_time_ms)
+                                    {
+                                        // this state occurs before the server time, use it
+                                        void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
+                                        ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
+                                        effective_client_time_ms = state->client_time_ms;
+                                        found_past_frame = true;
+                                        // We have a new starting point, so clear state history
+                                        Ring_Stack_Clear(game_state_history_stack);
+                                        break;
+                                    }
                                 }
+                            }
+                            else
+                            {
+                                SDL_Log("Not enough state to revert (%i) - simply writing to current state", game_state_history_stack->buffer_size);
+                            }
+
+                            if (!found_past_frame)
+                            {
+                                going_back_frames = 0;
                             }
 
                             // Record updates
@@ -318,6 +351,8 @@ int main(int argc, char* args[])
                                 }
                             }
 
+                            int input_replay_counter = 0;
+
                             // Re-run simulation to bring it back up to current time
                             for(unsigned int i = 0; i < input_queue->buffer_size; ++i)
                             {
@@ -333,6 +368,7 @@ int main(int argc, char* args[])
                                         float previous_frame_time_ms = Input_Buffer_Get_At(input_queue, i - 1).client_time;
                                         replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
                                     }
+                                    input_replay_counter++;
 
                                     s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
                                     s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
@@ -342,6 +378,7 @@ int main(int argc, char* args[])
                                     s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
                                 }
                             }
+                            SDL_Log("Went back %i frames and replayed %i input", going_back_frames, input_replay_counter);
                             break;
                         }
                         case SERVER_TIME:
@@ -350,8 +387,8 @@ int main(int argc, char* args[])
                             long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
                             long corrected_server_time = packetData->server_time_ms - (event.peer->roundTripTime / 2);
 
-                            SDL_Log("Server time: %i. Corrected server time: %i. Estimated server time: %i. Server time diff: %i. Corrected server time diff: %i. Round trip time: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, estimated_server_time_ms - corrected_server_time, event.peer->roundTripTime);
-                            Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms);
+                            SDL_Log("Server time: %i. Corrected server time: %i. Estimated server time: %i. Server time diff: %i. Corrected server time diff: %i. Round trip time: %i. Mocked round trip time: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, estimated_server_time_ms - corrected_server_time, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms);
+                            Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms, packetData->mocked_latency_ms);
                             break;
                         }
                         default:
@@ -570,10 +607,13 @@ int main(int argc, char* args[])
         // Draw to screen
         SDL_RenderPresent(window_state->renderer);
 
-        // save state
-        struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
-        Input_Buffer_Put(input_queue, snapshot);
-        Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
+        if (enable_client_prediction == true)
+        {
+            // save state
+            struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
+            Input_Buffer_Put(input_queue, snapshot);
+            Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
+        }
     }
 
 disconnect:
