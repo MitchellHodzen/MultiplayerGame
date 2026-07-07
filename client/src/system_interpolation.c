@@ -20,7 +20,6 @@ struct Vector2 calculate_interpolated_position(struct N_C_Transform_Interpolatio
             if (i == 0)
             {
                 // If we're at the start and there are no previous snapshots, we don't have anything to interpolate against, return the most recently received snapshot
-                printf("Index used: %i\n", i);
                 return trans_buf->_buffer[i].transform.position;
             }
 
@@ -33,13 +32,11 @@ struct Vector2 calculate_interpolated_position(struct N_C_Transform_Interpolatio
 
             // linearly interpolate the vector: from*interp + to*(1-interp)
             struct Vector2 retval = {.x = (to.transform.position.x * interp) + (from.transform.position.x * (1 - interp)), .y = (to.transform.position.y * interp) + (from.transform.position.y * (1 - interp))};
-            printf("Index used: %i\n", i);
             return retval;
         }
     }
 
     // If we've gotten here, the time is before any snapshots, so return oldest snapshot
-    printf("Index used: %i\n", trans_buf->buffer_size - 1);
     return trans_buf->_buffer[trans_buf->buffer_size - 1].transform.position;
 }
 
