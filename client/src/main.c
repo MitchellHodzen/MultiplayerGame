@@ -173,7 +173,7 @@ int main(int argc, char* args[])
 
     int networked_player;
     SDL_Log("Adding square at position %f, %f", joinGamePacket.position.x, joinGamePacket.position.y);
-    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &networked_player, "Networked"))
+    if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &networked_player, "You"))
     {
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
@@ -380,10 +380,17 @@ int main(int argc, char* args[])
                         }
                         else
                         {
-                            prefixed_message_length = sprintf(prefixed_message_buffer, "Player %i: %s", header->networkId, text_pointer);
+                            int localEntityId = gameData->networkIdEntityMap[header->networkId];
+                            if (localEntityId == networked_player)
+                            {
+                                prefixed_message_length = sprintf(prefixed_message_buffer, "You: %s", text_pointer);
+                            }
+                            else
+                            {
+                                prefixed_message_length = sprintf(prefixed_message_buffer, "Player %i: %s", header->networkId, text_pointer);
+                            }
 
                             // Display text above character
-                            int localEntityId = gameData->networkIdEntityMap[header->networkId];
                             int textMessageId;
                             AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, text_pointer, 2, &textMessageId);
                         }
