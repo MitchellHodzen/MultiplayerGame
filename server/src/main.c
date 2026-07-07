@@ -327,10 +327,9 @@ int main(int argc, char* args[])
         sim_accumulator_s += deltaTimeS;
         if (sim_accumulator_s > targetSecPerFrame)
         {
-            // TODO: Replace deltaTime here with a sim-specific delta time, this delta time is too small since sim doesnt run every frame
             // Run the sim
-            s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, deltaTimeS);
-            s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, deltaTimeS);
+            s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, targetSecPerFrame);
+            s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
 
             // pull back the accumulator
             sim_accumulator_s -= targetSecPerFrame;

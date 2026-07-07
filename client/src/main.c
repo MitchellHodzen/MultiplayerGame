@@ -324,17 +324,25 @@ int main(int argc, char* args[])
                             // Re-run simulation to bring it back up to current time
                             for(unsigned int i = 0; i < input_queue->buffer_size; ++i)
                             {
-                                // TODO: either cache or recalculate delta time, don't use the current frame's delta time
-                                struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
                                 // Re-play any input captured after the last frame
+                                struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
                                 if (input.client_time >= revert_frame_time_ms)
                                 {
+                                    // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
+                                    float replay_delta_time_s = deltaTimeS;
+                                    if (i != 0)
+                                    {
+                                        // calculate delta time based on previous input time
+                                        float previous_frame_time_ms = Input_Buffer_Get_At(input_queue, i - 1).client_time;
+                                        replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
+                                    }
+
                                     s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
-                                    s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
+                                    s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
                                     s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
                                     s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, input.direction); // <- direction applied
-                                    s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
-                                    s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
+                                    s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, replay_delta_time_s);
+                                    s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
                                 }
                             }
 
