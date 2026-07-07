@@ -336,6 +336,7 @@ int main(int argc, char* args[])
                                         replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
                                     }
 
+                                    //TODO: Some weird input bug where it seems input is being applied many many times for prediction when the window focus changes or something
                                     s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
                                     s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
                                     s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
