@@ -258,7 +258,6 @@ int main(int argc, char* args[])
                                 if (state_calculated_server_time <= header->server_time_ms)
                                 {
                                     // this state occurs before the server time, use it
-                                    SDL_Log("Using history value %i", testindex);
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
                                     ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
                                     revert_frame_time_ms = state->client_time_ms;
@@ -325,6 +324,7 @@ int main(int argc, char* args[])
                             // Re-run simulation to bring it back up to current time
                             for(unsigned int i = 0; i < input_queue->buffer_size; ++i)
                             {
+                                // TODO: either cache or recalculate delta time, don't use the current frame's delta time
                                 struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
                                 // Re-play any input captured after the last frame
                                 if (input.client_time >= revert_frame_time_ms)
@@ -567,72 +567,6 @@ int main(int argc, char* args[])
         struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
         Input_Buffer_Put(input_queue, snapshot);
         Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
-        /*Save_State_History(gameData->ec, game_state_history, currentFrameTimeMs);
-        Save_State_History(gameData->ec, game_state_history, currentFrameTimeMs);
-        struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Buffer_Get_At(game_state_history, 2);
-        void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
-        //ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
-        //return;
-
-        // compare snapshot to game state
-        // Copy the valid entities array at the start of the snapshot
-        size_t bool_array_size = (gameData->ec->_maxEntities + 1) * sizeof(bool);
-        printf("from array: ");
-        for(int i = 0; i < bool_array_size; ++i)
-        {
-            printf("%i ", gameData->ec->validEntities[i]);
-        }
-        printf("\n");
-
-        printf("  to array: ");
-        for(int i = 0; i < bool_array_size; ++i)
-        {
-            printf("%i ", ((bool*)ecdb_state_snapshot)[i]);
-        }
-        printf("\n");
-
-        ecdb_state_snapshot = (char*)ecdb_state_snapshot + bool_array_size;
-
-        // Copy the valid component arrays next
-        for(unsigned int i = 0; i < gameData->ec->_componentCount; ++i)
-        {
-            printf("from array: ", i);
-            for(int j = 0; j < bool_array_size; ++j)
-            {
-                printf("%i ", gameData->ec->componentValidArrays[i][j]);
-            }
-            printf("\n");
-
-            printf("  to array: ", i);
-            for(int j = 0; j < bool_array_size; ++j)
-            {
-                printf("%i ", ((bool*)ecdb_state_snapshot)[j]);
-            }
-            printf("\n");
-
-            ecdb_state_snapshot = (char*)ecdb_state_snapshot + bool_array_size;
-
-        }
-
-        // Lastly, copy over all actual component data
-        for(unsigned int i = 0; i < gameData->ec->_componentCount; ++i)
-        {
-            // Each component array is max entities + 1 of the size of the component
-            size_t arr_len = (gameData->ec->_maxEntities + 1) * gameData->ec->_componentSizes[i];
-
-            for(int j = 0; j < arr_len; ++j)
-            {
-                unsigned char original_byte = ((unsigned char*)(gameData->ec->componentArrays[i]))[j];
-                unsigned char new_byte = ((unsigned char*)ecdb_state_snapshot)[j];
-                if (original_byte != new_byte)
-                {
-                    printf("there's a problem\n");
-                }
-            }
-
-            ecdb_state_snapshot = (char*)ecdb_state_snapshot + arr_len;
-        }
-        return;*/
     }
 
 disconnect:

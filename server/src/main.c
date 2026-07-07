@@ -327,6 +327,7 @@ int main(int argc, char* args[])
         sim_accumulator_s += deltaTimeS;
         if (sim_accumulator_s > targetSecPerFrame)
         {
+            // TODO: Replace deltaTime here with a sim-specific delta time, this delta time is too small since sim doesnt run every frame
             // Run the sim
             s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, deltaTimeS);
             s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, deltaTimeS);
@@ -371,7 +372,7 @@ int main(int argc, char* args[])
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, ENET_PACKET_FLAG_RELIABLE);
 
             //enet_host_broadcast(server, 0, update_packet);
-            unsigned int packet_delay_ms = 250;
+            unsigned int packet_delay_ms = 30;
             struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
             scheduled_packet->packet = update_packet;
             scheduled_packet->sent = false;
