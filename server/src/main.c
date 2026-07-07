@@ -211,7 +211,7 @@ int main(int argc, char* args[])
             {
             case ENET_EVENT_TYPE_CONNECT:
                 printf("A new client connected from %x:%u.\n", event.peer->address.host, event.peer->address.port);
-                int* playerId = malloc(sizeof(int)); // TODO: Don't do mem allocation in the networking loop, pull this out
+                int* playerId = malloc(sizeof(int)); // TODO: Don't do mem allocation in the networking loop, preallocate and pull this out
                 if (PlayerAdd(ecdb, playerId))
                 {
                     // If we create a player, add the data to the event peer data field for easier tracking

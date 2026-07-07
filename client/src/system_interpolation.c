@@ -52,7 +52,6 @@ void s_interpolate_position(struct ECDB const *const ec, int transforms_handle, 
     {
         if(ECDB_EntityHasComponent(ec, i, transforms_handle) && ECDB_EntityHasComponent(ec, i, transforms_buffer_handle))
         {
-            // TODO: We're faking interpolation by just shifting back 3 entries - update this with clock sync to calculate actual offset
             transforms[i].position = calculate_interpolated_position(&trans_buf[i], interp_time);
         }
     }

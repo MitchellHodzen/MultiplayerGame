@@ -248,7 +248,6 @@ int main(int argc, char* args[])
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
 
                             // When we receive an update header, revert to the state that was right before that in server time
-                            // TODO: Handle when it is so far back that we don't have history
                             uint64_t revert_frame_time_ms;
                             int testindex = 0;
                             while(game_state_history_stack->buffer_size > 0)
@@ -498,10 +497,6 @@ int main(int argc, char* args[])
             enet_peer_send(netManager->serverPeer, 0, packet);
         }
 
-        //TODO: 
-        // resolve server to client time - when a sync happens, roll client state back
-        // Write input to a buffer
-        // check input buffer time, sim any input that is ahead of sim time. for normal iterations, there should only be one. when network synced, shoudl replay all since that server tinme
         s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, currentFrameTimeMs), INTERP_DELAY_MS);
         s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
         s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
