@@ -105,7 +105,7 @@ void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history
 {
     struct Game_State_Snapshot* snapshot = Ring_Stack_Push(game_state_history_stack);
     snapshot->client_time_ms = client_time_ms;
-    
+
     // Snapshot data is after the struct header
     void* ecdb_state_snapshot = (char*)snapshot + sizeof(struct Game_State_Snapshot);
     ECDB_Generate_Snapshot(ecdb, ecdb_state_snapshot);
@@ -248,8 +248,7 @@ int main(int argc, char* args[])
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
 
                             // When we receive an update header, revert to the state that was right before that in server time
-                            uint64_t revert_frame_time_ms;
-                            int testindex = 0;
+                            uint64_t effective_client_time_ms = currentFrameTimeMs;
                             while(game_state_history_stack->buffer_size > 0)
                             {
                                 struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
@@ -259,10 +258,9 @@ int main(int argc, char* args[])
                                     // this state occurs before the server time, use it
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
                                     ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
-                                    revert_frame_time_ms = state->client_time_ms;
+                                    effective_client_time_ms = state->client_time_ms;
                                     break;
                                 }
-                                testindex++;
                             }
 
                             // Record updates
@@ -325,7 +323,7 @@ int main(int argc, char* args[])
                             {
                                 // Re-play any input captured after the last frame
                                 struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
-                                if (input.client_time >= revert_frame_time_ms)
+                                if (input.client_time >= effective_client_time_ms)
                                 {
                                     // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
                                     float replay_delta_time_s = deltaTimeS;
@@ -336,7 +334,6 @@ int main(int argc, char* args[])
                                         replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
                                     }
 
-                                    //TODO: Some weird input bug where it seems input is being applied many many times for prediction when the window focus changes or something
                                     s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
                                     s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
                                     s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
@@ -345,7 +342,6 @@ int main(int argc, char* args[])
                                     s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
                                 }
                             }
-
                             break;
                         }
                         case SERVER_TIME:
