@@ -226,6 +226,9 @@ int main(int argc, char* args[])
         currentFrameTimeMs = SDL_GetTicks();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
+        // The input snapshot for this frame
+        struct Input_Snapshot input_snapshot = {.client_time = currentFrameTimeMs, .chat_messages_cached = 0 };
+
         //SDL_Log("Corrected client time: %lu", Net_Estimate_Server_Time(netManager, currentFrameTimeMs));
 
         // TODO: move to netmanager? decouple?
@@ -340,6 +343,14 @@ int main(int argc, char* args[])
                                     replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
                                 }
 
+                                // If any texts were received this frame, add them back
+                                // TODO: sim code duplication, move both sim and chat message add to some process to be done regardless of revert
+                                for(int i = 0; i < input.chat_messages_cached; ++i)
+                                {
+                                    int textMessageId;
+                                    AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), input.chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input.chat_cache[i].message, 2, &textMessageId);
+                                }
+
                                 s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
                                 s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
                                 s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
@@ -394,9 +405,16 @@ int main(int argc, char* args[])
                             }
 
                             // Display text above character
-                            // TODO: This is a kind of input, write to input snapshot so that text can be generated on replays
                             int textMessageId;
                             AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, text_pointer, 2, &textMessageId);
+
+                            if (input_snapshot.chat_messages_cached < 10)
+                            {
+                                struct Chat_Snapshot_Info* chat_snapshot = &(input_snapshot.chat_cache[input_snapshot.chat_messages_cached]);
+                                chat_snapshot->entity_id = localEntityId;
+                                strcpy(chat_snapshot->message, text_pointer);
+                                input_snapshot.chat_messages_cached++;
+                            }
                         }
 
                         // Write the prefixed message to the chat history
@@ -491,6 +509,9 @@ int main(int argc, char* args[])
             }
         }
 
+        // save direction in the frame snapshot
+        input_snapshot.direction = direction;
+
         // Handle mouse movement
         struct Vector2 mousePos;
         Uint32 buttons = SDL_GetMouseState(&(mousePos.x), &(mousePos.y));
@@ -578,8 +599,7 @@ int main(int argc, char* args[])
         SDL_RenderPresent(window_state->renderer);
 
         // save state
-        struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
-        Input_Buffer_Put(input_queue, snapshot);
+        Input_Buffer_Put(input_queue, input_snapshot);
         Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
     }
 

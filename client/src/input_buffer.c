@@ -26,5 +26,6 @@ struct Input_Snapshot Input_Buffer_Get_At(Input_Snapshot_Buffer* buffer, unsigne
 void Input_Buffer_Put(Input_Snapshot_Buffer* buffer, struct Input_Snapshot snapshot)
 {
     struct Input_Snapshot* next = Ring_Buffer_Get_Next(buffer);
+    //SDL_Log("Input snapshot saved with chat buffer size of %i", snapshot.chat_messages_cached);
     *next = snapshot;
 }

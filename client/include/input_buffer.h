@@ -4,10 +4,18 @@
 #include "stdbool.h"
 #include "ring_buffer.h"
 
+struct Chat_Snapshot_Info
+{
+    unsigned int entity_id;
+    char message[40]; // Hardcoded max chat length. make it variable length and get from server
+};
+
 struct Input_Snapshot
 {
     long client_time;
     struct Vector2 direction;
+    unsigned int chat_messages_cached;
+    struct Chat_Snapshot_Info chat_cache[10]; // unlikely to receive multiple chat messages in a single frame, dont cache many
 };
 
 typedef struct Ring_Buffer Input_Snapshot_Buffer;
