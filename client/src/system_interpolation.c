@@ -3,12 +3,12 @@
 #include "component_transform.h"
 #include "ecdb.h"
 
-struct Vector2 calculate_interpolated_position(struct N_C_Transform_Interpolation_Buffer* trans_buf, unsigned long interp_time)
+struct Vector2 calculate_interpolated_position(struct N_C_Transform_Interpolation_Buffer* trans_buf, unsigned long interp_time, struct Vector2 current_position)
 {
     if (trans_buf->buffer_size == 0)
     {
-        // If the buffer is empty, return the zero vector
-        return (struct Vector2) {0.0f, 0.0f};
+        // If the buffer is empty, return the entity's actual position
+        return current_position;
     }
 
     // determine which two values to interpolate between
@@ -52,7 +52,7 @@ void s_interpolate_position(struct ECDB const *const ec, int transforms_handle, 
     {
         if(ECDB_EntityHasComponent(ec, i, transforms_handle) && ECDB_EntityHasComponent(ec, i, transforms_buffer_handle))
         {
-            transforms[i].position = calculate_interpolated_position(&trans_buf[i], interp_time);
+            transforms[i].position = calculate_interpolated_position(&trans_buf[i], interp_time, transforms[i].position);
         }
     }
 }
