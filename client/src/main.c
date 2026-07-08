@@ -269,6 +269,7 @@ int main(int argc, char* args[])
                             }
 
                             // Record updates
+                            // TODO: Sync physics as well as position for cases where we lose a lot of packets
                             struct P_Update_Entity_Data* update_buffer_ptr = ((char*)event.packet->data) + sizeof(struct P_Update_Header);
 
                             for(int i = 0; i < header->updates_count; ++i)
@@ -323,37 +324,30 @@ int main(int argc, char* args[])
                                 }
                             }
 
-                            int input_replay_counter = 0;
-                            if (going_back_frames > 0)
+                            // replay the same amount of input as missed frames. the input frame has already been played on the corresponding state frame
+                            // as they are both written to at the same time, buffer size will always be at least as big as going back frames.
+                            for(unsigned int i = input_queue->buffer_size - going_back_frames + 1; i < input_queue->buffer_size; ++i)
                             {
-                                // Re-run simulation to bring it back up to current time
-                                for(unsigned int i = 0; i < input_queue->buffer_size; ++i)
-                                {
-                                    // Re-play any input captured after the last frame
-                                    struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
-                                    // TODO: replayed state doesn't match replayed client, need to sync in some other way (nanosecond? frame? first of/last of milisecond?)
-                                    if (input.client_time >= effective_client_time_ms)
-                                    {
-                                        // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
-                                        float replay_delta_time_s = deltaTimeS;
-                                        if (i != 0)
-                                        {
-                                            // calculate delta time based on previous input time
-                                            float previous_frame_time_ms = Input_Buffer_Get_At(input_queue, i - 1).client_time;
-                                            replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
-                                        }
-                                        input_replay_counter++;
+                                // Re-play any input captured after the last frame.
+                                struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
 
-                                        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
-                                        s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
-                                        s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
-                                        s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, input.direction); // <- direction applied
-                                        s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, replay_delta_time_s);
-                                        s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
-                                    }
+                                // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
+                                float replay_delta_time_s = deltaTimeS;
+                                if (i != 0)
+                                {
+                                    // calculate delta time based on previous input time
+                                    float previous_frame_time_ms = Input_Buffer_Get_At(input_queue, i - 1).client_time;
+                                    replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
                                 }
+
+                                s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
+                                s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
+                                s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
+                                s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, input.direction); // <- direction applied
+                                s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, replay_delta_time_s);
+                                s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
                             }
-                            SDL_Log("Went back %i frames and replayed %i input", going_back_frames, input_replay_counter);
+
                             break;
                         }
                         case SERVER_TIME:
@@ -400,6 +394,7 @@ int main(int argc, char* args[])
                             }
 
                             // Display text above character
+                            // TODO: This is a kind of input, write to input snapshot so that text can be generated on replays
                             int textMessageId;
                             AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, text_pointer, 2, &textMessageId);
                         }
