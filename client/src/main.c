@@ -332,6 +332,7 @@ int main(int argc, char* args[])
                             {
                                 // Re-play any input captured after the last frame
                                 struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
+                                // TODO: replayed state doesn't match replayed client, need to sync in some other way (nanosecond? frame? first of/last of milisecond?)
                                 if (input.client_time >= effective_client_time_ms)
                                 {
                                     // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
