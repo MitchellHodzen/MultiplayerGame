@@ -219,9 +219,6 @@ int main(int argc, char* args[])
 
     Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
 
-    bool enable_client_prediction = true;
-    bool enable_interpolation = true;
-
     SDL_Log("Starting game loop");
     while(quit == false)
     {
@@ -251,7 +248,7 @@ int main(int argc, char* args[])
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
 
                             // When we receive an update header, revert to the state that was right before that in server time
-                            uint64_t effective_client_time_ms = Net_Estimate_Client_Time(netManager, header->server_time_ms);
+                            uint64_t effective_client_time_ms = currentFrameTimeMs;
                             int going_back_frames = 0;
                             while(game_state_history_stack->buffer_size > 0)
                             {
@@ -262,6 +259,7 @@ int main(int argc, char* args[])
                                 if (game_state_history_stack->buffer_size == 0 || Net_Estimate_Server_Time(netManager, state->client_time_ms) <= header->server_time_ms )
                                 {
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
+                                    // TODO: Gets rid of add or removed client side entities like chat box above head, resolve in some way
                                     ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
                                     effective_client_time_ms = state->client_time_ms;
                                     // We have a new starting point, so clear state history
@@ -326,31 +324,33 @@ int main(int argc, char* args[])
                             }
 
                             int input_replay_counter = 0;
-
-                            // Re-run simulation to bring it back up to current time
-                            for(unsigned int i = 0; i < input_queue->buffer_size; ++i)
+                            if (going_back_frames > 0)
                             {
-                                // Re-play any input captured after the last frame
-                                struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
-                                // TODO: replayed state doesn't match replayed client, need to sync in some other way (nanosecond? frame? first of/last of milisecond?)
-                                if (input.client_time >= effective_client_time_ms)
+                                // Re-run simulation to bring it back up to current time
+                                for(unsigned int i = 0; i < input_queue->buffer_size; ++i)
                                 {
-                                    // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
-                                    float replay_delta_time_s = deltaTimeS;
-                                    if (i != 0)
+                                    // Re-play any input captured after the last frame
+                                    struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
+                                    // TODO: replayed state doesn't match replayed client, need to sync in some other way (nanosecond? frame? first of/last of milisecond?)
+                                    if (input.client_time >= effective_client_time_ms)
                                     {
-                                        // calculate delta time based on previous input time
-                                        float previous_frame_time_ms = Input_Buffer_Get_At(input_queue, i - 1).client_time;
-                                        replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
-                                    }
-                                    input_replay_counter++;
+                                        // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
+                                        float replay_delta_time_s = deltaTimeS;
+                                        if (i != 0)
+                                        {
+                                            // calculate delta time based on previous input time
+                                            float previous_frame_time_ms = Input_Buffer_Get_At(input_queue, i - 1).client_time;
+                                            replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
+                                        }
+                                        input_replay_counter++;
 
-                                    s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
-                                    s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
-                                    s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
-                                    s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, input.direction); // <- direction applied
-                                    s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, replay_delta_time_s);
-                                    s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
+                                        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
+                                        s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
+                                        s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
+                                        s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, input.direction); // <- direction applied
+                                        s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, replay_delta_time_s);
+                                        s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
+                                    }
                                 }
                             }
                             SDL_Log("Went back %i frames and replayed %i input", going_back_frames, input_replay_counter);
@@ -582,13 +582,10 @@ int main(int argc, char* args[])
         // Draw to screen
         SDL_RenderPresent(window_state->renderer);
 
-        if (enable_client_prediction == true)
-        {
-            // save state
-            struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
-            Input_Buffer_Put(input_queue, snapshot);
-            Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
-        }
+        // save state
+        struct Input_Snapshot snapshot = {.client_time = currentFrameTimeMs, .direction = direction };
+        Input_Buffer_Put(input_queue, snapshot);
+        Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
     }
 
 disconnect:
