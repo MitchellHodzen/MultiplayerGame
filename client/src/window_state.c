@@ -44,8 +44,8 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, TTF_TextEngine*
 bool LoadFont(TTF_Font** font, const char* path)
 {
     *font = TTF_OpenFont(path, 24);
-    if (font == NULL) {
-        SDL_Log("Failed to load font");
+    if (*font == NULL) {
+        SDL_Log("Error loading font: %s", SDL_GetError());
         return false;
     }
 
