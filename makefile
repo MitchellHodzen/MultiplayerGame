@@ -3,30 +3,36 @@ SERVER_DIR = server
 COMMON_DIR = common
 
 c:
-	cd $(COMMON_DIR); make;
-	cd $(CLIENT_DIR); make;
+	make -C $(COMMON_DIR);
+	make -C $(CLIENT_DIR);
 
 cclean:
-	cd $(COMMON_DIR); make clean;
-	cd $(CLIENT_DIR); make clean;
+	make clean -C $(COMMON_DIR);
+	make clean -C $(CLIENT_DIR);
 
 crun:
-	cd $(COMMON_DIR); make;
-	cd $(CLIENT_DIR); make run;
+	make -C $(COMMON_DIR);
+	make run -C $(CLIENT_DIR);
 
 s:
-	cd $(COMMON_DIR); make;
-	cd $(SERVER_DIR); make;
+	make -C $(COMMON_DIR);
+	make -C $(SERVER_DIR);
 
 sclean:
-	cd $(COMMON_DIR); make clean;
-	cd $(SERVER_DIR); make clean;
+	make clean -C $(COMMON_DIR);
+	make clean -C $(SERVER_DIR);
 
 srun:
-	cd $(COMMON_DIR); make;
-	cd $(SERVER_DIR); make run;
+	make -C $(COMMON_DIR);
+	make run -C $(SERVER_DIR);
+
+cmn:
+	make -C $(COMMON_DIR);
+
+cmn_clean:
+	make clean -C $(COMMON_DIR);
 
 clean:
-	cd $(COMMON_DIR); make clean;
-	cd $(CLIENT_DIR); make clean;
-	cd $(SERVER_DIR); make clean;
+	make clean -C $(COMMON_DIR);
+	make clean -C $(CLIENT_DIR);
+	make clean -C $(SERVER_DIR);
