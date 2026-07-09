@@ -5,7 +5,7 @@ BIN        := ./bin
 OBJ        := $(BIN)/obj
 INCLUDE    := ./include
 SRC        := ./src
-CFLAGS     := -I$(INCLUDE) -Wall -Wextra -pedantic
+CFLAGS     := -g -std=c99 -I$(INCLUDE) -Wall -Wextra -pedantic
 SRCS       := $(wildcard $(SRC)/*.c)
 OBJS       := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
 LIBOUT     := $(BIN)/libcommon.a
