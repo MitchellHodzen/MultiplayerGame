@@ -10,7 +10,7 @@ struct C_Transform
 
 struct N_C_Transform_Snapshot
 {
-    long server_time;
+    unsigned long server_time;
     struct C_Transform transform;
 };
 

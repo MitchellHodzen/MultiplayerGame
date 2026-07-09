@@ -160,7 +160,6 @@ int main(int argc, char* args[])
 
     // Init game state based on server info
     struct Game_Data* gameData = NULL;
-    unsigned int max_chat_length = joinGamePacket.max_chat_length;
     if(Game_Data_Init(&gameData, joinGamePacket.max_entities, joinGamePacket.max_chat_length, CHAT_HISTORY_SIZE))
     {
         SDL_Log("Game Data Initialization Successful");
@@ -208,7 +207,6 @@ int main(int argc, char* args[])
     // Game state snapshot is the snapshot struct + the actual game state
     size_t ecdb_snapshot_size = ECDB_Snapshot_Size(gameData->ec);
     size_t game_state_ring_stack_size = Ring_Stack_Calculate_Required_Memory(sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
-    SDL_Log("ECDB Snapshot Size: %i. Buffer size: %i", ecdb_snapshot_size, game_state_ring_stack_size);
     struct Ring_Stack* game_state_history_stack = calloc(1, game_state_ring_stack_size);
     if (game_state_history_stack == NULL)
     {
@@ -251,7 +249,6 @@ int main(int argc, char* args[])
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
 
                             // When we receive an update header, revert to the state that was right before that in server time
-                            uint64_t effective_client_time_ms = currentFrameTimeMs;
                             int going_back_frames = 0;
                             while(game_state_history_stack->buffer_size > 0)
                             {
@@ -264,7 +261,6 @@ int main(int argc, char* args[])
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
                                     // TODO: Gets rid of add or removed client side entities like chat box above head, resolve in some way
                                     ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
-                                    effective_client_time_ms = state->client_time_ms;
                                     // We have a new starting point, so clear state history
                                     Ring_Stack_Clear(game_state_history_stack);
                                     break;
@@ -273,9 +269,9 @@ int main(int argc, char* args[])
 
                             // Record updates
                             // TODO: Sync physics as well as position for cases where we lose a lot of packets
-                            struct P_Update_Entity_Data* update_buffer_ptr = ((char*)event.packet->data) + sizeof(struct P_Update_Header);
+                            struct P_Update_Entity_Data* update_buffer_ptr = (struct P_Update_Entity_Data*)((char*)event.packet->data) + sizeof(struct P_Update_Header);
 
-                            for(int i = 0; i < header->updates_count; ++i)
+                            for(unsigned int i = 0; i < header->updates_count; ++i)
                             {
                                 struct P_Update_Entity_Data update = update_buffer_ptr[i];
                                 if (gameData->networkIdEntityMap[update.networkId] == gameData->ec->invalidEntityId)
@@ -345,7 +341,7 @@ int main(int argc, char* args[])
 
                                 // If any texts were received this frame, add them back
                                 // TODO: sim code duplication, move both sim and chat message add to some process to be done regardless of revert
-                                for(int i = 0; i < input.chat_messages_cached; ++i)
+                                for(unsigned int i = 0; i < input.chat_messages_cached; ++i)
                                 {
                                     int textMessageId;
                                     AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), input.chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input.chat_cache[i].message, 2, &textMessageId);
@@ -364,10 +360,10 @@ int main(int argc, char* args[])
                         case SERVER_TIME:
                         {
                             struct P_Server_Time* packetData = (struct P_Server_Time*) event.packet->data;
-                            long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
-                            long corrected_server_time = packetData->server_time_ms - (event.peer->roundTripTime / 2);
+                            unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
+                            unsigned long corrected_server_time = packetData->server_time_ms - (event.peer->roundTripTime / 2);
 
-                            SDL_Log("Server time: %i. Corrected server time: %i. Estimated server time: %i. Server time diff: %i. Corrected server time diff: %i. Round trip time: %i. Mocked round trip time: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, estimated_server_time_ms - corrected_server_time, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms);
+                            SDL_Log("Server time: %lu. Corrected server time: %lu. Estimated server time: %lu. Server time diff: %lu. Corrected server time diff: %lu. Round trip time: %i. Mocked round trip time: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, estimated_server_time_ms - corrected_server_time, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms);
                             Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms, packetData->mocked_latency_ms);
                             break;
                         }
@@ -547,12 +543,12 @@ int main(int argc, char* args[])
         Clay_BeginLayout();
         CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
             CLAY(CLAY_ID("FullChatWindowContainer"), {
-                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .childGap = 3, .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
+                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .childGap = 3, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
             }) {
                 CLAY(CLAY_ID("ChatHistoryContainer"), {
                 .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }
                 }) {
-                    for (int i = 0; i < gameData->chat_buffers->chat_history_buffer->buffer_size; ++i)
+                    for (unsigned int i = 0; i < gameData->chat_buffers->chat_history_buffer->buffer_size; ++i)
                     {
                         CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
                             CLAY_TEXT(((Clay_String) { .length = strlen(Chat_Get_Message_At(gameData->chat_buffers, i)), .chars = Chat_Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
