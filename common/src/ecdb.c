@@ -156,7 +156,7 @@ void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId)
     ecdb->validEntities[entityId] = false;
 
     // Disable all components for the entity
-    for (int componentHandle = 0; componentHandle < ecdb->_maxComponents; ++componentHandle)
+    for (unsigned int componentHandle = 0; componentHandle < ecdb->_maxComponents; ++componentHandle)
     {
         ECDB_DisableEntityComponent(ecdb, entityId, componentHandle);
     }
