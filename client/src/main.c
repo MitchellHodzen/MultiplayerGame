@@ -521,7 +521,7 @@ int main(int argc, char* args[])
             // If input has been given, send an input packet
             unsigned int* entityId = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
             struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = *entityId, .direction = direction};
-            ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), 0);
+            ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), ENET_PACKET_FLAG_RELIABLE);
             enet_peer_send(netManager->serverPeer, 0, packet);
         }
 

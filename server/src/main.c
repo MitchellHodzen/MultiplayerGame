@@ -369,7 +369,7 @@ int main(int argc, char* args[])
             unsigned int actual_update_packet_length = sizeof(struct P_Update_Header) + (entities_to_update * sizeof(struct P_Update_Entity_Data));
 
             // Build and broadcast the packet. TODO: make packet creation malloc free
-            ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, ENET_PACKET_FLAG_RELIABLE);
+            ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, 0);
 
             //enet_host_broadcast(server, 0, update_packet);
             unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
