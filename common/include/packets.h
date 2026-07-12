@@ -43,6 +43,7 @@ struct P_Update_Entity_Data
 {
     unsigned int networkId;
     struct Vector2 position;
+    struct Vector2 velocity;
 };
 
 struct P_Server_Time

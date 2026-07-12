@@ -321,6 +321,12 @@ int main(int argc, char* args[])
                                         *lastposition = update.position;
                                     }
                                 }
+
+                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.physics_2d_handle))
+                                {
+                                    struct C_Physics_2d* physics = (struct C_Physics_2d*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.physics_2d_handle);
+                                    physics->velocity = update.velocity;
+                                }
                             }
 
                             // replay the same amount of input as missed frames. the input frame has already been played on the corresponding state frame

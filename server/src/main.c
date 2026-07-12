@@ -340,6 +340,7 @@ int main(int argc, char* args[])
         if (update_packet_accumulator_s > targetSecPerUpdate)
         {
             struct C_Transform* transforms = (struct C_Transform*) ecdb->componentArrays[componentHandles.transforms_handle];
+            struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[componentHandles.physics_2d_handle];
             // Generate update packet
             unsigned int entities_to_update = 0;
 
@@ -353,9 +354,9 @@ int main(int argc, char* args[])
             // Write updates to the update buffer
             for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
             {
-                if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle))
+                if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle && ECDB_EntityHasComponent(ecdb, i, componentHandles.physics_2d_handle)))
                 {
-                    struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position};
+                    struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position, .velocity = physics[i].velocity};
                     update_buffer_ptr[entities_to_update] = data;
                     entities_to_update++;
                 }
