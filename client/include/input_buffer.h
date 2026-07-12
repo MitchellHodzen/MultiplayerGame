@@ -14,6 +14,8 @@ struct Input_Snapshot
 {
     long client_time;
     struct Vector2 direction;
+    bool prediction_toggled_on;
+    bool prediction_toggled_off;
     unsigned int chat_messages_cached;
     struct Chat_Snapshot_Info chat_cache[10]; // unlikely to receive multiple chat messages in a single frame, dont cache many
 };

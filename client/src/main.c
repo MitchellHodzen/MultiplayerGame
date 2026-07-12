@@ -217,6 +217,8 @@ int main(int argc, char* args[])
 
     Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
 
+    bool client_side_prediction_enabled = true;
+
     SDL_Log("Starting game loop");
     while(quit == false)
     {
@@ -250,7 +252,7 @@ int main(int argc, char* args[])
 
                             // When we receive an update header, revert to the state that was right before that in server time
                             int going_back_frames = 0;
-                            while(game_state_history_stack->buffer_size > 0)
+                            while(client_side_prediction_enabled == true && game_state_history_stack->buffer_size > 0)
                             {
                                 struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
                                 going_back_frames++;
@@ -351,6 +353,19 @@ int main(int argc, char* args[])
                                 {
                                     int textMessageId;
                                     AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), input.chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input.chat_cache[i].message, 2, &textMessageId);
+                                }
+
+                                // if prediction was toggled, add or remove physics
+                                if (input.prediction_toggled_off == true)
+                                {
+                                    // if prediction was disabled, disable by removing the physics component from the player
+                                    ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
+                                }
+                                else if (input.prediction_toggled_on == true)
+                                {
+                                    // If prediction was enabled, enable by adding a physics component to the player
+                                    struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
+                                    new_player_physics->friction = 25;
                                 }
 
                                 s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
@@ -462,6 +477,29 @@ int main(int argc, char* args[])
             }
             else if (command_context == COMMAND_STANDARD)
             {
+                if( e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0)
+                {
+                    // If 1 clicked, turn client side prediction off
+                    if (e.key.key == SDLK_1)
+                    {
+                        if (client_side_prediction_enabled == true)
+                        {
+                            input_snapshot.prediction_toggled_off = true;
+                            // if prediction was disabled, disable by removing the physics component from the player
+                            ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
+                        }
+                        else
+                        {
+                            input_snapshot.prediction_toggled_on = true;
+                            // If prediction was enabled, enable by adding a physics component to the player
+                            struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
+                            new_player_physics->friction = 25;
+                        }
+
+                        client_side_prediction_enabled = !client_side_prediction_enabled;
+                    }
+                }
+                
                 command_context = Handle_Standard_Input_Event(&e);
                 if (command_context != COMMAND_STANDARD)
                 {
@@ -547,48 +585,66 @@ int main(int argc, char* args[])
 
         // Chat box UI
         Clay_BeginLayout();
-        CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
-            CLAY(CLAY_ID("FullChatWindowContainer"), {
-                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .childGap = 3, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
-            }) {
-                CLAY(CLAY_ID("ChatHistoryContainer"), {
-                .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }
+        CLAY(CLAY_ID("WholeScreen"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
+            CLAY(CLAY_ID("UI_Top_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
+                CLAY(CLAY_ID("Controls_Text"), {
+                    .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 3, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
                 }) {
-                    for (unsigned int i = 0; i < gameData->chat_buffers->chat_history_buffer->buffer_size; ++i)
+                    if (client_side_prediction_enabled)
                     {
-                        CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
-                            CLAY_TEXT(((Clay_String) { .length = strlen(Chat_Get_Message_At(gameData->chat_buffers, i)), .chars = Chat_Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                        CLAY_TEXT(CLAY_STRING("Prediction Enabled (Press 1 to disable)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                    }
+                    else
+                    {
+                        CLAY_TEXT(CLAY_STRING("Prediction Disabled (Press 1 to enable)"), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                    }
+                }
+            }
+            CLAY(CLAY_ID("UI_Bottom_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
+                CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
+                    CLAY(CLAY_ID("FullChatWindowContainer"), {
+                        .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 3, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
+                    }) {
+                        CLAY(CLAY_ID("ChatHistoryContainer"), {
+                        .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }
+                        }) {
+                            for (unsigned int i = 0; i < gameData->chat_buffers->chat_history_buffer->buffer_size; ++i)
+                            {
+                                CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
+                                    CLAY_TEXT(((Clay_String) { .length = strlen(Chat_Get_Message_At(gameData->chat_buffers, i)), .chars = Chat_Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+                                }
+                            }
+
+                            Clay_ScrollContainerData scrollContainerData = Clay_GetScrollContainerData(CLAY_ID("ChatHistoryContainer"));
+
+                            // If we're at the end, lock scroll to the end
+                            if (scrollContainerData.scrollPosition->y == previousChatBottom) // Could scrollposition be null here?
+                            {
+                                float bottomPosition = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
+                                scrollContainerData.scrollPosition->y = bottomPosition;
+                            }
+
+                            previousChatBottom = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
+                        }
+
+                        float chatInputBoxAlpha = 100;
+                        if (command_context == COMMAND_CHAT)
+                        {
+                            // if chatting, make the carrot more visible
+                            chatInputBoxAlpha = 200;
+                        }
+
+                        CLAY(CLAY_ID("ChatInputBox"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .padding = CLAY_PADDING_ALL(5), .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, chatInputBoxAlpha } }) {
+                            float carrotAlpha = 150;
+                            if (command_context == COMMAND_CHAT)
+                            {
+                                // if chatting, make the carrot more visible
+                                carrotAlpha = 255;
+                            }
+                            CLAY_TEXT(CLAY_STRING(">"), { .fontSize = 24, .textColor = {255, 255, 255, carrotAlpha} });
+                            CLAY_TEXT(((Clay_String) { .length = strlen(gameData->chat_buffers->chat_input_buffer), .chars = gameData->chat_buffers->chat_input_buffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
                         }
                     }
-
-                    Clay_ScrollContainerData scrollContainerData = Clay_GetScrollContainerData(CLAY_ID("ChatHistoryContainer"));
-
-                    // If we're at the end, lock scroll to the end
-                    if (scrollContainerData.scrollPosition->y == previousChatBottom) // Could scrollposition be null here?
-                    {
-                        float bottomPosition = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
-                        scrollContainerData.scrollPosition->y = bottomPosition;
-                    }
-
-                    previousChatBottom = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
-                }
-
-                float chatInputBoxAlpha = 100;
-                if (command_context == COMMAND_CHAT)
-                {
-                    // if chatting, make the carrot more visible
-                    chatInputBoxAlpha = 200;
-                }
-
-                CLAY(CLAY_ID("ChatInputBox"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .padding = CLAY_PADDING_ALL(5), .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, chatInputBoxAlpha } }) {
-                    float carrotAlpha = 150;
-                    if (command_context == COMMAND_CHAT)
-                    {
-                        // if chatting, make the carrot more visible
-                        carrotAlpha = 255;
-                    }
-                    CLAY_TEXT(CLAY_STRING(">"), { .fontSize = 24, .textColor = {255, 255, 255, carrotAlpha} });
-                    CLAY_TEXT(((Clay_String) { .length = strlen(gameData->chat_buffers->chat_input_buffer), .chars = gameData->chat_buffers->chat_input_buffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
                 }
             }
         }
