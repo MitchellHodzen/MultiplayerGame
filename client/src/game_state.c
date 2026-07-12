@@ -92,7 +92,7 @@ bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** networkIdEntity
     *networkIdEntityMap = malloc(mapSize);
     if (*networkIdEntityMap == NULL)
     {
-        printf("Allocation of entity tracking data structures failed\n");
+        SDL_Log("Allocation of entity tracking data structures failed");
         return false;
     }
 
@@ -101,6 +101,8 @@ bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** networkIdEntity
     {
         (*networkIdEntityMap)[i] = ecdb->invalidEntityId;
     }
+
+    return true;
 }
 
 bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsigned int max_chat_size, unsigned int chat_history_size)

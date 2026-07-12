@@ -19,13 +19,13 @@ void Ring_Stack_Clear(struct Ring_Stack* stack)
     stack->_write_index = 0;
 }
 
-void* Ring_Stack_Get_Buffer_Start(struct Ring_Stack* stack)
+void* Ring_Stack_Get_Buffer_Start(const struct Ring_Stack* stack)
 {
     // The stack starts at the end of the header
     return (char*)stack + sizeof(struct Ring_Stack);
 }
 
-void* Ring_Stack_Get_Pointer_At(struct Ring_Stack* stack, unsigned int index)
+void* Ring_Stack_Get_Pointer_At(const struct Ring_Stack* stack, unsigned int index)
 {
     return ((char*)Ring_Stack_Get_Buffer_Start(stack)) + (index * stack->element_size);
 }

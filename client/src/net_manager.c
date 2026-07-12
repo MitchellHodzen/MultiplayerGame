@@ -3,6 +3,7 @@
 #include <enet/enet.h>
 #include <stdbool.h>
 #include "ecdb.h"
+#include <SDL3/SDL.H>
 
 bool Net_Initialize(struct Net_Manager** netManager)
 {
@@ -24,7 +25,7 @@ bool Net_Initialize(struct Net_Manager** netManager)
     (*netManager)->client = enet_host_create(NULL, 1, 2, 0, 0);
     if ((*netManager)->client == NULL)
     {
-        printf("Client Host Creation Failed\n");
+        SDL_Log("Client Host Creation Failed");
         Net_Free(netManager);
         return false;
     }
@@ -54,7 +55,7 @@ bool Listen_For_Packet(struct Net_Manager* netManager, enet_uint32 timeoutMs, en
                 {
                     // Clean up packets we're not listening for
                     enet_packet_destroy(event.packet);
-                    printf ("Received packet of type %i while listening for %i\n", received_type, type);
+                    SDL_Log("Received packet of type %i while listening for %i", received_type, type);
                     break;
                 }
 
@@ -70,20 +71,20 @@ bool Listen_For_Packet(struct Net_Manager* netManager, enet_uint32 timeoutMs, en
     }
 
     // never received the packet listening for, return false
-    printf ("Listen for packet of type %i timed out after %ims\n", type, timeoutMs);
+    SDL_Log("Listen for packet of type %i timed out after %ims", type, timeoutMs);
     return false;
 }
 
 bool Net_Join_Server(struct Net_Manager* netManager, ENetAddress* address, struct P_JOIN_SERVER* output)
 {
-    printf("Connecting to server at %x:%u.\n", address->host, address->port);
+    SDL_Log("Connecting to server at %x:%u.", address->host, address->port);
     
     // Initiate the connection, allocating the two channels 0 and 1.
     netManager->serverPeer = enet_host_connect(netManager->client, address, 2, 0);    
     
     if (netManager->serverPeer == NULL)
     {
-        printf("No available peers for initiating an ENet connection.\n");
+        SDL_Log("No available peers for initiating an ENet connection.");
         return false;
     }
     
@@ -92,17 +93,17 @@ bool Net_Join_Server(struct Net_Manager* netManager, ENetAddress* address, struc
     if (!(enet_host_service(netManager->client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_CONNECT))
     {
         // Either the 5 seconds are up or a disconnect event was received.
-        printf("Connection failed.\n");
+        SDL_Log("Connection failed.");
         enet_peer_reset(netManager->serverPeer);
         return false;
     }
 
-    printf("Connection succeeded.\n");
+    SDL_Log("Connection succeeded.");
     netManager->serverPeer->data = "my special server";
     netManager->connected = true;
 
     // Request to join the game
-    printf("Attempting to join game\n");
+    SDL_Log("Attempting to join game");
     enum Packet_Type joinPacketType = REQUEST_JOIN;
     ENetPacket * request_join_packet = enet_packet_create(&joinPacketType, sizeof(enum Packet_Type), ENET_PACKET_FLAG_RELIABLE);
     enet_peer_send(netManager->serverPeer, 0, request_join_packet);
@@ -122,7 +123,7 @@ void Net_Disconnect(struct Net_Manager* netManager)
     // If we are connected, disconnect
     if (netManager->connected)
     {
-        printf("Disconnecting from server.\n");
+        SDL_Log("Disconnecting from server.");
         enet_peer_disconnect(netManager->serverPeer, 0);
         ENetEvent event;
         
@@ -136,7 +137,7 @@ void Net_Disconnect(struct Net_Manager* netManager)
                 break;
         
             case ENET_EVENT_TYPE_DISCONNECT:
-                printf("Disconnection succeeded.\n");
+                SDL_Log("Disconnection succeeded.");
                 netManager->connected = false;
                 return;
             }
@@ -144,7 +145,7 @@ void Net_Disconnect(struct Net_Manager* netManager)
     }
     
     // if the disconnect attempt didn't succeed, force the connection down.
-    printf("Disconnection failed, force leaving.\n");
+    SDL_Log("Disconnection failed, force leaving.");
     enet_peer_reset(netManager->serverPeer);
     netManager->connected = false;
 }
