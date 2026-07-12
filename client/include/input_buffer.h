@@ -10,12 +10,15 @@ struct Chat_Snapshot_Info
     char message[40]; // Hardcoded max chat length. make it variable length and get from server
 };
 
+// TODO: replace with event system
 struct Input_Snapshot
 {
     long client_time;
     struct Vector2 direction;
     bool prediction_toggled_on;
     bool prediction_toggled_off;
+    bool interpolation_toggled_on;
+    bool interpolation_toggled_off;
     unsigned int chat_messages_cached;
     struct Chat_Snapshot_Info chat_cache[10]; // unlikely to receive multiple chat messages in a single frame, dont cache many
 };

@@ -218,6 +218,7 @@ int main(int argc, char* args[])
     Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
 
     bool client_side_prediction_enabled = true;
+    bool client_side_interpolation_enabled = true;
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -498,6 +499,23 @@ int main(int argc, char* args[])
 
                         client_side_prediction_enabled = !client_side_prediction_enabled;
                     }
+
+                    // If 2 clicked, turn off client side interpolation
+                    if (e.key.key == SDLK_2)
+                    {
+                        if (client_side_interpolation_enabled == true)
+                        {
+                            // TODO: Disable interpolation
+                            input_snapshot.interpolation_toggled_off = true;
+                        }
+                        else
+                        {
+                            // TODO: Enable interpolation
+                            input_snapshot.interpolation_toggled_on = true;
+                        }
+
+                        client_side_interpolation_enabled = !client_side_interpolation_enabled;
+                    }
                 }
                 
                 command_context = Handle_Standard_Input_Event(&e);
@@ -588,15 +606,32 @@ int main(int argc, char* args[])
         CLAY(CLAY_ID("WholeScreen"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
             CLAY(CLAY_ID("UI_Top_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
                 CLAY(CLAY_ID("Controls_Text"), {
-                    .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 3, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
+                    .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 1, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
                 }) {
+                    CLAY_TEXT(CLAY_STRING("Controls:"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                    CLAY_TEXT(CLAY_STRING("WASD: Move"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                    CLAY(CLAY_ID("Prediction_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
                     if (client_side_prediction_enabled)
-                    {
-                        CLAY_TEXT(CLAY_STRING("Prediction Enabled (Press 1 to disable)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                        {
+                            CLAY_TEXT(CLAY_STRING("1: Toggle Prediction (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                        }
+                        else
+                        {
+                            CLAY_TEXT(CLAY_STRING("1: Toggle Prediction "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                            CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
+                        }
                     }
-                    else
-                    {
-                        CLAY_TEXT(CLAY_STRING("Prediction Disabled (Press 1 to enable)"), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
+
+                    CLAY(CLAY_ID("Interpolation_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
+                    if (client_side_interpolation_enabled)
+                        {
+                            CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                        }
+                        else
+                        {
+                            CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                            CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
+                        }
                     }
                 }
             }
