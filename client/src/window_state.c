@@ -78,7 +78,7 @@ bool InitializeClay(void** clayArena, TTF_Font* font, int screenWidth, int scree
         return false;
     }
 
-    Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, *clayArena), (Clay_Dimensions) { screenWidth, screenHeight }, (Clay_ErrorHandler) { .errorHandlerFunction = LogClayErrors, .userData = NULL });
+    Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, *clayArena), (Clay_Dimensions) { screenWidth, screenHeight }, (Clay_ErrorHandler) { LogClayErrors });
     Clay_SetMeasureTextFunction(SDL_MeasureText, font);
     return true;
 }
