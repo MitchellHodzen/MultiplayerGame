@@ -1,6 +1,8 @@
 MKDIR      := mkdir
 RMDIR      := rm -r
+CPY        := cp
 CC         := gcc
+RES        := resources
 LIBS       := C:/Libs
 BIN        := ./bin
 OBJ        := $(BIN)/obj
@@ -35,6 +37,8 @@ $(OBJ): | $(BIN)
 
 $(BIN) $(OBJ):
 	$(MKDIR) $@
+	$(CPY) -r $(RES) $(BIN)/
+	$(CPY) *.dll $(BIN)/
 
 run: $(EXE)
 	$<
