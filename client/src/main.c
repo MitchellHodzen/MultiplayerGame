@@ -113,6 +113,20 @@ void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history
 
 int main(int argc, char* args[])
 {
+    char* address_string;
+    if (argc > 1)
+    {
+        // first arg will be the IP address to connect to
+        address_string = args[1];
+    }
+    else
+    {
+        // if no first arg given, connect to localhost
+        address_string = "localhost";
+    }
+
+    SDL_Log("Address Name: %s", address_string);
+
     bool quit = false;
 
     // Init window
@@ -140,7 +154,7 @@ int main(int argc, char* args[])
     }
 
     ENetAddress address;
-    enet_address_set_host (&address, "localhost");
+    enet_address_set_host (&address, address_string);
     address.port = 1234;
 
     // Join the server
