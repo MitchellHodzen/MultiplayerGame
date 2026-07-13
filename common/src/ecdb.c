@@ -225,6 +225,9 @@ size_t ECDB_Snapshot_Size(struct ECDB const *const ecdb)
     // valid entities is just a bool array
     retval += ECDB_Bool_Array_Size(ecdb);
 
+    // int stack size
+    retval += IntStack_Calculate_Required_Memory(ecdb->_maxEntities);
+
     // component valid arrays is a max entities + 1 bool array for each component
     retval += ECDB_Bool_Array_Size(ecdb) * ecdb->_componentCount;
 
@@ -261,6 +264,11 @@ void ECDB_Generate_Snapshot(struct ECDB const *const ecdb, void* snapshot)
     printf("\n");*/
 
     snapshot = (char*)snapshot + bool_array_size;
+    
+    // Copy the int stack data
+    size_t int_stack_size = IntStack_Calculate_Required_Memory(ecdb->_maxEntities);
+    memcpy(snapshot, ecdb->_entityIdStack, int_stack_size);
+    snapshot = (char*)snapshot + int_stack_size;
 
     // Copy the valid component arrays next
     for(unsigned int i = 0; i < ecdb->_componentCount; ++i)
@@ -312,6 +320,11 @@ void ECDB_Apply_Snapshot(struct ECDB* ecdb, void* snapshot)
     size_t bool_array_size = ECDB_Bool_Array_Size(ecdb);
     memcpy(ecdb->validEntities, snapshot, bool_array_size);
     snapshot = (char*)snapshot + bool_array_size;
+
+    // Copy the int stack
+    size_t int_stack_size = IntStack_Calculate_Required_Memory(ecdb->_maxEntities);
+    memcpy(ecdb->_entityIdStack, snapshot, int_stack_size);
+    snapshot = (char*)snapshot + int_stack_size;
 
     // Copy the valid component arrays from the snapshot to the ecdb
     for(unsigned int i = 0; i < ecdb->_componentCount; ++i)
