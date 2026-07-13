@@ -262,7 +262,6 @@ int main(int argc, char* args[])
                                 if (game_state_history_stack->buffer_size == 0 || Net_Estimate_Server_Time(netManager, state->client_time_ms) <= header->server_time_ms )
                                 {
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
-                                    // TODO: Gets rid of add or removed client side entities like chat box above head, resolve in some way
                                     ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
                                     // We have a new starting point, so clear state history
                                     Ring_Stack_Clear(game_state_history_stack);
