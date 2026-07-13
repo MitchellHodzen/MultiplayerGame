@@ -1,17 +1,21 @@
 #include "intstack.h"
 #include <stdlib.h> 
 
-bool IntStack_Init(struct IntStack* intStack, unsigned int size)
+size_t IntStack_Calculate_Required_Memory(unsigned int size)
+{
+    return sizeof(struct IntStack) + (size * sizeof(int));
+}
+
+void IntStack_Init(struct IntStack* intStack, unsigned int size)
 {
     intStack->maxSize = size;
-    intStack->_data = (int*) malloc(size * sizeof(int));
-    if (intStack->_data == NULL)
-    {
-        return false;
-    }
-
     intStack->length = 0;
-    return true;
+}
+
+int* IntStack_Data(const struct IntStack* intStack)
+{
+    // The stack starts at the end of the header
+    return (int*)((char*)intStack + sizeof(struct IntStack));
 }
 
 bool IntStack_Push(struct IntStack* intStack, int value)
@@ -23,7 +27,7 @@ bool IntStack_Push(struct IntStack* intStack, int value)
     }
 
     // Here we know that the current length is strictly less than max size
-    intStack->_data[intStack->length] = value; // current pointer is at length - 1, so the next value pointer is length
+    IntStack_Data(intStack)[intStack->length] = value; // current pointer is at length - 1, so the next value pointer is length
     intStack->length++;
     return true;
 }
@@ -37,13 +41,6 @@ bool IntStack_Pop(struct IntStack* intStack, int* value)
     }
 
     intStack->length--; // Length is pointer + 1, so length -1 will be the current pointer. Since we're popping, we are getting the current pointer and decrementing at once
-    *value = intStack->_data[intStack->length];
+    *value = IntStack_Data(intStack)[intStack->length];
     return true;
-}
-
-void IntStack_Free(struct IntStack* intStack)
-{
-    free(intStack->_data);
-    free(intStack);
-    intStack = NULL;
 }

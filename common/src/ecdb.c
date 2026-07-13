@@ -10,14 +10,17 @@ static bool _Init_Entity_Tracking(struct ECDB* ecdb)
     {
         // Couldn't create an entity ID stack
         return false;
-    }    
+    }
 
     // Set up entity ID tracking
-    if (!IntStack_Init(ecdb->_entityIdStack, ecdb->_maxEntities))
+    ecdb->_entityIdStack = (struct IntStack*) malloc(IntStack_Calculate_Required_Memory(ecdb->_maxEntities));
+    if (ecdb->_entityIdStack == NULL)
     {
-        // Couldn't initialize index stack
+        // Couldn't allocate index stack
         return false;
     }
+
+    IntStack_Init(ecdb->_entityIdStack, ecdb->_maxEntities);
 
     // Add IDs in reverse order so we add at 0 first
     for (int i = ecdb->_maxEntities -1; i >= 0; --i)
@@ -329,7 +332,7 @@ void ECDB_Apply_Snapshot(struct ECDB* ecdb, void* snapshot)
 
 void ECDB_Free(struct ECDB** ecdb)
 {
-    IntStack_Free((*ecdb)->_entityIdStack);
+    free((*ecdb)->_entityIdStack);
     for(unsigned int i = 0; i < (*ecdb)->_componentCount; ++i)
     {
         free((*ecdb)->componentArrays[i]);
