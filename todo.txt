@@ -2,3 +2,4 @@ ecdb check if component is already initialized
 move network packet buffer out of ECDB
 start of game it shows ghost in the top left corner becuase we don't have server info - instead maybe just don't show a ghost
 players aren't removed when they quit the game - make sure if a player quits and another joins within a packet window the player is actually overwritten client side, not simply replaced
+fix: random server crash on join after player requested

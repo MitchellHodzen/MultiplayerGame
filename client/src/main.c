@@ -271,7 +271,6 @@ int main(int argc, char* args[])
                             }
 
                             // Record updates
-                            // TODO: Sync physics as well as position for cases where we lose a lot of packets
                             struct P_Update_Entity_Data* update_buffer_ptr = (struct P_Update_Entity_Data*)(((char*)event.packet->data) + sizeof(struct P_Update_Header));
 
                             for(unsigned int i = 0; i < header->updates_count; ++i)
@@ -367,6 +366,26 @@ int main(int argc, char* args[])
                                     // If prediction was enabled, enable by adding a physics component to the player
                                     struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
                                     new_player_physics->friction = 25;
+                                }
+
+                                if (input.interpolation_toggled_off == true)
+                                {
+                                    // Disable all interpolation buffers; if the entity doesn't have one, nothing happens
+                                    for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
+                                    {
+                                        ECDB_DisableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                    }
+                                }
+                                else if (input.interpolation_toggled_on == true)
+                                {
+                                    // Enable interpolation by adding an interpolation buffer to every networked transform (ignore the player as a special case)
+                                    for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
+                                    {
+                                        if (i != networked_player && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.network_id_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle))
+                                        {
+                                            ECDB_EnableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                        }
+                                    }
                                 }
 
                                 s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
@@ -505,13 +524,25 @@ int main(int argc, char* args[])
                     {
                         if (client_side_interpolation_enabled == true)
                         {
-                            // TODO: Disable interpolation
                             input_snapshot.interpolation_toggled_off = true;
+
+                            // Disable all interpolation buffers; if the entity doesn't have one, nothing happens
+                            for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
+                            {
+                                ECDB_DisableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                            }
                         }
                         else
                         {
-                            // TODO: Enable interpolation
                             input_snapshot.interpolation_toggled_on = true;
+                            // Enable interpolation by adding an interpolation buffer to every networked transform (ignore the player as a special case)
+                            for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
+                            {
+                                if (i != networked_player && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.network_id_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle))
+                                {
+                                    ECDB_EnableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
+                                }
+                            }
                         }
 
                         client_side_interpolation_enabled = !client_side_interpolation_enabled;
@@ -606,7 +637,7 @@ int main(int argc, char* args[])
         CLAY(CLAY_ID("WholeScreen"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
             CLAY(CLAY_ID("UI_Top_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
                 CLAY(CLAY_ID("Controls_Text"), {
-                    .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 1, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
+                    .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 1, .padding = CLAY_PADDING_ALL(5), .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
                 }) {
                     CLAY_TEXT(CLAY_STRING("Controls:"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
                     CLAY_TEXT(CLAY_STRING("WASD: Move"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
