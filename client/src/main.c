@@ -417,7 +417,7 @@ int main(int argc, char* args[])
                             unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
                             unsigned long corrected_server_time = packetData->server_time_ms - (event.peer->roundTripTime / 2);
 
-                            SDL_Log("Server time: %lu. Corrected server time: %lu. Estimated server time: %lu. Server time diff: %lu. Corrected server time diff: %lu. Round trip time: %i. Mocked round trip time: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, estimated_server_time_ms - corrected_server_time, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms);
+                            SDL_Log("Server time: %lu. Corrected server time: %lu. Estimated server time: %lu. Server time diff: %lu. Corrected server time diff: %i. Round trip time: %i. Mocked round trip time: %i. Packet Loss: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, (long)((estimated_server_time_ms + 1000) - corrected_server_time) - 1000, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms, event.peer->packetLoss);
                             Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms, packetData->mocked_latency_ms);
                             break;
                         }
