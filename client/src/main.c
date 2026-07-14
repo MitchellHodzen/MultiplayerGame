@@ -316,6 +316,7 @@ int main(int argc, char* args[])
                             struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
 
                             // When we receive an update header, revert to the state that was right before that in server time
+                            // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
                             int going_back_frames = 0;
                             while(client_side_prediction_enabled == true && game_state_history_stack->buffer_size > 0)
                             {
@@ -458,10 +459,6 @@ int main(int argc, char* args[])
                             {
                                 prefixed_message_length = sprintf(prefixed_message_buffer, "Player %i: %s", header->networkId, text_pointer);
                             }
-
-                            // Display text above character
-                            int textMessageId;
-                            AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), localEntityId, (struct Vector2){ 0, -60}, text_pointer, 2, &textMessageId);
 
                             if (input_snapshot.chat_messages_cached < 10)
                             {
