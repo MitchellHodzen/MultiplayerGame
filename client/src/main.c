@@ -111,6 +111,56 @@ void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history
     ECDB_Generate_Snapshot(ecdb, ecdb_state_snapshot);
 }
 
+void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Component_Handles* component_handles, struct Input_Snapshot* input, unsigned int player_id, float delta_time_ms)
+{
+    // If any texts were received this frame, add them back
+    for(unsigned int i = 0; i < input->chat_messages_cached; ++i)
+    {
+        int textMessageId;
+        AddParentedTextWithLifetime(ecdb, component_handles, input->chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input->chat_cache[i].message, 2, &textMessageId);
+    }
+
+    // if prediction was toggled, add or remove physics
+    if (input->prediction_toggled_off == true)
+    {
+        // if prediction was disabled, disable by removing the physics component from the player
+        ECDB_DisableEntityComponent(ecdb, player_id, component_handles->physics_2d_handle);
+    }
+    else if (input->prediction_toggled_on == true)
+    {
+        // If prediction was enabled, enable by adding a physics component to the player
+        struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(ecdb, player_id, component_handles->physics_2d_handle);
+        new_player_physics->friction = 25;
+    }
+
+    if (input->interpolation_toggled_off == true)
+    {
+        // Disable all interpolation buffers; if the entity doesn't have one, nothing happens
+        for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+        {
+            ECDB_DisableEntityComponent(ecdb, i, component_handles->transforms_interpolation_buffer_handle);
+        }
+    }
+    else if (input->interpolation_toggled_on == true)
+    {
+        // Enable interpolation by adding an interpolation buffer to every networked transform (ignore the player as a special case)
+        for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+        {
+            if (i != player_id && ECDB_EntityHasComponent(ecdb, i, component_handles->network_id_handle) && ECDB_EntityHasComponent(ecdb, i, component_handles->transforms_handle))
+            {
+                ECDB_EnableEntityComponent(ecdb, i, component_handles->transforms_interpolation_buffer_handle);
+            }
+        }
+    }
+
+    s_interpolate_position(ecdb, component_handles->transforms_handle, component_handles->transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(net_manager, input->client_time), INTERP_DELAY_MS);
+    s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_ms);
+    s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
+    s_write_input(ecdb, component_handles->inputs_handle, input->direction);
+    s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_ms);
+    s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_ms);
+}
+
 int main(int argc, char* args[])
 {
     char* address_string;
@@ -360,53 +410,8 @@ int main(int argc, char* args[])
                                     replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
                                 }
 
-                                // If any texts were received this frame, add them back
-                                // TODO: sim code duplication, move both sim and chat message add to some process to be done regardless of revert
-                                for(unsigned int i = 0; i < input.chat_messages_cached; ++i)
-                                {
-                                    int textMessageId;
-                                    AddParentedTextWithLifetime(gameData->ec, &(gameData->componentHandles), input.chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input.chat_cache[i].message, 2, &textMessageId);
-                                }
-
-                                // if prediction was toggled, add or remove physics
-                                if (input.prediction_toggled_off == true)
-                                {
-                                    // if prediction was disabled, disable by removing the physics component from the player
-                                    ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
-                                }
-                                else if (input.prediction_toggled_on == true)
-                                {
-                                    // If prediction was enabled, enable by adding a physics component to the player
-                                    struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
-                                    new_player_physics->friction = 25;
-                                }
-
-                                if (input.interpolation_toggled_off == true)
-                                {
-                                    // Disable all interpolation buffers; if the entity doesn't have one, nothing happens
-                                    for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
-                                    {
-                                        ECDB_DisableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                    }
-                                }
-                                else if (input.interpolation_toggled_on == true)
-                                {
-                                    // Enable interpolation by adding an interpolation buffer to every networked transform (ignore the player as a special case)
-                                    for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
-                                    {
-                                        if (i != networked_player && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.network_id_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle))
-                                        {
-                                            ECDB_EnableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                        }
-                                    }
-                                }
-
-                                s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, input.client_time), INTERP_DELAY_MS);
-                                s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, replay_delta_time_s);
-                                s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
-                                s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, input.direction); // <- direction applied
-                                s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, replay_delta_time_s);
-                                s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, replay_delta_time_s);
+                                // TODO - instead of calling run_sim in two places in the main loop, put all input together and then play it out later?
+                                Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input, networked_player, replay_delta_time_s);
                             }
 
                             break;
@@ -518,15 +523,10 @@ int main(int argc, char* args[])
                         if (client_side_prediction_enabled == true)
                         {
                             input_snapshot.prediction_toggled_off = true;
-                            // if prediction was disabled, disable by removing the physics component from the player
-                            ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
                         }
                         else
                         {
                             input_snapshot.prediction_toggled_on = true;
-                            // If prediction was enabled, enable by adding a physics component to the player
-                            struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
-                            new_player_physics->friction = 25;
                         }
 
                         client_side_prediction_enabled = !client_side_prediction_enabled;
@@ -538,24 +538,10 @@ int main(int argc, char* args[])
                         if (client_side_interpolation_enabled == true)
                         {
                             input_snapshot.interpolation_toggled_off = true;
-
-                            // Disable all interpolation buffers; if the entity doesn't have one, nothing happens
-                            for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
-                            {
-                                ECDB_DisableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                            }
                         }
                         else
                         {
                             input_snapshot.interpolation_toggled_on = true;
-                            // Enable interpolation by adding an interpolation buffer to every networked transform (ignore the player as a special case)
-                            for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
-                            {
-                                if (i != networked_player && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.network_id_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle))
-                                {
-                                    ECDB_EnableEntityComponent(gameData->ec, i, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                }
-                            }
                         }
 
                         client_side_interpolation_enabled = !client_side_interpolation_enabled;
@@ -631,12 +617,7 @@ int main(int argc, char* args[])
             enet_peer_send(netManager->serverPeer, 0, packet);
         }
 
-        s_interpolate_position(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(netManager, currentFrameTimeMs), INTERP_DELAY_MS);
-        s_lifetime_iterate(gameData->ec, gameData->componentHandles.lifetimes_handle, deltaTimeS);
-        s_lifetime_remove(gameData->ec, gameData->componentHandles.lifetimes_handle);
-        s_write_input(gameData->ec, gameData->componentHandles.inputs_handle, direction);
-        s_update_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.inputs_handle, deltaTimeS);
-        s_apply_physics(gameData->ec, gameData->componentHandles.physics_2d_handle, gameData->componentHandles.transforms_handle, deltaTimeS);
+        Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
 
         // Clear previous render before drawing
         SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
