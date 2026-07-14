@@ -320,6 +320,7 @@ int main(int argc, char* args[])
                             int going_back_frames = 0;
                             while(client_side_prediction_enabled == true && game_state_history_stack->buffer_size > 0)
                             {
+                                // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
                                 struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
                                 going_back_frames++;
                                 // TODO: Better to take the oldest state that meets this criteria rather than the newest?
