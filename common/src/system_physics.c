@@ -33,6 +33,50 @@ float apply_friction_on_axis(float velocity_leg, float friction, float deltaTime
     return velocity_leg;
 }
 
+bool AreSameSign(float a, float b)
+{
+    return (a >= 0 && b >= 0) || (a < 0 && b < 0);
+}
+
+float CalculateMovementLeg(float input_leg, float current_velocity_leg, float delta_time_s, float max_speed, float acceleration, float friction)
+{
+    float retval = current_velocity_leg;
+    
+    if (input_leg != 0)
+    {
+        //If there is input on this axis, move along the axis
+        retval = current_velocity_leg + (acceleration * input_leg) * delta_time_s;
+        
+        if (!AreSameSign(retval, current_velocity_leg))
+        {
+            //If we are currently traveling in a different direction than input, apply friction as a boost
+            retval += (friction * input_leg) * delta_time_s;
+        }
+    }
+    else
+    {
+        //If there is no input, apply friction on the axis
+        if (current_velocity_leg != 0)
+        {
+            int direction = 1;
+            if (current_velocity_leg < 0)
+            {
+                direction = -1;
+            }
+
+            retval = current_velocity_leg - (friction * direction) * delta_time_s;
+            
+            if (!AreSameSign(retval, current_velocity_leg))
+            {
+                //If the velocity has switched signs, set to 0
+                retval = 0;
+            }
+        }
+    }
+    
+    return retval;
+}
+
 void s_update_physics(struct ECDB const *const ecdb, int physics_2d_handle, int inputs_handle, float deltaTimeS)
 {
     struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[physics_2d_handle];
