@@ -131,8 +131,11 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     // If any texts were received this frame, add them back
     for(unsigned int i = 0; i < input->chat_messages_cached; ++i)
     {
-        int textMessageId;
-        AddParentedTextWithLifetime(ecdb, component_handles, input->chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input->chat_cache[i].message, 2, &textMessageId);
+        if (ecdb->validEntities[input->chat_cache[i].entity_id])
+        {
+            int textMessageId;
+            AddParentedTextWithLifetime(ecdb, component_handles, input->chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input->chat_cache[i].message, 2, &textMessageId);
+        }
     }
 
     // if prediction was toggled, add or remove physics
