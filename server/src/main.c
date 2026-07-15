@@ -13,6 +13,7 @@
 #include "component_transform.h"
 #include <windows.h>
 #include "ring_buffer.h"
+#include "intstack.h"
 
 #define MAX_CONNECTIONS 10
 #define CHANNELS 2
@@ -153,6 +154,17 @@ int main(int argc, char* args[])
     }
 
     Ring_Buffer_Init(scheduled_packets_buffer, sizeof(struct Scheduled_Packet), SCHEDULED_PACKET_BUFFER_SIZE);
+
+    // Buffer for removals to send with each packet
+    struct IntStack* removal_stack = (struct IntStack*) malloc(IntStack_Calculate_Required_Memory(ecdb->_maxEntities));
+    if (removal_stack == NULL)
+    {
+        // Couldn't allocate index stack
+        printf("cant alloc removal buffer\n");
+        return 1;
+    }
+
+    IntStack_Init(removal_stack, ecdb->_maxEntities);
 
     float targetSecPerFrame = (1.0f / (float)TICK_PER_S );
     float targetSecPerUpdate = (1.0f / (float)UPDATE_SEND_PER_S);
@@ -313,6 +325,7 @@ int main(int argc, char* args[])
                     int playerId = *(int*)event.peer->data;
                     printf("Player %i disconnected.\n", playerId);
                     ECDB_DestroyEntity(ecdb, playerId);
+                    IntStack_Push(removal_stack, playerId); // TODO: Possible for multiple entities to join and quit between updates. does it matter?
                     // Send a chat message indicating a player has left
                     struct P_Chat_Header chatHeader = {.isServerMessage = true, .messageImportance = MESSAGE_IMPORTANCE_LOW};
                     char joinedMessageBuffer[50];
@@ -344,12 +357,22 @@ int main(int argc, char* args[])
             // Generate update packet
             unsigned int entities_to_update = 0;
 
-            // allocate memory on the stack for our custom packet which is the size of the chat string + the chat header. TODO: Too big for stack? make a dedicated malloced buffer before hand and re-use
-            unsigned int max_update_packet_length = sizeof(struct P_Update_Header) + (ecdb->_maxEntities * sizeof(struct P_Update_Entity_Data));
+            // allocate memory on the stack for our update packet which is the size of the update header + all removals + all updates. TODO: Too big for stack? make a dedicated malloced buffer before hand and re-use
+            unsigned int remove_packet_ct = removal_stack->length;
+            size_t remove_packet_size = remove_packet_ct * sizeof(unsigned int); // TODO: int stack is signed int not unsigned int
+            size_t max_update_packet_size = ecdb->_maxEntities * sizeof(struct P_Update_Entity_Data); 
+            size_t max_update_packet_length = sizeof(struct P_Update_Header) + remove_packet_size +  max_update_packet_size;
             void* update_packet_memory = _malloca(max_update_packet_length);
 
-            // Calculate the update buffer pointer by skipping ahead P_Update_Header size
-            struct P_Update_Entity_Data* update_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header);
+            // Calculate the remove buffer pointer by skipping ahead P_Update_Header size
+            unsigned int* remove_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header);
+            // Copy the contents of the int stack into the buffer
+            memcpy(remove_buffer_ptr, IntStack_Data(removal_stack), remove_packet_size);
+            // Reset the buffer
+            removal_stack->length = 0;
+
+            // Calculate the update buffer pointer by skipping ahead P_Update_Header and remove packets size
+            struct P_Update_Entity_Data* update_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header) + remove_packet_size;
 
             // Write updates to the update buffer
             for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
@@ -363,11 +386,11 @@ int main(int argc, char* args[])
             }
 
             // set the first P_Update_Header bytes to the update header
-            struct P_Update_Header update_header = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .updates_count = entities_to_update};
+            struct P_Update_Header update_header = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .removals_count = remove_packet_ct, .updates_count = entities_to_update};
             *(struct P_Update_Header*)update_packet_memory = update_header;
 
             // calculate the actual packet length with the entities to update count
-            unsigned int actual_update_packet_length = sizeof(struct P_Update_Header) + (entities_to_update * sizeof(struct P_Update_Entity_Data));
+            size_t actual_update_packet_length = sizeof(struct P_Update_Header) + remove_packet_size + (entities_to_update * sizeof(struct P_Update_Entity_Data));
 
             // Build and broadcast the packet. TODO: make packet creation malloc free
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, 0);

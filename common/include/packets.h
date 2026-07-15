@@ -35,6 +35,7 @@ struct P_Input_Direction
 struct P_Update_Header
 {
     enum Packet_Type type;
+    unsigned int removals_count;
     unsigned int updates_count;
     unsigned long server_time_ms;
 };

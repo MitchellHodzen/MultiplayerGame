@@ -90,10 +90,25 @@ void Add_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int net
     gameData->networkIdEntityMap[networkId] = entityId;
 }
 
-void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int network_id_handle, unsigned int entityId, unsigned int networkId)
+void Remove_Networked_Entity(struct Game_Data* gameData, struct ECDB* ecdb, int network_id_handle, unsigned int networkId)
 {
-    ECDB_DisableEntityComponent(ecdb, entityId, network_id_handle);
+    unsigned int local_entity_id = gameData->networkIdEntityMap[networkId];
+    if (local_entity_id == ecdb->invalidEntityId)
+    {
+        SDL_Log("Networked entity ID %i not found, can't remove", networkId);
+    }
     gameData->networkIdEntityMap[networkId] = ecdb->invalidEntityId;
+    ECDB_DestroyEntity(ecdb, local_entity_id);
+
+    // Destroy any children. TODO: Some kind of heirarchy to do this automatically, or a cleanup job
+    struct C_Transform* transforms = (struct C_Transform*) ecdb->componentArrays[gameData->componentHandles.transforms_handle];
+    for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+    {
+        if(ECDB_EntityHasComponent(ecdb, i, gameData->componentHandles.transforms_handle) && transforms[i].parent_id == local_entity_id)
+        {
+            ECDB_DestroyEntity(ecdb, i);
+        }
+    }
 }
 
 struct Game_State_Snapshot
@@ -335,8 +350,16 @@ int main(int argc, char* args[])
                                 }
                             }
 
+                            // Record removals
+                            unsigned int* removal_buffer_ptr = (unsigned int*)(((char*)event.packet->data) + sizeof(struct P_Update_Header));
+                            for(unsigned int i = 0; i < header->removals_count; ++i)
+                            {
+                                unsigned int network_entity_to_remove = removal_buffer_ptr[i];
+                                Remove_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, network_entity_to_remove);
+                            }
+
                             // Record updates
-                            struct P_Update_Entity_Data* update_buffer_ptr = (struct P_Update_Entity_Data*)(((char*)event.packet->data) + sizeof(struct P_Update_Header));
+                            struct P_Update_Entity_Data* update_buffer_ptr = (struct P_Update_Entity_Data*)(((char*)event.packet->data) + sizeof(struct P_Update_Header) + (header->removals_count * sizeof(unsigned int)));
 
                             for(unsigned int i = 0; i < header->updates_count; ++i)
                             {
