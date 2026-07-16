@@ -30,6 +30,7 @@
 #include "system_interpolation.h"
 #include "input_buffer.h"
 #include "ring_stack.h"
+#include "system_player_state_machine.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -175,6 +176,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_ms);
     s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
     s_write_input(ecdb, component_handles->inputs_handle, input->direction);
+    s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle);
     s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_ms);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_ms);
 }
@@ -420,6 +422,12 @@ int main(int argc, char* args[])
                                     struct C_Physics_2d* physics = (struct C_Physics_2d*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.physics_2d_handle);
                                     physics->velocity = update.velocity;
                                 }
+
+                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.player_states_handle))
+                                {
+                                    enum Player_State* state = (enum Player_State*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.player_states_handle);
+                                    *state = update.state;
+                                }
                             }
 
                             // replay the same amount of input as missed frames. the input frame has already been played on the corresponding state frame
@@ -647,7 +655,7 @@ int main(int argc, char* args[])
         SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
 
-        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, window_state->font, window_state->textEngine, window_state->renderer);
+        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, window_state->font, window_state->textEngine, window_state->renderer);
         s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
 
         // Chat box UI

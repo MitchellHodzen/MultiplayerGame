@@ -1,16 +1,19 @@
 #include <SDL3/SDL.H>
 #include <SDL3_ttf/SDL_ttf.h>
-#include "system_movement.h"
+#include "system_render.h"
 #include "vector2.h"
 #include "component_transform.h"
 #include "ecdb.h"
+#include "component_player_state.h"
 
-void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
+void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, int player_states_handle, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
 {
     // Draw the squares
     float length = 75;
     struct C_Transform* transforms = (struct C_Transform*) ec->componentArrays[transforms_handle];
     SDL_FColor* colors = (SDL_FColor*) ec->componentArrays[colors_handle];
+    enum Player_State* states = (enum Player_State*) ec->componentArrays[player_states_handle];
+
     char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
@@ -33,6 +36,13 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
             {
                 float halfLength = length / 2;
                 SDL_FColor color = colors[i];
+                if (states[i] == RUNNING)
+                {
+                    // if running make it a little more red
+                    color.g -= 100;
+                    color.b -= 100;
+                }
+
                 SDL_FRect rect = { .x = global_position.x - halfLength, .y = global_position.y - halfLength, .w = length, .h = length};
                 SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
                 SDL_RenderFillRect(renderer, &rect);

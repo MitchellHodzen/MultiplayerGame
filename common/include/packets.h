@@ -1,6 +1,7 @@
 #ifndef PACKETS
 #define PACKETS
 #include "vector2.h"
+#include "component_player_state.h"
 
 enum Packet_Type
 {
@@ -45,6 +46,7 @@ struct P_Update_Entity_Data
     unsigned int networkId;
     struct Vector2 position;
     struct Vector2 velocity;
+    enum Player_State state;
 };
 
 struct P_Server_Time

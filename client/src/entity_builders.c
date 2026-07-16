@@ -6,6 +6,7 @@
 #include "component_input.h"
 #include "component_transform.h"
 #include "component_lifetime.h"
+#include "component_player_state.h"
 
 bool AddParentedText(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
 {
@@ -49,6 +50,7 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     entityTransform->position = position;
     SDL_FColor* entityCol = ECDB_EnableEntityComponent(ec, *entityId, componentHandles->colors_handle);
     memcpy(entityCol, &color, sizeof(SDL_FColor));
+    ECDB_EnableEntityComponent(ec, *entityId, componentHandles->player_states_handle);
     
     // If a name was passed in, create a nameplate entity underneath the square
     if (playerName != NULL)
