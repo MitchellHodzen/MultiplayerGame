@@ -4,7 +4,8 @@
 enum Player_State
 {
     IDLE,
-    RUNNING
+    RUNNING,
+    ATTACKING
 };
 
 #endif /* PLAYER_STATES_DEF */

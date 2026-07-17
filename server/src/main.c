@@ -31,12 +31,13 @@ struct Component_Handles
     int transforms_handle;
     int inputs_handle;
     int physics_2d_handle;
+    int player_physics_2d_handle;
     int player_states_handle;
 };
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
 {
-    if (!ECDB_Init(ecdb, entityCount, 4))
+    if (!ECDB_Init(ecdb, entityCount, 5))
     {
         printf("Couldn't initialize component DB\n");
         return false;
@@ -58,6 +59,12 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->physics_2d_handle), NULL))
     {
         printf("Couldn't initialize physics component\n");
+        ECDB_Free(ecdb);
+        return false;
+    }
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->player_physics_2d_handle), NULL))
+    {
+        printf("Couldn't initialize player physics component\n");
         ECDB_Free(ecdb);
         return false;
     }
@@ -88,9 +95,10 @@ void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHand
     struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, playerId, componentHandles->transforms_handle);
     entityTransform->position = position;
     struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, playerId, componentHandles->inputs_handle);
-    entityInput->speed=speed;
-    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(ec, playerId, componentHandles->physics_2d_handle);
-    physics->friction = 25;
+    entityInput->speed=300;
+    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_physics_2d_handle);
+    physics->max_speed = 100;
+    physics->friction = 500;
     ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_states_handle);
 }
 
@@ -353,9 +361,10 @@ int main(int argc, char* args[])
         while (sim_accumulator_s > targetSecPerFrame)
         {
             // Run the sim
-            s_player_state_machine(ecdb, componentHandles.inputs_handle, componentHandles.player_states_handle);
+            s_player_state_machine(ecdb, componentHandles.inputs_handle, componentHandles.player_states_handle, componentHandles.player_physics_2d_handle, targetSecPerFrame);
             s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
+            s_apply_physics(ecdb, componentHandles.player_physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
 
             // pull back the accumulator
             sim_accumulator_s -= targetSecPerFrame;
@@ -365,7 +374,7 @@ int main(int argc, char* args[])
         if (update_packet_accumulator_s > targetSecPerUpdate)
         {
             struct C_Transform* transforms = (struct C_Transform*) ecdb->componentArrays[componentHandles.transforms_handle];
-            struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[componentHandles.physics_2d_handle];
+            struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[componentHandles.player_physics_2d_handle];
             enum Player_State* states = (enum Player_State*) ecdb->componentArrays[componentHandles.player_states_handle];
             // Generate update packet
             unsigned int entities_to_update = 0;
@@ -390,7 +399,7 @@ int main(int argc, char* args[])
             // Write updates to the update buffer
             for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
             {
-                if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle && ECDB_EntityHasComponent(ecdb, i, componentHandles.physics_2d_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.player_states_handle)))
+                if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle && ECDB_EntityHasComponent(ecdb, i, componentHandles.player_physics_2d_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.player_states_handle)))
                 {
                     struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position, .velocity = physics[i].velocity, .state = states[i]};
                     update_buffer_ptr[entities_to_update] = data;

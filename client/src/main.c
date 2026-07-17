@@ -127,7 +127,7 @@ void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history
     ECDB_Generate_Snapshot(ecdb, ecdb_state_snapshot);
 }
 
-void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Component_Handles* component_handles, struct Input_Snapshot* input, unsigned int player_id, float delta_time_ms)
+void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Component_Handles* component_handles, struct Input_Snapshot* input, unsigned int player_id, float delta_time_s)
 {
     // If any texts were received this frame, add them back
     for(unsigned int i = 0; i < input->chat_messages_cached; ++i)
@@ -143,13 +143,14 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     if (input->prediction_toggled_off == true)
     {
         // if prediction was disabled, disable by removing the physics component from the player
-        ECDB_DisableEntityComponent(ecdb, player_id, component_handles->physics_2d_handle);
+        ECDB_DisableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
     }
     else if (input->prediction_toggled_on == true)
     {
         // If prediction was enabled, enable by adding a physics component to the player
-        struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(ecdb, player_id, component_handles->physics_2d_handle);
-        new_player_physics->friction = 25;
+        struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
+        new_player_physics->max_speed = 100;
+        new_player_physics->friction = 500;
     }
 
     if (input->interpolation_toggled_off == true)
@@ -173,12 +174,14 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     }
 
     s_interpolate_position(ecdb, component_handles->transforms_handle, component_handles->transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(net_manager, input->client_time), INTERP_DELAY_MS);
-    s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_ms);
+    s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_s);
     s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
     s_write_input(ecdb, component_handles->inputs_handle, input->direction);
-    s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle);
-    s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_ms);
-    s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_ms);
+    s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, delta_time_s);
+    s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
+    s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
+    s_apply_physics(ecdb, component_handles->player_physics_2d_handle, component_handles->transforms_handle, delta_time_s);
+
 }
 
 int main(int argc, char* args[])
@@ -263,10 +266,26 @@ int main(int argc, char* args[])
     }
 
     struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.inputs_handle);
-    entityInput->speed=100;
+    entityInput->speed=300;
 
-    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.physics_2d_handle);
-    physics->friction = 25;
+    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.player_physics_2d_handle);
+    physics->max_speed = 100;
+    physics->friction = 500;
+
+    //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
+
+    int local_player;
+    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player, "local"))
+    {
+        struct C_Input* input = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.inputs_handle);
+        input->speed=300;
+
+        struct C_Physics_2d* player_physics = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.player_physics_2d_handle);
+        player_physics->max_speed = 100;
+        player_physics->friction = 500;
+    }
+    ECDB_DisableEntityComponent(gameData->ec, local_player, gameData->componentHandles.colors_handle);
+
 
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
 
@@ -303,6 +322,9 @@ int main(int argc, char* args[])
 
     bool client_side_prediction_enabled = true;
     bool client_side_interpolation_enabled = true;
+
+    float targetSecPerFrame = (1.0f / (float)60 );
+    float sim_accumulator_s = 0;
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -343,9 +365,9 @@ int main(int argc, char* args[])
                                 // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
                                 struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
                                 going_back_frames++;
-                                // TODO: Better to take the oldest state that meets this criteria rather than the newest?
-                                // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it
-                                if (game_state_history_stack->buffer_size == 0 || Net_Estimate_Server_Time(netManager, state->client_time_ms) <= header->server_time_ms )
+                                // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it. look at the previous frame to make sure we are looking at the old
+                                uint64_t snapshot_estimated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
+                                if (game_state_history_stack->buffer_size == 0 || snapshot_estimated_server_time <= header->server_time_ms)
                                 {
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
                                     ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
@@ -354,6 +376,8 @@ int main(int argc, char* args[])
                                     break;
                                 }
                             }
+
+                            //SDL_Log("Going back frames: %i", going_back_frames);
 
                             // Record removals
                             unsigned int* removal_buffer_ptr = (unsigned int*)(((char*)event.packet->data) + sizeof(struct P_Update_Header));
@@ -417,9 +441,9 @@ int main(int argc, char* args[])
                                     }
                                 }
 
-                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.physics_2d_handle))
+                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.player_physics_2d_handle))
                                 {
-                                    struct C_Physics_2d* physics = (struct C_Physics_2d*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.physics_2d_handle);
+                                    struct C_Physics_2d* physics = (struct C_Physics_2d*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.player_physics_2d_handle);
                                     physics->velocity = update.velocity;
                                 }
 
@@ -456,9 +480,8 @@ int main(int argc, char* args[])
                         {
                             struct P_Server_Time* packetData = (struct P_Server_Time*) event.packet->data;
                             unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
-                            unsigned long corrected_server_time = packetData->server_time_ms - (event.peer->roundTripTime / 2);
-
-                            SDL_Log("Server time: %lu. Corrected server time: %lu. Estimated server time: %lu. Server time diff: %lu. Corrected server time diff: %i. Round trip time: %i. Mocked round trip time: %i. Packet Loss: %i", packetData->server_time_ms, corrected_server_time, estimated_server_time_ms, estimated_server_time_ms - packetData->server_time_ms, (long)((estimated_server_time_ms + 1000) - corrected_server_time) - 1000, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms, event.peer->packetLoss);
+                            // TODO: packet loss is a fixed point number, convert to decimal notation before displaying
+                            SDL_Log("Server time: %lu. Estimated server time: %lu. Server time diff: %li. Round trip time: %i. Mocked round trip time: %i. Packet Loss: %i", packetData->server_time_ms, estimated_server_time_ms, (long)((estimated_server_time_ms + 1000) -  packetData->server_time_ms) - 1000, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms, event.peer->packetLoss);
                             Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms, packetData->mocked_latency_ms);
                             break;
                         }
@@ -528,128 +551,141 @@ int main(int argc, char* args[])
             }
         }
 
-        bool directionChanged = false;
-
-        //  Handle keyboard events
-        while( SDL_PollEvent( &e ) == true )
+        sim_accumulator_s += deltaTimeS;
+        while (sim_accumulator_s > targetSecPerFrame)
         {
-            if( e.type == SDL_EVENT_QUIT )
+            bool directionChanged = false;
+
+            //  Handle keyboard events
+            while( SDL_PollEvent( &e ) == true )
             {
-                quit = true;
-            }
-            else if (e.type == SDL_EVENT_WINDOW_RESIZED)
-            {
-                Clay_SetLayoutDimensions((Clay_Dimensions) { (float) e.window.data1, (float) e.window.data2 });
-            }
-            else if (e.type == SDL_EVENT_MOUSE_WHEEL)
-            {
-                Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, deltaTimeS);
-            }
-            else if (command_context == COMMAND_STANDARD)
-            {
-                if( e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0)
+                if( e.type == SDL_EVENT_QUIT )
                 {
-                    // If 1 clicked, turn client side prediction off
-                    if (e.key.key == SDLK_1)
+                    quit = true;
+                }
+                else if (e.type == SDL_EVENT_WINDOW_RESIZED)
+                {
+                    Clay_SetLayoutDimensions((Clay_Dimensions) { (float) e.window.data1, (float) e.window.data2 });
+                }
+                else if (e.type == SDL_EVENT_MOUSE_WHEEL)
+                {
+                    Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, targetSecPerFrame);
+                }
+                else if (command_context == COMMAND_STANDARD)
+                {
+                    if( e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0)
                     {
-                        if (client_side_prediction_enabled == true)
+                        // If 1 clicked, turn client side prediction off
+                        if (e.key.key == SDLK_1)
                         {
-                            input_snapshot.prediction_toggled_off = true;
-                        }
-                        else
-                        {
-                            input_snapshot.prediction_toggled_on = true;
+                            if (client_side_prediction_enabled == true)
+                            {
+                                input_snapshot.prediction_toggled_off = true;
+                            }
+                            else
+                            {
+                                input_snapshot.prediction_toggled_on = true;
+                            }
+
+                            client_side_prediction_enabled = !client_side_prediction_enabled;
                         }
 
-                        client_side_prediction_enabled = !client_side_prediction_enabled;
+                        // If 2 clicked, turn off client side interpolation
+                        if (e.key.key == SDLK_2)
+                        {
+                            if (client_side_interpolation_enabled == true)
+                            {
+                                input_snapshot.interpolation_toggled_off = true;
+                            }
+                            else
+                            {
+                                input_snapshot.interpolation_toggled_on = true;
+                            }
+
+                            client_side_interpolation_enabled = !client_side_interpolation_enabled;
+                        }
                     }
-
-                    // If 2 clicked, turn off client side interpolation
-                    if (e.key.key == SDLK_2)
+                    
+                    command_context = Handle_Standard_Input_Event(&e);
+                    if (command_context != COMMAND_STANDARD)
                     {
-                        if (client_side_interpolation_enabled == true)
+                        // If the context changed, stop movement
+                        if (direction.x != 0 || direction.y != 0)
                         {
-                            input_snapshot.interpolation_toggled_off = true;
+                            directionChanged = true;
+                            direction.x = 0;
+                            direction.y = 0;
                         }
-                        else
-                        {
-                            input_snapshot.interpolation_toggled_on = true;
-                        }
-
-                        client_side_interpolation_enabled = !client_side_interpolation_enabled;
                     }
                 }
-                
-                command_context = Handle_Standard_Input_Event(&e);
-                if (command_context != COMMAND_STANDARD)
+                else if (command_context == COMMAND_CHAT)
                 {
-                    // If the context changed, stop movement
-                    if (direction.x != 0 || direction.y != 0)
+                    bool charWritten = false;
+                    command_context = Handle_Chat_Input_Event(&e, gameData->chat_buffers, &charWritten);
+                    if (command_context != COMMAND_CHAT)
                     {
-                        directionChanged = true;
-                        direction.x = 0;
-                        direction.y = 0;
+                        // If we've stopped chatting, send the chat packet
+                        int messageSize = (sizeof(char) * gameData->chat_buffers->_input_cursor) + 1; // Size is number of characters + the null termination character
+                        ENetPacket* chatPacket = enet_packet_create(gameData->chat_buffers->chat_input_buffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
+                        enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
+
+                        // reset the buffer
+                        Chat_Reset_Input_Buffer(gameData->chat_buffers);
+
+                        printf("\n");
+                    }
+                    else if (charWritten)
+                    {
+                        // If still chatting, write the recent character to the console
+                        printf("%c", gameData->chat_buffers->chat_input_buffer[gameData->chat_buffers->_input_cursor - 1]); // Chat cursor is always at current char + 1
                     }
                 }
             }
-            else if (command_context == COMMAND_CHAT)
+
+            // Handle keyboard state
+            if (command_context == COMMAND_STANDARD)
             {
-                bool charWritten = false;
-                command_context = Handle_Chat_Input_Event(&e, gameData->chat_buffers, &charWritten);
-                if (command_context != COMMAND_CHAT)
-                {
-                    // If we've stopped chatting, send the chat packet
-                    int messageSize = (sizeof(char) * gameData->chat_buffers->_input_cursor) + 1; // Size is number of characters + the null termination character
-                    ENetPacket* chatPacket = enet_packet_create(gameData->chat_buffers->chat_input_buffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
-                    enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
+                struct Vector2 newDirection = Get_Direction_From_Input_State();
 
-                    // reset the buffer
-                    Chat_Reset_Input_Buffer(gameData->chat_buffers);
-
-                    printf("\n");
-                }
-                else if (charWritten)
+                if (direction.x != newDirection.x || direction.y != newDirection.y)
                 {
-                    // If still chatting, write the recent character to the console
-                    printf("%c", gameData->chat_buffers->chat_input_buffer[gameData->chat_buffers->_input_cursor - 1]); // Chat cursor is always at current char + 1
+                    directionChanged = true;
+                    direction.x = newDirection.x;
+                    direction.y = newDirection.y;
                 }
             }
+
+            // save direction in the frame snapshot
+            input_snapshot.direction = direction;
+
+            // Handle mouse movement
+            struct Vector2 mousePos;
+            Uint32 buttons = SDL_GetMouseState(&(mousePos.x), &(mousePos.y));
+            Clay_SetPointerState(
+                (Clay_Vector2){.x = mousePos.x, .y = mousePos.y},
+                buttons & SDL_BUTTON_LMASK
+            );
+            
+            if (directionChanged)
+            {
+                // If input has been given, send an input packet
+                unsigned int* entityId = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
+                struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = *entityId, .direction = direction};
+                ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), ENET_PACKET_FLAG_RELIABLE);
+                enet_peer_send(netManager->serverPeer, 0, packet);
+            }
+
+            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, targetSecPerFrame);
+
+            
+            // save state
+            Input_Buffer_Put(input_queue, input_snapshot);
+            Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
+
+            // pull back the accumulator
+            sim_accumulator_s -= targetSecPerFrame;
         }
 
-        // Handle keyboard state
-        if (command_context == COMMAND_STANDARD)
-        {
-            struct Vector2 newDirection = Get_Direction_From_Input_State();
-
-            if (direction.x != newDirection.x || direction.y != newDirection.y)
-            {
-                directionChanged = true;
-                direction.x = newDirection.x;
-                direction.y = newDirection.y;
-            }
-        }
-
-        // save direction in the frame snapshot
-        input_snapshot.direction = direction;
-
-        // Handle mouse movement
-        struct Vector2 mousePos;
-        Uint32 buttons = SDL_GetMouseState(&(mousePos.x), &(mousePos.y));
-        Clay_SetPointerState(
-            (Clay_Vector2){.x = mousePos.x, .y = mousePos.y},
-            buttons & SDL_BUTTON_LMASK
-        );
-        
-        if (directionChanged)
-        {
-            // If input has been given, send an input packet
-            unsigned int* entityId = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
-            struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = *entityId, .direction = direction};
-            ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), ENET_PACKET_FLAG_RELIABLE);
-            enet_peer_send(netManager->serverPeer, 0, packet);
-        }
-
-        Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
 
         // Clear previous render before drawing
         SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
@@ -747,10 +783,6 @@ int main(int argc, char* args[])
 
         // Draw to screen
         SDL_RenderPresent(window_state->renderer);
-
-        // save state
-        Input_Buffer_Put(input_queue, input_snapshot);
-        Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
     }
 
 disconnect:

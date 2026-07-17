@@ -12,6 +12,7 @@ struct Component_Handles
     int text_handle;
     int lifetimes_handle;
     int physics_2d_handle;
+    int player_physics_2d_handle;
     int player_states_handle;
 };
 

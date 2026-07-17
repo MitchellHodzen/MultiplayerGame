@@ -36,10 +36,14 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
             {
                 float halfLength = length / 2;
                 SDL_FColor color = colors[i];
-                if (states[i] == RUNNING)
+                if (states[i] == ATTACKING)
                 {
-                    // if running make it a little more red
                     color.g -= 100;
+                    color.b -= 100;
+                }
+                else if (states[i] == RUNNING)
+                {
+                    color.r -= 100;
                     color.b -= 100;
                 }
 
