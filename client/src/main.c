@@ -359,6 +359,7 @@ int main(int argc, char* args[])
 
                             // When we receive an update header, revert to the state that was right before that in server time
                             // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
+                            // TODO: Calculate how many frames we should replay based on latency and see if it matches up
                             int going_back_frames = 0;
                             while(client_side_prediction_enabled == true && game_state_history_stack->buffer_size > 0)
                             {
