@@ -73,11 +73,14 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, struct Chat_Buffer
             // If enter clicked, change context to standard context
             return COMMAND_STANDARD;
         }
-        else
+        if (event->key.key == SDLK_BACKSPACE)
         {
-            // Any other keys write to the chat buffer if it isn't full. TODO: sanitize input
-            *charWritten = Chat_Try_Write_To_Input(chat_buffers, event->key.key);
+            // TODO: remove characters
         }
+    }
+    else if (event->type == SDL_EVENT_TEXT_INPUT)
+    {
+        *charWritten = Chat_Try_Write_To_Input(chat_buffers, event->text.text, strlen(event->text.text));
     }
 
     // if here, no change in context
@@ -552,9 +555,9 @@ int main(int argc, char* args[])
             }
         }
 
-        sim_accumulator_s += deltaTimeS;
-        while (sim_accumulator_s > targetSecPerFrame)
-        {
+        //sim_accumulator_s += deltaTimeS;
+        //while (sim_accumulator_s > targetSecPerFrame)
+        //{
             bool directionChanged = false;
 
             //  Handle keyboard events
@@ -617,6 +620,11 @@ int main(int argc, char* args[])
                             direction.x = 0;
                             direction.y = 0;
                         }
+
+                        if (command_context == COMMAND_CHAT)
+                        {
+                            SDL_StartTextInput(window_state->window);
+                        }
                     }
                 }
                 else if (command_context == COMMAND_CHAT)
@@ -634,6 +642,7 @@ int main(int argc, char* args[])
                         Chat_Reset_Input_Buffer(gameData->chat_buffers);
 
                         printf("\n");
+                        SDL_StopTextInput(window_state->window);
                     }
                     else if (charWritten)
                     {
@@ -676,7 +685,8 @@ int main(int argc, char* args[])
                 enet_peer_send(netManager->serverPeer, 0, packet);
             }
 
-            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, targetSecPerFrame);
+            //Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, targetSecPerFrame);
+            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
 
             
             // save state
@@ -684,8 +694,8 @@ int main(int argc, char* args[])
             Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
 
             // pull back the accumulator
-            sim_accumulator_s -= targetSecPerFrame;
-        }
+        //    sim_accumulator_s -= targetSecPerFrame;
+        //}
 
 
         // Clear previous render before drawing

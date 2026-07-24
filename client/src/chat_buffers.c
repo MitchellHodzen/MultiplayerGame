@@ -56,16 +56,17 @@ void Chat_History_Write(struct Chat_Buffers* chat_buffers, char* string, unsigne
     strcpy(next, string);
 }
 
-bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, char input)
+bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, char* text, size_t text_length)
 {
-    if (chat_buffers->_input_cursor < chat_buffers->max_chat_size)
+    size_t space_left = chat_buffers->max_chat_size - chat_buffers->_input_cursor;
+    if (space_left >= text_length)
     {
         // buffer is chat max size + 1, so we can safely operate < chat max size
-        chat_buffers->chat_input_buffer[chat_buffers->_input_cursor] = input;
-        // always put the null term char after the cursor
-        chat_buffers->chat_input_buffer[chat_buffers->_input_cursor + 1] =  '\0';
-        chat_buffers->_input_cursor++;
-
+        memcpy(chat_buffers->chat_input_buffer + chat_buffers->_input_cursor, text, text_length);
+        chat_buffers->_input_cursor += text_length;
+        
+        // always put the null term char after the new input
+        chat_buffers->chat_input_buffer[chat_buffers->_input_cursor] =  '\0';
         return true;
     }
 
