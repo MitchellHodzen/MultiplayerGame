@@ -702,7 +702,7 @@ int main(int argc, char* args[])
         SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
 
-        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, window_state->font, window_state->textEngine, window_state->renderer);
+        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
         s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
 
         // Chat box UI

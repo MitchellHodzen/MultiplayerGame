@@ -6,7 +6,7 @@
 #include "ecdb.h"
 #include "component_player_state.h"
 
-void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, int player_states_handle, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
+void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, int player_states_handle, size_t chat_buffer_size, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
 {
     // Draw the squares
     float length = 75;
@@ -14,8 +14,7 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
     SDL_FColor* colors = (SDL_FColor*) ec->componentArrays[colors_handle];
     enum Player_State* states = (enum Player_State*) ec->componentArrays[player_states_handle];
 
-    // TODO: Text size should be based on the actual chat size
-    char (*texts)[400 + 1] = (char (*)[400 + 1]) ec->componentArrays[texts_handle];
+    char* texts = (char*) ec->componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         // Only draw if there is a position
@@ -56,8 +55,9 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
             // draw text
             if(ECDB_EntityHasComponent(ec, i, texts_handle))
             {
+                char* entity_text = texts + (chat_buffer_size * i);
                 // TODO: Terrible, do not create a ttf text each loop entry
-                TTF_Text* text = TTF_CreateText(textEngine, font, texts[i], 0); // 0 length for null terminated
+                TTF_Text* text = TTF_CreateText(textEngine, font, entity_text, 0); // 0 length for null terminated
 
                 // Offset the position based on the text size
                 int textWidth, textHeight;
