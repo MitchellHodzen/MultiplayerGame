@@ -9,6 +9,7 @@
 #include "component_lifetime.h"
 #include "component_physics_2d.h"
 #include "component_player_state.h"
+#include "utf8_helper.h"
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
@@ -56,7 +57,7 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(char) * (max_chat_size + 1), &(componentHandles->text_handle), NULL))
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(char) * (Calculate_UTF8_Max_Size(max_chat_size) + 1), &(componentHandles->text_handle), NULL))
     {
         SDL_Log("Couldn't initialize text component");
         ECDB_Free(ecdb);
