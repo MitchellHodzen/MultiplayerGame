@@ -76,6 +76,7 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, struct Chat_Buffer
         if (event->key.key == SDLK_BACKSPACE)
         {
             // TODO: remove characters
+            Chat_Remove_Last_Input(chat_buffers);
         }
     }
     else if (event->type == SDL_EVENT_TEXT_INPUT)

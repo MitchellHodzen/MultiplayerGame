@@ -73,6 +73,28 @@ bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, char* text, size
     return false;
 }
 
+bool Chat_Get_Bit_At(unsigned char byte, unsigned int pos)
+{
+    return (byte & (1 << 7 - pos)) != 0;
+}
+
+void Chat_Remove_Last_Input(struct Chat_Buffers* chat_buffers)
+{    
+    while(chat_buffers->_input_cursor > 0)
+    {
+        chat_buffers->_input_cursor--;
+        char char_at_pos = chat_buffers->chat_input_buffer[chat_buffers->_input_cursor];
+        if (Chat_Get_Bit_At(char_at_pos, 0) == false || Chat_Get_Bit_At(char_at_pos, 1) == true)
+        {
+            // If its ASCII (first bit 0) or the first byte of a UTF-8 character (second bit 1), we're done
+            chat_buffers->chat_input_buffer[chat_buffers->_input_cursor] =  '\0';
+            return;
+        }
+    }
+
+    Chat_Reset_Input_Buffer(chat_buffers);
+}
+
 void Chat_Free(struct Chat_Buffers** chat_buffers)
 {
     free((*chat_buffers)->chat_input_buffer);
