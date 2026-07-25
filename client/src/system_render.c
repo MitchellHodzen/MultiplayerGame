@@ -14,7 +14,8 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
     SDL_FColor* colors = (SDL_FColor*) ec->componentArrays[colors_handle];
     enum Player_State* states = (enum Player_State*) ec->componentArrays[player_states_handle];
 
-    char (*texts)[100 + 1] = (char (*)[100 + 1]) ec->componentArrays[texts_handle];
+    // TODO: Text size should be based on the actual chat size
+    char (*texts)[400 + 1] = (char (*)[400 + 1]) ec->componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         // Only draw if there is a position
