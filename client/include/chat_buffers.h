@@ -7,8 +7,10 @@ struct Ring_Buffer;
 
 struct Chat_Buffers
 {
-    unsigned int max_chat_size;
+    size_t max_chat_size;
+    unsigned int chat_size;
     char* chat_input_buffer;
+    size_t _buffer_size;
     unsigned int _input_cursor;
     struct Ring_Buffer* chat_history_buffer;
 };
