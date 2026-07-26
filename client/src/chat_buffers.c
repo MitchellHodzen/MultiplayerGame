@@ -60,7 +60,7 @@ void Chat_History_Write(struct Chat_Buffers* chat_buffers, char* string, unsigne
     strcpy(next, string);
 }
 
-bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, char* text, size_t text_length)
+bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, const char* text, size_t text_length)
 {
     size_t space_left = chat_buffers->_buffer_size - chat_buffers->_input_cursor;
     if (chat_buffers->chat_size < chat_buffers->max_chat_size && space_left >= text_length)
