@@ -13,6 +13,7 @@ struct Window_State
     struct SDL_Renderer* renderer;
     struct TTF_TextEngine* textEngine;
     struct TTF_Font* font;
+    struct SD_Surface* spritesheet;
     void* clayArena;
 };
 

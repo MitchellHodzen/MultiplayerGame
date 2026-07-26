@@ -41,6 +41,19 @@ bool InitializeSDL(SDL_Window** window, SDL_Renderer** renderer, TTF_TextEngine*
     return true;
 }
 
+bool LoadSpritesheet(SDL_Surface** surface, const char* path)
+{
+    *surface = SDL_LoadPNG(path);
+    if (*surface == NULL)
+    {
+        SDL_Log("Error loading spritesheet: %s", SDL_GetError());
+        return false;
+    }
+
+    return true;
+}
+
+
 bool LoadFont(TTF_Font** font, const char* path)
 {
     *font = TTF_OpenFont(path, 24);
@@ -112,6 +125,16 @@ bool Window_State_Init(struct Window_State** window_state, unsigned int screen_w
         return false;
     }
 
+    if (LoadSpritesheet(&(*window_state)->spritesheet, "resources/sprites/link.png"))
+    {
+        SDL_Log("Spritesheet Loaded");
+    }
+    else
+    {
+        SDL_Log("Failed to load Spritesheet");
+        return false;
+    }
+
     if (InitializeClay(&(*window_state)->clayArena, (*window_state)->font, screen_width, screen_height))
     {
         SDL_Log("Clay Initialized");
@@ -134,6 +157,9 @@ void Window_State_Free(struct Window_State** window_state)
     SDL_Log("Free font");
     TTF_CloseFont((*window_state)->font);
     (*window_state)->font = NULL;
+    SDL_Log("Destroy spritesheet surface");
+    SDL_DestroySurface((*window_state)->spritesheet);
+    (*window_state)->spritesheet = NULL;
     SDL_Log("Destroy text engine");
     TTF_DestroyRendererTextEngine((*window_state)->textEngine);
     (*window_state)->textEngine = NULL;
