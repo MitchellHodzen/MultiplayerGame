@@ -17,7 +17,7 @@ struct Chat_Buffers
 
 bool Chat_Initialize(struct Chat_Buffers** chat_buffers, unsigned int max_chat_size, unsigned int max_history_size);
 void Chat_Reset_Input_Buffer(struct Chat_Buffers* chat_buffers);
-bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, char* text, size_t text_length);
+bool Chat_Try_Write_To_Input(struct Chat_Buffers* chat_buffers, const char* text, size_t text_length);
 void Chat_Remove_Last_Input(struct Chat_Buffers* chat_buffers);
 void Chat_History_Write(struct Chat_Buffers* chat_buffers, char* string, unsigned int strlen);
 char* Chat_Get_Message_At(struct Chat_Buffers* chat_buffers, unsigned int chat_history_index);
