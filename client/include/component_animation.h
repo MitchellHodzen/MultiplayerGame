@@ -3,8 +3,6 @@
 #include <stdbool.h>
 #include <SDL3/SDL.H>
 
-struct SDL_FRect rect;
-
 struct C_Animation_Instance
 {
     unsigned int animation_index;
