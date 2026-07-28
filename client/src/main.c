@@ -334,7 +334,9 @@ int main(int argc, char* args[])
     {
         previousFrameTimeMs = currentFrameTimeMs;
         currentFrameTimeMs = SDL_GetTicks();
-        float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
+        // TODO: change all delta time usage from seconds to miliseconds to avoid floating points?
+        uint64_t deltaTimeMs = currentFrameTimeMs - previousFrameTimeMs;
+        float deltaTimeS = (float)deltaTimeMs / 1000;
 
         // The input snapshot for this frame
         struct Input_Snapshot input_snapshot = {.client_time = currentFrameTimeMs, .chat_messages_cached = 0 };

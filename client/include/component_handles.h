@@ -8,6 +8,7 @@ struct Component_Handles
     int transforms_interpolation_buffer_handle;
     int last_server_position_handle;
     int colors_handle;
+    int animation_handle;
     int inputs_handle;
     int text_handle;
     int lifetimes_handle;
