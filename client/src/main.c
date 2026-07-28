@@ -392,7 +392,7 @@ int main(int argc, char* args[])
 
                             // Calculate how many frames we expect to go back
                             unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
-                            if (sim_frames_at_last_update != going_back_frames)
+                            if (sim_frames_since_last_update != going_back_frames)
                             {
                                 SDL_Log("Going back frames diverged: Sim frames since last update: %u. Frames going back: %u. Successes: %u", sim_frames_since_last_update, going_back_frames, successful_frames);
                                 successful_frames = 0;
