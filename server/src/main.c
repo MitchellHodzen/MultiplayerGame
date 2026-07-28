@@ -202,28 +202,6 @@ int main(int argc, char* args[])
         currentFrameTimeMs = GetTickCount();
         float deltaTimeS = (float)(currentFrameTimeMs - previousFrameTimeMs) / 1000;
 
-        // Check if any scheduled packets need to be sent
-        for(unsigned int i = 0; i < scheduled_packets_buffer->buffer_size; ++i)
-        {
-            // loop backwards so we send older packets first
-            unsigned int index =  (scheduled_packets_buffer->buffer_size - 1) - i;
-            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_At(scheduled_packets_buffer, index);
-
-            // Send any unsent packets scheduled in the past
-            if (scheduled_packet->sent == false && scheduled_packet->send_time <= currentFrameTimeMs)
-            {
-                if (scheduled_packet->peer == NULL)
-                {
-                    enet_host_broadcast(server, 0, scheduled_packet->packet);
-                }
-                else
-                {
-                    enet_peer_send(event.peer, 0, scheduled_packet->packet);
-                }
-                scheduled_packet->sent = true;
-            }
-        }
-
         time_packet_accumulator_s += deltaTimeS;
         if (time_packet_accumulator_s > TIME_SYNC_SEND_S)
         {
@@ -427,6 +405,28 @@ int main(int argc, char* args[])
 
             // reset the accumulator
             update_packet_accumulator_s = 0;
+        }
+
+        // Check if any scheduled packets need to be sent
+        for(unsigned int i = 0; i < scheduled_packets_buffer->buffer_size; ++i)
+        {
+            // loop backwards so we send older packets first
+            unsigned int index =  (scheduled_packets_buffer->buffer_size - 1) - i;
+            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_At(scheduled_packets_buffer, index);
+
+            // Send any unsent packets scheduled in the past
+            if (scheduled_packet->sent == false && scheduled_packet->send_time <= currentFrameTimeMs)
+            {
+                if (scheduled_packet->peer == NULL)
+                {
+                    enet_host_broadcast(server, 0, scheduled_packet->packet);
+                }
+                else
+                {
+                    enet_peer_send(event.peer, 0, scheduled_packet->packet);
+                }
+                scheduled_packet->sent = true;
+            }
         }
 
         // Increment tick
