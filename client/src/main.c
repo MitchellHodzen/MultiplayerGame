@@ -699,7 +699,6 @@ int main(int argc, char* args[])
         //    sim_accumulator_s -= targetSecPerFrame;
         //}
 
-
         // Clear previous render before drawing
         SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
@@ -707,10 +706,10 @@ int main(int argc, char* args[])
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
         s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
 
-        /*struct Vector2 playerPos = ((struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.transforms_handle)).position;
-        SDL_FRect rect = { .x = playerPos.x, .y = playerPos.y, .w = 5, .h = 5};
-        SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
-        SDL_RenderFillRect(renderer, &rect);*/
+        /*struct Vector2 playerPos = ((struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.transforms_handle))->position;
+        SDL_FRect player_pos_rect = { .x = playerPos.x, .y = playerPos.y, .w = 160, .h = 180};
+        SDL_FRect sprite_rect = { .x = 0, .y = 0, .w = 16, .h = 18};
+        SDL_RenderTexture(window_state->renderer, window_state->spritesheet, &sprite_rect, &player_pos_rect);*/
 
         // Chat box UI
         Clay_BeginLayout();

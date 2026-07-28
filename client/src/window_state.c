@@ -59,6 +59,8 @@ bool LoadSpritesheet(SDL_Renderer* renderer, SDL_Texture** texture, const char* 
 
     SDL_DestroySurface(surface);
 
+    SDL_SetTextureScaleMode(*texture, SDL_SCALEMODE_NEAREST);
+
     return true;
 }
 
