@@ -163,7 +163,9 @@ uint64_t Net_Estimate_Client_Time(const struct Net_Manager* netManager, uint64_t
 
 void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms, unsigned int mocked_latency_ms)
 {
-    netManager->server_time_offset_ms = (server_time_ms - ((netManager->serverPeer->roundTripTime + mocked_latency_ms) / 2)) - client_time_ms;
+    // todo: we dont' know if client time is less than server time, this may result in an underflow
+    unsigned int half_round_trip_time = (netManager->serverPeer->roundTripTime + mocked_latency_ms) / 2;
+    netManager->server_time_offset_ms = server_time_ms + half_round_trip_time - client_time_ms;
 }
 
 

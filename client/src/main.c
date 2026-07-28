@@ -287,7 +287,7 @@ int main(int argc, char* args[])
         player_physics->max_speed = 100;
         player_physics->friction = 500;
     }
-    ECDB_DisableEntityComponent(gameData->ec, local_player, gameData->componentHandles.colors_handle);
+    //ECDB_DisableEntityComponent(gameData->ec, local_player, gameData->componentHandles.colors_handle);
 
 
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
@@ -485,9 +485,9 @@ int main(int argc, char* args[])
                         case SERVER_TIME:
                         {
                             struct P_Server_Time* packetData = (struct P_Server_Time*) event.packet->data;
-                            unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
+                            unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs) - ((netManager->serverPeer->roundTripTime + packetData->mocked_latency_ms) / 2);
                             // TODO: packet loss is a fixed point number, convert to decimal notation before displaying
-                            SDL_Log("Server time: %lu. Estimated server time: %lu. Server time diff: %li. Round trip time: %i. Mocked round trip time: %i. Packet Loss: %i", packetData->server_time_ms, estimated_server_time_ms, (long)((estimated_server_time_ms + 1000) -  packetData->server_time_ms) - 1000, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms, event.peer->packetLoss);
+                            SDL_Log("Server time: %lu. Estimated server time when message sent: %lu. Server time diff: %li. Round trip time: %i. Mocked round trip time: %i. Packet Loss: %i", packetData->server_time_ms, estimated_server_time_ms, (long)((estimated_server_time_ms + 1000) -  packetData->server_time_ms) - 1000, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms, event.peer->packetLoss);
                             Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms, packetData->mocked_latency_ms);
                             break;
                         }
@@ -706,6 +706,11 @@ int main(int argc, char* args[])
         // TODO: Move hardcoded text size 
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
         s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
+
+        /*struct Vector2 playerPos = ((struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.transforms_handle)).position;
+        SDL_FRect rect = { .x = playerPos.x, .y = playerPos.y, .w = 5, .h = 5};
+        SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
+        SDL_RenderFillRect(renderer, &rect);*/
 
         // Chat box UI
         Clay_BeginLayout();
