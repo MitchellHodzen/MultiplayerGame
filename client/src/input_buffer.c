@@ -29,3 +29,8 @@ void Input_Buffer_Put(Input_Snapshot_Buffer* buffer, struct Input_Snapshot snaps
     //SDL_Log("Input snapshot saved with chat buffer size of %i", snapshot.chat_messages_cached);
     *next = snapshot;
 }
+
+void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot)
+{
+    memset(input_snapshot, 0, sizeof(struct Input_Snapshot));
+}

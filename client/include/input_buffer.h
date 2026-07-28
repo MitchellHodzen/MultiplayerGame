@@ -28,5 +28,6 @@ typedef struct Ring_Buffer Input_Snapshot_Buffer;
 bool Input_Buffer_Init(Input_Snapshot_Buffer** buffer, unsigned int buffer_max_size);
 struct Input_Snapshot Input_Buffer_Get_At(Input_Snapshot_Buffer* buffer, unsigned int index);
 void Input_Buffer_Put(Input_Snapshot_Buffer* buffer, struct Input_Snapshot snapshot);
+void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot);
 
 #endif /* INPUT_SNAPSHOT_DEF */

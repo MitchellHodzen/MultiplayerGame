@@ -329,6 +329,13 @@ int main(int argc, char* args[])
     float targetSecPerFrame = (1.0f / (float)60 );
     float sim_accumulator_s = 0;
 
+    unsigned int sim_frames = 0;
+    unsigned int sim_frames_at_last_update = 0;
+    unsigned int successful_frames = 0;
+
+    struct Input_Snapshot input_snapshot;
+    Input_Snapshot_Init(&input_snapshot);
+
     SDL_Log("Starting game loop");
     while(quit == false)
     {
@@ -339,7 +346,7 @@ int main(int argc, char* args[])
         float deltaTimeS = (float)deltaTimeMs / 1000;
 
         // The input snapshot for this frame
-        struct Input_Snapshot input_snapshot = {.client_time = currentFrameTimeMs, .chat_messages_cached = 0 };
+        //struct Input_Snapshot input_snapshot = {.client_time = currentFrameTimeMs, .chat_messages_cached = 0 };
 
         //SDL_Log("Corrected client time: %lu", Net_Estimate_Server_Time(netManager, currentFrameTimeMs));
 
@@ -383,7 +390,18 @@ int main(int argc, char* args[])
                                 }
                             }
 
-                            //SDL_Log("Going back frames: %i", going_back_frames);
+                            // Calculate how many frames we expect to go back
+                            unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
+                            if (sim_frames_at_last_update != going_back_frames)
+                            {
+                                SDL_Log("Going back frames diverged: Sim frames since last update: %u. Frames going back: %u. Successes: %u", sim_frames_since_last_update, going_back_frames, successful_frames);
+                                successful_frames = 0;
+                            }
+                            else
+                            {
+                                successful_frames++;
+                            }
+                            sim_frames_at_last_update = sim_frames;
 
                             // Record removals
                             unsigned int* removal_buffer_ptr = (unsigned int*)(((char*)event.packet->data) + sizeof(struct P_Update_Header));
@@ -557,9 +575,9 @@ int main(int argc, char* args[])
             }
         }
 
-        //sim_accumulator_s += deltaTimeS;
-        //while (sim_accumulator_s > targetSecPerFrame)
-        //{
+        sim_accumulator_s += deltaTimeS;
+        while (sim_accumulator_s > targetSecPerFrame)
+        {
             bool directionChanged = false;
 
             //  Handle keyboard events
@@ -687,17 +705,23 @@ int main(int argc, char* args[])
                 enet_peer_send(netManager->serverPeer, 0, packet);
             }
 
-            //Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, targetSecPerFrame);
-            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
+            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, targetSecPerFrame);
+            //Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
 
             
             // save state
+            input_snapshot.client_time = currentFrameTimeMs;
             Input_Buffer_Put(input_queue, input_snapshot);
             Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
 
+            // reset the input snapshot
+            Input_Snapshot_Init(&input_snapshot);
+
+            sim_frames++;
+
             // pull back the accumulator
-        //    sim_accumulator_s -= targetSecPerFrame;
-        //}
+            sim_accumulator_s -= targetSecPerFrame;
+        }
 
         // Clear previous render before drawing
         SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
