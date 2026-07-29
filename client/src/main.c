@@ -31,6 +31,7 @@
 #include "input_buffer.h"
 #include "ring_stack.h"
 #include "system_player_state_machine.h"
+#include "component_animation.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -130,6 +131,9 @@ void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history
     ECDB_Generate_Snapshot(ecdb, ecdb_state_snapshot);
 }
 
+struct Animation test_animation = {.frame_count = 0, .loop = true, .miliseconds_per_frame = 500 };
+
+
 void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Component_Handles* component_handles, struct Input_Snapshot* input, unsigned int player_id, float delta_time_s)
 {
     // If any texts were received this frame, add them back
@@ -184,7 +188,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->player_physics_2d_handle, component_handles->transforms_handle, delta_time_s);
-
+    s_animation_iterate(ecdb, component_handles->animation_instance_handle, delta_time_s * 1000, &test_animation); // TODO: Move out of sim so animations can be more fluid
 }
 
 int main(int argc, char* args[])
@@ -275,6 +279,8 @@ int main(int argc, char* args[])
     physics->max_speed = 100;
     physics->friction = 500;
 
+    struct C_Animation_Instance* test_pls_ignore = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
+
     //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
 
     int local_player;
@@ -335,6 +341,13 @@ int main(int argc, char* args[])
 
     struct Input_Snapshot input_snapshot;
     Input_Snapshot_Init(&input_snapshot);
+
+    SDL_FRect frame_1_rect = { .x = 0, .y = 0, .w = 15, .h = 17};
+    SDL_FRect frame_2_rect = { .x = 17, .y = 0, .w = 15, .h = 17};
+    Animation_Add_Frame(&test_animation, (struct Animation_Frame) { .spritesheet_clip_rect = frame_1_rect});
+    Animation_Add_Frame(&test_animation, (struct Animation_Frame) { .spritesheet_clip_rect = frame_2_rect});
+
+    unsigned int last_checked = 0;
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -707,7 +720,6 @@ int main(int argc, char* args[])
 
             Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, targetSecPerFrame);
             //Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
-
             
             // save state
             input_snapshot.client_time = currentFrameTimeMs;
@@ -730,10 +742,21 @@ int main(int argc, char* args[])
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
         s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
 
-        /*struct Vector2 playerPos = ((struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.transforms_handle))->position;
-        SDL_FRect player_pos_rect = { .x = playerPos.x, .y = playerPos.y, .w = 160, .h = 180};
-        SDL_FRect sprite_rect = { .x = 0, .y = 0, .w = 16, .h = 18};
-        SDL_RenderTexture(window_state->renderer, window_state->spritesheet, &sprite_rect, &player_pos_rect);*/
+        struct C_Transform* transforms = (struct C_Transform*) gameData->ec->componentArrays[gameData->componentHandles.transforms_handle];
+        struct C_Animation_Instance* animations = (struct C_Animation_Instance*) gameData->ec->componentArrays[gameData->componentHandles.animation_instance_handle];
+        for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
+        {
+            if (ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.animation_instance_handle))
+            {
+                SDL_FRect sprite_rect = test_animation.frames[animations[i].current_frame].spritesheet_clip_rect;
+
+                // Calculate the position in global space
+                struct Vector2 global_position = { .x = transforms[i].position.x, .y = transforms[i].position.y };
+
+                SDL_FRect pos_rect = { .x = global_position.x, .y = global_position.y, .w = 150, .h = 170};
+                SDL_RenderTexture(window_state->renderer, window_state->spritesheet, &sprite_rect, &pos_rect);
+            }
+        }
 
         // Chat box UI
         Clay_BeginLayout();

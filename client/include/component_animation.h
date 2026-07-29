@@ -3,31 +3,31 @@
 #include <stdbool.h>
 #include <SDL3/SDL.H>
 
+struct ECDB;
+
 struct C_Animation_Instance
 {
     unsigned int animation_index;
     unsigned int current_frame;
-    unsigned int miliseconds_per_frame;
     unsigned int frame_time_accumulator_ms;
-    bool loop;
+};
+
+struct Animation_Frame
+{
+    SDL_FRect spritesheet_clip_rect;
+    int origin_offset_pixels_x;
+    int origin_offset_pixels_y;
 };
 
 struct Animation
 {
-    SDL_FRect frames[50];
+    struct Animation_Frame frames[50];
     unsigned int frame_count;
+    unsigned int miliseconds_per_frame;
+    bool loop;
 };
 
-bool Animation_Add_Frame(Animation* animation, SDL_FRect frame)
-{
-    if (animation->frame_count >= 50)
-    {
-        return false;
-    }
-
-    animation->frames[animation->frame_count] = frame;
-    animation->frame_count++;
-    return true;
-}
+bool Animation_Add_Frame(struct Animation* animation, struct Animation_Frame frame);
+void s_animation_iterate(struct ECDB* ecdb, int animation_instance_handle, unsigned int delta_time_ms, struct Animation* test_animation);
 
 #endif /* COMOPNENT_ANIMATION_INSTANCE_DEF */

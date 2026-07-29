@@ -10,10 +10,11 @@
 #include "component_physics_2d.h"
 #include "component_player_state.h"
 #include "utf8_helper.h"
+#include "component_animation.h"
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 11))
+    if (!ECDB_Init(ecdb, entityCount, 12))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -96,6 +97,13 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(enum Player_State), &(componentHandles->player_states_handle), &default_state))
     {
         SDL_Log("Couldn't initialize player state component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Animation_Instance), &(componentHandles->animation_instance_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize animation component");
         ECDB_Free(ecdb);
         return false;
     }
