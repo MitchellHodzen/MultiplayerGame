@@ -130,19 +130,33 @@ bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** networkIdEntity
     return true;
 }
 
-void Initialize_Animations(struct Game_Data* game_data)
+void Add_Anim_Move_Left(struct Game_Data* game_data)
 {
-    game_data->animation_count = 0;
-
     struct Animation* left = &(game_data->animations[game_data->animation_count]);
     left->frame_count = 0;
     left->loop = true;
     left->miliseconds_per_frame = 500;
-    SDL_FRect left_frame_1 = { .x = 0, .y = 0, .w = 15, .h = 17};
-    SDL_FRect left_frame_2 = { .x = 17, .y = 0, .w = 15, .h = 17};
-    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_rect = left_frame_1});
-    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_rect = left_frame_2});
+    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 0, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 17, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     game_data->animation_count++;
+}
+
+void Add_Anim_Move_Right(struct Game_Data* game_data)
+{
+    struct Animation* right = &(game_data->animations[game_data->animation_count]);
+    right->frame_count = 0;
+    right->loop = true;
+    right->miliseconds_per_frame = 500;
+    Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 89, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 104, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    game_data->animation_count++;
+}
+
+void Initialize_Animations(struct Game_Data* game_data)
+{
+    game_data->animation_count = 0;
+    Add_Anim_Move_Left(game_data);
+    Add_Anim_Move_Right(game_data);
 }
 
 bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsigned int max_chat_size, unsigned int chat_history_size)

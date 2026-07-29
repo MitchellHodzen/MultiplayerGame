@@ -16,6 +16,7 @@
 #include "intstack.h"
 #include "component_player_state.h"
 #include "system_player_state_machine.h"
+#include "component_animation.h"
 
 #define MAX_CONNECTIONS 10
 #define CHANNELS 2
@@ -33,11 +34,12 @@ struct Component_Handles
     int physics_2d_handle;
     int player_physics_2d_handle;
     int player_states_handle;
+    int animation_instance_handle;
 };
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
 {
-    if (!ECDB_Init(ecdb, entityCount, 5))
+    if (!ECDB_Init(ecdb, entityCount, 6))
     {
         printf("Couldn't initialize component DB\n");
         return false;
@@ -72,6 +74,12 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(enum Player_State), &(componentHandles->player_states_handle), &default_state))
     {
         printf("Couldn't initialize player state component\n");
+        ECDB_Free(ecdb);
+        return false;
+    }
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Animation_Instance), &(componentHandles->animation_instance_handle), &default_state))
+    {
+        printf("Couldn't initialize animation instance component\n");
         ECDB_Free(ecdb);
         return false;
     }
@@ -339,7 +347,7 @@ int main(int argc, char* args[])
         while (sim_accumulator_s > targetSecPerFrame)
         {
             // Run the sim
-            s_player_state_machine(ecdb, componentHandles.inputs_handle, componentHandles.player_states_handle, componentHandles.player_physics_2d_handle, targetSecPerFrame);
+            s_player_state_machine(ecdb, componentHandles.inputs_handle, componentHandles.player_states_handle, componentHandles.player_physics_2d_handle, componentHandles.animation_instance_handle, targetSecPerFrame);
             s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.player_physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);

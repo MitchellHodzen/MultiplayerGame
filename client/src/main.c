@@ -181,7 +181,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_s);
     s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
     s_write_input(ecdb, component_handles->inputs_handle, input->direction);
-    s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, delta_time_s);
+    s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, component_handles->animation_instance_handle, delta_time_s);
     s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->player_physics_2d_handle, component_handles->transforms_handle, delta_time_s);
@@ -277,7 +277,7 @@ int main(int argc, char* args[])
     physics->friction = 500;
 
     struct C_Animation_Instance* test_pls_ignore = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
-
+    test_pls_ignore->animation_index = 0;
     //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
 
     int local_player;
@@ -740,12 +740,14 @@ int main(int argc, char* args[])
         {
             if (ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.animation_instance_handle))
             {
-                SDL_FRect sprite_rect = gameData->animations[animations[i].animation_index].frames[animations[i].current_frame].spritesheet_clip_rect;
+                struct Animation_Frame current_frame = gameData->animations[animations[i].animation_index].frames[animations[i].current_frame];
+                SDL_FRect sprite_rect = { .x = current_frame.spritesheet_clip_x, .y = current_frame.spritesheet_clip_y, .w = current_frame.spritesheet_clip_width, .h = current_frame.spritesheet_clip_height};
 
                 // Calculate the position in global space
                 struct Vector2 global_position = { .x = transforms[i].position.x, .y = transforms[i].position.y };
 
-                SDL_FRect pos_rect = { .x = global_position.x, .y = global_position.y, .w = 150, .h = 170};
+                float scale = 10;
+                SDL_FRect pos_rect = { .x = global_position.x, .y = global_position.y, .w = current_frame.spritesheet_clip_width * scale, .h = current_frame.spritesheet_clip_height * scale};
                 SDL_RenderTexture(window_state->renderer, window_state->spritesheet, &sprite_rect, &pos_rect);
             }
         }

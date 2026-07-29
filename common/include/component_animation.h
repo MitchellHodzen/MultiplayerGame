@@ -1,7 +1,6 @@
 #ifndef COMOPNENT_ANIMATION_INSTANCE_DEF
 #define COMOPNENT_ANIMATION_INSTANCE_DEF
 #include <stdbool.h>
-#include <SDL3/SDL.H>
 
 struct ECDB;
 
@@ -14,7 +13,10 @@ struct C_Animation_Instance
 
 struct Animation_Frame
 {
-    SDL_FRect spritesheet_clip_rect;
+    int spritesheet_clip_x;
+    int spritesheet_clip_y;
+    int spritesheet_clip_width;
+    int spritesheet_clip_height;
     int origin_offset_pixels_x;
     int origin_offset_pixels_y;
 };

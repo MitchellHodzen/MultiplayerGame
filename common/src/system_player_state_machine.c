@@ -4,6 +4,7 @@
 #include "component_input.h"
 #include "component_player_state.h"
 #include "component_physics_2d.h"
+#include "component_animation.h"
 #include <math.h>
 
 bool AreSameSign(float a, float b)
@@ -50,11 +51,12 @@ float CalculateMovementLeg(float input_leg, float current_velocity_leg, float de
     return retval;
 }
 
-void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, int player_states_handle, int player_physics_2d_handle, float delta_time_s)
+void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, int player_states_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
 {
     enum Player_State* states = (enum Player_State*) ecdb->componentArrays[player_states_handle];
     struct C_Input* inputs = (struct C_Input*) ecdb->componentArrays[inputs_handle];
     struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[player_physics_2d_handle];
+    struct C_Animation_Instance* animation_instances = (struct C_Animation_Instance*) ecdb->componentArrays[animation_instance_handle];
 
     for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
     {
