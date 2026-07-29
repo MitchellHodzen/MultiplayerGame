@@ -131,10 +131,7 @@ void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history
     ECDB_Generate_Snapshot(ecdb, ecdb_state_snapshot);
 }
 
-struct Animation test_animation = {.frame_count = 0, .loop = true, .miliseconds_per_frame = 500 };
-
-
-void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Component_Handles* component_handles, struct Input_Snapshot* input, unsigned int player_id, float delta_time_s)
+void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Component_Handles* component_handles, struct Input_Snapshot* input, struct Animation* animations, unsigned int player_id, float delta_time_s)
 {
     // If any texts were received this frame, add them back
     for(unsigned int i = 0; i < input->chat_messages_cached; ++i)
@@ -188,7 +185,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->player_physics_2d_handle, component_handles->transforms_handle, delta_time_s);
-    s_animation_iterate(ecdb, component_handles->animation_instance_handle, delta_time_s * 1000, &test_animation); // TODO: Move out of sim so animations can be more fluid
+    s_animation_iterate(ecdb, component_handles->animation_instance_handle, delta_time_s * 1000, animations); // TODO: Move out of sim so animations can be more fluid
 }
 
 int main(int argc, char* args[])
@@ -341,11 +338,6 @@ int main(int argc, char* args[])
 
     struct Input_Snapshot input_snapshot;
     Input_Snapshot_Init(&input_snapshot);
-
-    SDL_FRect frame_1_rect = { .x = 0, .y = 0, .w = 15, .h = 17};
-    SDL_FRect frame_2_rect = { .x = 17, .y = 0, .w = 15, .h = 17};
-    Animation_Add_Frame(&test_animation, (struct Animation_Frame) { .spritesheet_clip_rect = frame_1_rect});
-    Animation_Add_Frame(&test_animation, (struct Animation_Frame) { .spritesheet_clip_rect = frame_2_rect});
 
     unsigned int last_checked = 0;
 
@@ -508,7 +500,7 @@ int main(int argc, char* args[])
                                 }
 
                                 // TODO - instead of calling run_sim in two places in the main loop, put all input together and then play it out later?
-                                Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input, networked_player, replay_delta_time_s);
+                                Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input, gameData->animations, networked_player, replay_delta_time_s);
                             }
 
                             break;
@@ -718,7 +710,7 @@ int main(int argc, char* args[])
                 enet_peer_send(netManager->serverPeer, 0, packet);
             }
 
-            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, targetSecPerFrame);
+            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, gameData->animations, networked_player, targetSecPerFrame);
             //Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
             
             // save state
@@ -748,7 +740,7 @@ int main(int argc, char* args[])
         {
             if (ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.animation_instance_handle))
             {
-                SDL_FRect sprite_rect = test_animation.frames[animations[i].current_frame].spritesheet_clip_rect;
+                SDL_FRect sprite_rect = gameData->animations[animations[i].animation_index].frames[animations[i].current_frame].spritesheet_clip_rect;
 
                 // Calculate the position in global space
                 struct Vector2 global_position = { .x = transforms[i].position.x, .y = transforms[i].position.y };

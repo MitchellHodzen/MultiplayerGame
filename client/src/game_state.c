@@ -130,6 +130,21 @@ bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** networkIdEntity
     return true;
 }
 
+void Initialize_Animations(struct Game_Data* game_data)
+{
+    game_data->animation_count = 0;
+
+    struct Animation* left = &(game_data->animations[game_data->animation_count]);
+    left->frame_count = 0;
+    left->loop = true;
+    left->miliseconds_per_frame = 500;
+    SDL_FRect left_frame_1 = { .x = 0, .y = 0, .w = 15, .h = 17};
+    SDL_FRect left_frame_2 = { .x = 17, .y = 0, .w = 15, .h = 17};
+    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_rect = left_frame_1});
+    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_rect = left_frame_2});
+    game_data->animation_count++;
+}
+
 bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsigned int max_chat_size, unsigned int chat_history_size)
 {
     *gameData = (struct Game_Data*) malloc(sizeof(struct Game_Data));
@@ -168,6 +183,8 @@ bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsi
         SDL_Log("Chat buffers Initialization Failed");
         return false;
     }
+    
+    Initialize_Animations(*gameData);
 
     return true;
 }
