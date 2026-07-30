@@ -152,9 +152,34 @@ void Add_Anim_Move_Right(struct Game_Data* game_data)
     game_data->animation_count++;
 }
 
+void Add_Anim_Move_Up(struct Game_Data* game_data)
+{
+    struct Animation* up = &(game_data->animations[game_data->animation_count]);
+    up->frame_count = 0;
+    up->loop = true;
+    up->miliseconds_per_frame = 500;
+    Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 61, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 75, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    game_data->animation_count++;
+}
+
+void Add_Anim_Move_Down(struct Game_Data* game_data)
+{
+    struct Animation* down = &(game_data->animations[game_data->animation_count]);
+    down->frame_count = 0;
+    down->loop = true;
+    down->miliseconds_per_frame = 500;
+    Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 31, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 46, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    game_data->animation_count++;
+}
+
+
 void Initialize_Animations(struct Game_Data* game_data)
 {
     game_data->animation_count = 0;
+    Add_Anim_Move_Up(game_data);
+    Add_Anim_Move_Down(game_data);
     Add_Anim_Move_Left(game_data);
     Add_Anim_Move_Right(game_data);
 }

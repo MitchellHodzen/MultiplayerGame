@@ -7,4 +7,10 @@ struct Vector2
     float y;
 };
 
+struct Vector2_Int
+{
+    int x;
+    int y;
+};
+
 #endif /* VECTOR2 */

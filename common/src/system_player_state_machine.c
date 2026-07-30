@@ -95,6 +95,54 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                 physics[i].velocity.x = (physics[i].velocity.x / velocity_magnitude) * physics[i].max_speed;
                 physics[i].velocity.y = (physics[i].velocity.y / velocity_magnitude) * physics[i].max_speed;
             }
+
+            if (ECDB_EntityHasComponent(ecdb, i, animation_instance_handle))
+            {
+                if (abs(physics->velocity.x) > abs(physics->velocity.y))
+                {
+                    // Moving more sidways than up and down
+                    if (physics->velocity.x > 0)
+                    {
+                        if (animation_instances[i].animation_index != 3)
+                        {
+                            animation_instances[i].animation_index = 3; // Move right
+                            animation_instances[i].current_frame = 0;
+                            animation_instances[i].frame_time_accumulator_ms = 0;
+                        }
+                    }
+                    else if (physics->velocity.x < 0)
+                    {
+                        if (animation_instances[i].animation_index != 2)
+                        {
+                            animation_instances[i].animation_index = 2; // Move left
+                            animation_instances[i].current_frame = 0;
+                            animation_instances[i].frame_time_accumulator_ms = 0;
+                        }
+                    }
+                }
+                else 
+                {
+                    // Moving more up and down than sideways, with bias towards up and down if theyre equal
+                    if (physics->velocity.y > 0)
+                    {
+                        if (animation_instances[i].animation_index != 1)
+                        {
+                            animation_instances[i].animation_index = 1; // Move down
+                            animation_instances[i].current_frame = 0;
+                            animation_instances[i].frame_time_accumulator_ms = 0;
+                        }
+                    }
+                    else if (physics->velocity.y < 0)
+                    {
+                        if (animation_instances[i].animation_index != 0)
+                        {
+                            animation_instances[i].animation_index = 0; // Move up
+                            animation_instances[i].current_frame = 0;
+                            animation_instances[i].frame_time_accumulator_ms = 0;
+                        }
+                    }
+                }
+            }
         }
     }
 }
