@@ -9,6 +9,7 @@ struct C_Animation_Instance
     unsigned int animation_index;
     unsigned int current_frame;
     unsigned int frame_time_accumulator_ms;
+    bool paused;
 };
 
 struct Animation_Frame

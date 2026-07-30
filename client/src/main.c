@@ -277,7 +277,7 @@ int main(int argc, char* args[])
     physics->friction = 500;
 
     struct C_Animation_Instance* test_pls_ignore = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
-    test_pls_ignore->animation_index = 0;
+    test_pls_ignore->animation_index = 1;
     //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
 
     int local_player;

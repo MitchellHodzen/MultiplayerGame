@@ -96,6 +96,7 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                 physics[i].velocity.y = (physics[i].velocity.y / velocity_magnitude) * physics[i].max_speed;
             }
 
+            // Todo: Don't change direction if moving already
             if (ECDB_EntityHasComponent(ecdb, i, animation_instance_handle))
             {
                 if (abs(physics->velocity.x) > abs(physics->velocity.y))
@@ -141,6 +142,16 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                             animation_instances[i].frame_time_accumulator_ms = 0;
                         }
                     }
+                }
+
+                // Pause animation if we aren't moving, and restart if we are
+                if (physics->velocity.x == 0 && physics->velocity.y == 0)
+                {
+                    animation_instances[i].paused = true;
+                }
+                else
+                {
+                    animation_instances[i].paused = false;
                 }
             }
         }

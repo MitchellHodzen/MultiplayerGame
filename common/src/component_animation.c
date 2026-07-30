@@ -21,17 +21,20 @@ void s_animation_iterate(struct ECDB* ecdb, int animation_instance_handle, unsig
         if (ECDB_EntityHasComponent(ecdb, i, animation_instance_handle))
         {
             struct C_Animation_Instance* animation_instance = &(animation_instances[i]);
-            struct Animation* animation = &(animations[animation_instance->animation_index]);
-            animation_instance->frame_time_accumulator_ms += delta_time_ms;
-            while (animation_instance->frame_time_accumulator_ms > animation->miliseconds_per_frame)
+            if (animation_instance->paused == false)
             {
-                animation_instance->current_frame++;
-                if (animation_instance->current_frame >= animation->frame_count)
+                struct Animation* animation = &(animations[animation_instance->animation_index]);
+                animation_instance->frame_time_accumulator_ms += delta_time_ms;
+                while (animation_instance->frame_time_accumulator_ms > animation->miliseconds_per_frame)
                 {
-                    animation_instance->current_frame = 0;
-                }
+                    animation_instance->current_frame++;
+                    if (animation_instance->current_frame >= animation->frame_count)
+                    {
+                        animation_instance->current_frame = 0;
+                    }
 
-                animation_instance->frame_time_accumulator_ms -= animation->miliseconds_per_frame;
+                    animation_instance->frame_time_accumulator_ms -= animation->miliseconds_per_frame;
+                }
             }
         }
     }

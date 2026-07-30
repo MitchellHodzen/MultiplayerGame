@@ -25,7 +25,7 @@
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
 #define UPDATE_SEND_PER_S 10
-#define MOCKED_LATENCY_MS 250
+#define MOCKED_LATENCY_MS 0
 
 struct Component_Handles
 {
@@ -403,13 +403,13 @@ int main(int argc, char* args[])
             // Build and broadcast the packet. TODO: make packet creation malloc free
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, 0);
 
-            //enet_host_broadcast(server, 0, update_packet);
-            unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
+            enet_host_broadcast(server, 0, update_packet);
+            /*unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
             struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
             scheduled_packet->packet = update_packet;
             scheduled_packet->sent = false;
             scheduled_packet->peer = NULL;
-            scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;
+            scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;*/
 
             // reset the accumulator
             update_packet_accumulator_s = 0;
