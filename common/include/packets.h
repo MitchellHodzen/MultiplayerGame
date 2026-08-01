@@ -46,7 +46,7 @@ struct P_Update_Entity_Data
     unsigned int networkId;
     struct Vector2 position;
     struct Vector2 velocity;
-    enum Player_State state;
+    struct C_Player_State state;
 };
 
 struct P_Server_Time

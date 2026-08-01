@@ -12,7 +12,7 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
     float length = 75;
     struct C_Transform* transforms = (struct C_Transform*) ec->componentArrays[transforms_handle];
     SDL_FColor* colors = (SDL_FColor*) ec->componentArrays[colors_handle];
-    enum Player_State* states = (enum Player_State*) ec->componentArrays[player_states_handle];
+    struct C_Player_State* states = (struct C_Player_State*) ec->componentArrays[player_states_handle];
 
     char* texts = (char*) ec->componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
@@ -36,12 +36,12 @@ void s_render(struct ECDB const *const ec, int transforms_handle, int colors_han
             {
                 float halfLength = length / 2;
                 SDL_FColor color = colors[i];
-                if (states[i] == ATTACKING)
+                if (states[i].state == ATTACKING)
                 {
                     color.g -= 100;
                     color.b -= 100;
                 }
-                else if (states[i] == RUNNING)
+                else if (states[i].state == RUNNING)
                 {
                     color.r -= 100;
                     color.b -= 100;

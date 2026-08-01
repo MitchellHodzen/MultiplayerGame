@@ -70,8 +70,8 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         ECDB_Free(ecdb);
         return false;
     }
-    enum Player_State default_state = IDLE;
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(enum Player_State), &(componentHandles->player_states_handle), &default_state))
+    struct C_Player_State default_state = { .state = IDLE, .direction = PLAYER_DOWN };
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Player_State), &(componentHandles->player_states_handle), &default_state))
     {
         printf("Couldn't initialize player state component\n");
         ECDB_Free(ecdb);
@@ -361,7 +361,7 @@ int main(int argc, char* args[])
         {
             struct C_Transform* transforms = (struct C_Transform*) ecdb->componentArrays[componentHandles.transforms_handle];
             struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[componentHandles.player_physics_2d_handle];
-            enum Player_State* states = (enum Player_State*) ecdb->componentArrays[componentHandles.player_states_handle];
+            struct C_Player_State* states = (struct C_Player_State*) ecdb->componentArrays[componentHandles.player_states_handle];
             // Generate update packet
             unsigned int entities_to_update = 0;
 
@@ -404,12 +404,12 @@ int main(int argc, char* args[])
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, 0);
 
             enet_host_broadcast(server, 0, update_packet);
-            /*unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
-            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
-            scheduled_packet->packet = update_packet;
-            scheduled_packet->sent = false;
-            scheduled_packet->peer = NULL;
-            scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;*/
+            //unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
+            //struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
+            //scheduled_packet->packet = update_packet;
+            //scheduled_packet->sent = false;
+            //scheduled_packet->peer = NULL;
+            //scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;
 
             // reset the accumulator
             update_packet_accumulator_s = 0;

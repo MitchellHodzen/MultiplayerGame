@@ -93,8 +93,8 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
-    enum Player_State default_state = IDLE;
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(enum Player_State), &(componentHandles->player_states_handle), &default_state))
+    struct C_Player_State default_state = { .state = IDLE, .direction = PLAYER_DOWN };
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Player_State), &(componentHandles->player_states_handle), &default_state))
     {
         SDL_Log("Couldn't initialize player state component");
         ECDB_Free(ecdb);

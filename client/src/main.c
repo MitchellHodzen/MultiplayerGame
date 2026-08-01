@@ -378,6 +378,7 @@ int main(int argc, char* args[])
                             // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
                             // TODO: Calculate how many frames we should replay based on latency and see if it matches up
                             int going_back_frames = 0;
+                            SDL_Log("Server time: %lu", header->server_time_ms);
                             while(client_side_prediction_enabled == true && game_state_history_stack->buffer_size > 0)
                             {
                                 // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
@@ -385,6 +386,7 @@ int main(int argc, char* args[])
                                 going_back_frames++;
                                 // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it. look at the previous frame to make sure we are looking at the old
                                 uint64_t snapshot_estimated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
+                                SDL_Log("\tClient Estimated Server Time: %lu. Diff: %li", snapshot_estimated_server_time, (long)((snapshot_estimated_server_time + 1000) - header->server_time_ms) - 1000);
                                 if (game_state_history_stack->buffer_size == 0 || snapshot_estimated_server_time <= header->server_time_ms)
                                 {
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
@@ -478,7 +480,7 @@ int main(int argc, char* args[])
 
                                 if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.player_states_handle))
                                 {
-                                    enum Player_State* state = (enum Player_State*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.player_states_handle);
+                                    struct C_Player_State* state = (struct C_Player_State*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.player_states_handle);
                                     *state = update.state;
                                 }
                             }
@@ -709,12 +711,13 @@ int main(int argc, char* args[])
                 ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), ENET_PACKET_FLAG_RELIABLE);
                 enet_peer_send(netManager->serverPeer, 0, packet);
             }
+            
+            input_snapshot.client_time = currentFrameTimeMs;
 
             Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, gameData->animations, networked_player, targetSecPerFrame);
             //Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
             
             // save state
-            input_snapshot.client_time = currentFrameTimeMs;
             Input_Buffer_Put(input_queue, input_snapshot);
             Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs);
 
