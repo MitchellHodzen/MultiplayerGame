@@ -276,8 +276,7 @@ int main(int argc, char* args[])
     physics->max_speed = 100;
     physics->friction = 500;
 
-    struct C_Animation_Instance* test_pls_ignore = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
-    test_pls_ignore->animation_index = 1;
+    ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
     //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
 
     int local_player;
@@ -435,6 +434,7 @@ int main(int argc, char* args[])
                                         // all incoming players will have transform interpolation
                                         ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
                                         ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.last_server_position_handle);
+                                        ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.animation_instance_handle);
                                         Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, update.networkId);
                                         SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", update.position.x,  update.position.y, update.networkId, entityId);
                                     }
