@@ -169,18 +169,14 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                         break;
                 }
 
-                // TODO: doesnt work for synced entities who dont' have physics. will probably need to sync physics
-                if(ECDB_EntityHasComponent(ecdb, i, player_physics_2d_handle))
+                // Pause animation if we aren't moving, and restart if we are
+                if (states[i].state == IDLE)
                 {
-                    // Pause animation if we aren't moving, and restart if we are
-                    if (physics[i].velocity.x == 0 && physics[i].velocity.y == 0)
-                    {
-                        animation_instances[i].paused = true;
-                    }
-                    else
-                    {
-                        animation_instances[i].paused = false;
-                    }
+                    animation_instances[i].paused = true;
+                }
+                else
+                {
+                    animation_instances[i].paused = false;
                 }
             }
         }

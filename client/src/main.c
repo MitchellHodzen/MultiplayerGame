@@ -377,7 +377,7 @@ int main(int argc, char* args[])
                             // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
                             // TODO: Calculate how many frames we should replay based on latency and see if it matches up
                             int going_back_frames = 0;
-                            SDL_Log("Server time: %lu", header->server_time_ms);
+                            //SDL_Log("Server time: %lu", header->server_time_ms);
                             while(client_side_prediction_enabled == true && game_state_history_stack->buffer_size > 0)
                             {
                                 // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
@@ -385,7 +385,7 @@ int main(int argc, char* args[])
                                 going_back_frames++;
                                 // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it. look at the previous frame to make sure we are looking at the old
                                 uint64_t snapshot_estimated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
-                                SDL_Log("\tClient Estimated Server Time: %lu. Diff: %li", snapshot_estimated_server_time, (long)((snapshot_estimated_server_time + 1000) - header->server_time_ms) - 1000);
+                                //SDL_Log("\tClient Estimated Server Time: %lu. Diff: %li", snapshot_estimated_server_time, (long)((snapshot_estimated_server_time + 1000) - header->server_time_ms) - 1000);
                                 if (game_state_history_stack->buffer_size == 0 || snapshot_estimated_server_time <= header->server_time_ms)
                                 {
                                     void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
@@ -749,8 +749,10 @@ int main(int argc, char* args[])
                 // Calculate the position in global space
                 struct Vector2 global_position = { .x = transforms[i].position.x, .y = transforms[i].position.y };
 
-                float scale = 10;
-                SDL_FRect pos_rect = { .x = global_position.x, .y = global_position.y, .w = current_frame.spritesheet_clip_width * scale, .h = current_frame.spritesheet_clip_height * scale};
+                float scale = 5;
+                float width = current_frame.spritesheet_clip_width * scale;
+                float height = current_frame.spritesheet_clip_height * scale;
+                SDL_FRect pos_rect = { .x = global_position.x - (width / 2), .y = global_position.y - (height / 2), .w = width, .h = height};
                 SDL_RenderTexture(window_state->renderer, window_state->spritesheet, &sprite_rect, &pos_rect);
             }
         }

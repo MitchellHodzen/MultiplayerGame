@@ -1,5 +1,5 @@
 ecdb check if component is already initialized
-move network packet buffer out of ECDB
+move network packet buffer out of ECDB?
 start of game it shows ghost in the top left corner becuase we don't have server info - instead maybe just don't show a ghost
 fix: random server crash on join after player requested
 fix chat box UI when chat message is really long
