@@ -11,10 +11,11 @@
 #include "component_player_state.h"
 #include "utf8_helper.h"
 #include "component_animation.h"
+#include "camera.h"
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 12))
+    if (!ECDB_Init(ecdb, entityCount, 13))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -104,6 +105,13 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Animation_Instance), &(componentHandles->animation_instance_handle), NULL))
     {
         SDL_Log("Couldn't initialize animation component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Camera), &(componentHandles->camera_component_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize camera component");
         ECDB_Free(ecdb);
         return false;
     }

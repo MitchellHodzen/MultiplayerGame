@@ -15,6 +15,7 @@ struct Component_Handles
     int physics_2d_handle;
     int player_physics_2d_handle;
     int player_states_handle;
+    int camera_component_handle;
 };
 
 #endif /* COMP_HANDLES */

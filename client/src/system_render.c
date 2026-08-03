@@ -6,7 +6,7 @@
 #include "ecdb.h"
 #include "component_player_state.h"
 
-void s_render(struct ECDB const *const ec, int transforms_handle, int colors_handle, int texts_handle, int player_states_handle, size_t chat_buffer_size, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
+void s_render(struct ECDB const *const ec, unsigned int camera_id, int transforms_handle, int colors_handle, int texts_handle, int player_states_handle, size_t chat_buffer_size, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
 {
     // Draw the squares
     float length = 75;

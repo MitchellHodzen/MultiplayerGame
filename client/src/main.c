@@ -32,6 +32,7 @@
 #include "ring_stack.h"
 #include "system_player_state_machine.h"
 #include "component_animation.h"
+#include "camera.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -293,6 +294,19 @@ int main(int argc, char* args[])
 
 
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
+
+    // create camera
+    unsigned int camera_id;
+    if (ECDB_CreateEntity(gameData->ec, &camera_id) == false)
+    {
+        SDL_Log("Couldn't create camera");
+        goto disconnect;
+    }
+    ECDB_EnableEntityComponent(gameData->ec, camera_id, gameData->componentHandles.transforms_handle);
+    struct C_Camera* camera_component = ECDB_EnableEntityComponent(gameData->ec, camera_id, gameData->componentHandles.camera_component_handle);
+    camera_component->width = SCREEN_WIDTH;
+    camera_component->height = SCREEN_HEIGHT;
+    camera_component->target_id = networked_player;
 
     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
@@ -738,11 +752,13 @@ int main(int argc, char* args[])
         SDL_SetRenderDrawColor(window_state->renderer, 98, 189, 32, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
         // TODO: Move hardcoded text size 
-        s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
+        s_camera_reposition(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.camera_component_handle, 1000, 1000);
+        s_render(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
         s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
 
         struct C_Transform* transforms = (struct C_Transform*) gameData->ec->componentArrays[gameData->componentHandles.transforms_handle];
         struct C_Animation_Instance* animations = (struct C_Animation_Instance*) gameData->ec->componentArrays[gameData->componentHandles.animation_instance_handle];
+        struct Vector2 camera_position = ((struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, camera_id, gameData->componentHandles.transforms_handle))->position;
         for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
         {
             if (ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.animation_instance_handle))
@@ -752,11 +768,15 @@ int main(int argc, char* args[])
 
                 // Calculate the position in global space
                 struct Vector2 global_position = { .x = transforms[i].position.x, .y = transforms[i].position.y };
+                global_position.x -= camera_position.x;
+                global_position.y -= camera_position.y;
 
                 float scale = 5;
                 float width = current_frame.spritesheet_clip_width * scale;
                 float height = current_frame.spritesheet_clip_height * scale;
                 SDL_FRect pos_rect = { .x = global_position.x - (width / 2), .y = global_position.y - (height / 2), .w = width, .h = height};
+
+                // reposition the position rect based on the camera
                 SDL_RenderTexture(window_state->renderer, window_state->spritesheet, &sprite_rect, &pos_rect);
             }
         }

@@ -47,7 +47,7 @@ void s_interpolate_position(struct ECDB const *const ec, int transforms_handle, 
 
     // We interpolate interpolation_delay_ms in the past based on our estimated server time
     unsigned long interp_time = estimated_server_time - interpolation_delay_ms;
-    SDL_Log("Estimated server time: %lu. interpolation delay: %u. Interp Time: %lu", estimated_server_time, interpolation_delay_ms, interp_time);
+    //SDL_Log("Estimated server time: %lu. interpolation delay: %u. Interp Time: %lu", estimated_server_time, interpolation_delay_ms, interp_time);
 
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
