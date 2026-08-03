@@ -297,6 +297,10 @@ int main(int argc, char* args[])
     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {20.0f, 20.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {189.0f, 223.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {574.0f, 45.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {685.0f, 533.0f});
     // Chat UI tracking
     float previousChatBottom = 0;
 
@@ -731,7 +735,7 @@ int main(int argc, char* args[])
         }
 
         // Clear previous render before drawing
-        SDL_SetRenderDrawColor(window_state->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE ); // Black
+        SDL_SetRenderDrawColor(window_state->renderer, 98, 189, 32, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
         // TODO: Move hardcoded text size 
         s_render(gameData->ec, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);

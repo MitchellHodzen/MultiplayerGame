@@ -174,6 +174,16 @@ void Add_Anim_Move_Down(struct Game_Data* game_data)
     game_data->animation_count++;
 }
 
+void Add_Anim_Flower(struct Game_Data* game_data)
+{
+    struct Animation* flower = &(game_data->animations[game_data->animation_count]);
+    flower->frame_count = 0;
+    flower->loop = true;
+    flower->miliseconds_per_frame = 1000;
+    Animation_Add_Frame(flower, (struct Animation_Frame) { .spritesheet_clip_x = 0, .spritesheet_clip_y = 221, .spritesheet_clip_width = 18, .spritesheet_clip_height = 18});
+    game_data->animation_count++;
+}
+
 
 void Initialize_Animations(struct Game_Data* game_data)
 {
@@ -182,6 +192,7 @@ void Initialize_Animations(struct Game_Data* game_data)
     Add_Anim_Move_Down(game_data);
     Add_Anim_Move_Left(game_data);
     Add_Anim_Move_Right(game_data);
+    Add_Anim_Flower(game_data);
 }
 
 bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsigned int max_chat_size, unsigned int chat_history_size)

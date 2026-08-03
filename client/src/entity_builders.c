@@ -7,6 +7,7 @@
 #include "component_transform.h"
 #include "component_lifetime.h"
 #include "component_player_state.h"
+#include "component_animation.h"
 
 bool AddParentedText(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
 {
@@ -67,6 +68,24 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     {
         SDL_Log("Failed to create joined text for entity %i", *entityId);
     }
+
+    return true;
+}
+
+bool Add_Flower(struct ECDB* ecdb, struct Component_Handles* component_handles, struct Vector2 position)
+{
+    unsigned int flower_id;
+    if (ECDB_CreateEntity(ecdb, &flower_id) == false)
+    {
+        SDL_Log("Couldn't create flower");
+        return false;
+    }
+
+    struct C_Transform* entity_transform = ECDB_EnableEntityComponent(ecdb, flower_id, component_handles->transforms_handle);
+    entity_transform->position = position;
+
+    struct C_Animation_Instance* anim = ECDB_EnableEntityComponent(ecdb, flower_id, component_handles->animation_instance_handle);
+    anim->animation_index = 4;
 
     return true;
 }
