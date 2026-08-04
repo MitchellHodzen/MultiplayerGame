@@ -403,13 +403,13 @@ int main(int argc, char* args[])
             // Build and broadcast the packet. TODO: make packet creation malloc free
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, 0);
 
-            enet_host_broadcast(server, 0, update_packet);
-            //unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
-            //struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
-            //scheduled_packet->packet = update_packet;
-            //scheduled_packet->sent = false;
-            //scheduled_packet->peer = NULL;
-            //scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;
+            //enet_host_broadcast(server, 0, update_packet);
+            unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
+            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
+            scheduled_packet->packet = update_packet;
+            scheduled_packet->sent = false;
+            scheduled_packet->peer = NULL;
+            scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;
 
             // reset the accumulator
             update_packet_accumulator_s = 0;
