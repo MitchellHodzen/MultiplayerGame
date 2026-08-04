@@ -282,6 +282,8 @@ int main(int argc, char* args[])
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
 
+    int* player_z_order = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.y_order_handle);
+
     //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
 
     /*int local_player;
@@ -463,6 +465,8 @@ int main(int argc, char* args[])
                                         ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
                                         ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.last_server_position_handle);
                                         ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.animation_instance_handle);
+                                        int* z_order = ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.y_order_handle);
+
                                         Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, update.networkId);
                                         SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", update.position.x,  update.position.y, update.networkId, entityId);
                                     }

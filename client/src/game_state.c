@@ -15,7 +15,7 @@
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 13))
+    if (!ECDB_Init(ecdb, entityCount, 14))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
@@ -112,6 +112,13 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Camera), &(componentHandles->camera_component_handle), NULL))
     {
         SDL_Log("Couldn't initialize camera component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(int), &(componentHandles->y_order_handle), NULL))
+    {
+        SDL_Log("Couldn't initialize y order component");
         ECDB_Free(ecdb);
         return false;
     }
