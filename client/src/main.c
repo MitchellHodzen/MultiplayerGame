@@ -280,9 +280,11 @@ int main(int argc, char* args[])
     physics->friction = 500;
 
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
+    ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
+
     //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
 
-    int local_player;
+    /*int local_player;
     if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player, "local"))
     {
         struct C_Input* input = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.inputs_handle);
@@ -292,10 +294,8 @@ int main(int argc, char* args[])
         player_physics->max_speed = 100;
         player_physics->friction = 500;
     }
-    //ECDB_DisableEntityComponent(gameData->ec, local_player, gameData->componentHandles.colors_handle);
+    ECDB_DisableEntityComponent(gameData->ec, local_player, gameData->componentHandles.colors_handle);*/
 
-
-    ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
 
     // create camera
     unsigned int camera_id;
@@ -768,33 +768,8 @@ int main(int argc, char* args[])
         SDL_RenderClear(window_state->renderer);
         // TODO: Move hardcoded text size 
         s_camera_reposition(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.camera_component_handle, LEVEL_WIDTH, LEVEL_HEIGHT);
-        s_render(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
-        s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
-
-        struct C_Transform* transforms = (struct C_Transform*) gameData->ec->componentArrays[gameData->componentHandles.transforms_handle];
-        struct C_Animation_Instance* animations = (struct C_Animation_Instance*) gameData->ec->componentArrays[gameData->componentHandles.animation_instance_handle];
-        struct Vector2 camera_position = ((struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, camera_id, gameData->componentHandles.transforms_handle))->position;
-        for(unsigned int i = 0; i < gameData->ec->_maxEntities; ++i)
-        {
-            if (ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.transforms_handle) && ECDB_EntityHasComponent(gameData->ec, i, gameData->componentHandles.animation_instance_handle))
-            {
-                struct Animation_Frame current_frame = gameData->animations[animations[i].animation_index].frames[animations[i].current_frame];
-                SDL_FRect sprite_rect = { .x = current_frame.spritesheet_clip_x, .y = current_frame.spritesheet_clip_y, .w = current_frame.spritesheet_clip_width, .h = current_frame.spritesheet_clip_height};
-
-                // Calculate the position in global space
-                struct Vector2 global_position = { .x = transforms[i].position.x, .y = transforms[i].position.y };
-                global_position.x -= camera_position.x;
-                global_position.y -= camera_position.y;
-
-                float scale = 5;
-                float width = current_frame.spritesheet_clip_width * scale;
-                float height = current_frame.spritesheet_clip_height * scale;
-                SDL_FRect pos_rect = { .x = global_position.x - (width / 2), .y = global_position.y - (height / 2), .w = width, .h = height};
-
-                // reposition the position rect based on the camera
-                SDL_RenderTexture(window_state->renderer, window_state->spritesheet, &sprite_rect, &pos_rect);
-            }
-        }
+        s_render_server_ghost(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.last_server_position_handle, gameData->componentHandles.animation_instance_handle, gameData->animations, window_state->spritesheet, window_state->renderer);
+        s_render(gameData->ec, camera_id, &gameData->componentHandles, gameData->animations, window_state->spritesheet, 401, window_state->font, window_state->textEngine, window_state->renderer);
 
         // Chat box UI
         Clay_BeginLayout();

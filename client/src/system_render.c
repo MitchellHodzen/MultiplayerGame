@@ -5,14 +5,26 @@
 #include "component_transform.h"
 #include "ecdb.h"
 #include "component_player_state.h"
+#include "component_handles.h"
+#include "camera.h"
+#include "component_animation.h"
 
-void s_render(struct ECDB const *const ec, unsigned int camera_id, int transforms_handle, int colors_handle, int texts_handle, int player_states_handle, size_t chat_buffer_size, TTF_Font* font, TTF_TextEngine* textEngine, SDL_Renderer* renderer)
+void s_render(struct ECDB const *const ec, unsigned int camera_id, struct Component_Handles* component_handles, struct Animation* animations, struct SDL_Texture* spritesheet, size_t chat_buffer_size, struct TTF_Font* font, struct TTF_TextEngine* textEngine, struct SDL_Renderer* renderer)
 {
+    unsigned int transforms_handle = component_handles->transforms_handle;
+    unsigned int colors_handle = component_handles->colors_handle;
+    unsigned int player_states_handle = component_handles->player_states_handle;
+    unsigned int texts_handle = component_handles->text_handle;
+    unsigned int animation_instance_handle = component_handles->animation_instance_handle;
+
     // Draw the squares
     float length = 75;
     struct C_Transform* transforms = (struct C_Transform*) ec->componentArrays[transforms_handle];
     SDL_FColor* colors = (SDL_FColor*) ec->componentArrays[colors_handle];
     struct C_Player_State* states = (struct C_Player_State*) ec->componentArrays[player_states_handle];
+    struct C_Animation_Instance* animation_instances = (struct C_Animation_Instance*) ec->componentArrays[animation_instance_handle];
+
+    struct Vector2 camera_position = transforms[camera_id].position;
 
     char* texts = (char*) ec->componentArrays[texts_handle];
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
@@ -30,8 +42,12 @@ void s_render(struct ECDB const *const ec, unsigned int camera_id, int transform
                 global_position.x += transforms[parentId].position.x;
                 global_position.y += transforms[parentId].position.y;
             }
+            
+            // Offset for the camera
+            global_position.x -= camera_position.x;
+            global_position.y -= camera_position.y;
 
-            // draw squares
+            /*// draw squares
             if(ECDB_EntityHasComponent(ec, i, colors_handle))
             {
                 float halfLength = length / 2;
@@ -50,6 +66,21 @@ void s_render(struct ECDB const *const ec, unsigned int camera_id, int transform
                 SDL_FRect rect = { .x = global_position.x - halfLength, .y = global_position.y - halfLength, .w = length, .h = length};
                 SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
                 SDL_RenderFillRect(renderer, &rect);
+            }*/
+
+            // draw sprites
+            if (ECDB_EntityHasComponent(ec, i, animation_instance_handle))
+            {
+                struct Animation_Frame current_frame = animations[animation_instances[i].animation_index].frames[animation_instances[i].current_frame];
+                SDL_FRect sprite_rect = { .x = current_frame.spritesheet_clip_x, .y = current_frame.spritesheet_clip_y, .w = current_frame.spritesheet_clip_width, .h = current_frame.spritesheet_clip_height};
+
+                float scale = 5;
+                float width = current_frame.spritesheet_clip_width * scale;
+                float height = current_frame.spritesheet_clip_height * scale;
+                SDL_FRect pos_rect = { .x = global_position.x - (width / 2), .y = global_position.y - (height / 2), .w = width, .h = height};
+
+                // reposition the position rect based on the camera
+                SDL_RenderTexture(renderer, spritesheet, &sprite_rect, &pos_rect);
             }
 
             // draw text
@@ -82,24 +113,52 @@ void s_render(struct ECDB const *const ec, unsigned int camera_id, int transform
     }
 }
 
-void s_render_server_ghost(struct ECDB const *const ec, int last_server_position_handle, struct SDL_Renderer* renderer)
+void s_render_server_ghost(struct ECDB const *const ec, unsigned int camera_id, int transforms_handle, int last_server_position_handle, int animation_instance_handle, struct Animation* animations, struct SDL_Texture* spritesheet, struct SDL_Renderer* renderer)
 {
     // Render a ghost square at the most recently received server position
     float length = 75;
     struct Vector2* last_server_position_buffer = (struct Vector2*) ec->componentArrays[last_server_position_handle];
+    struct C_Animation_Instance* animation_instances = (struct C_Animation_Instance*) ec->componentArrays[animation_instance_handle];
+    struct Vector2 camera_position = ((struct C_Transform*) ECDB_GetEntityComponent(ec, camera_id, transforms_handle))->position;
+
+    // Make texture transparent
+    SDL_SetTextureAlphaMod(spritesheet, 60);
+
     for(unsigned int i = 0; i < ec->_maxEntities; ++i)
     {
         if (ECDB_EntityHasComponent(ec, i, last_server_position_handle))
         {
             // Get the most recent transform from the server
             struct Vector2 last_server_position = last_server_position_buffer[i];
+            last_server_position.x -= camera_position.x;
+            last_server_position.y -= camera_position.y;
 
-            // draw ghost square
-            float halfLength = length / 2;
-            SDL_FColor color = { .r = 1, .g = 1, .b = 1, .a = 0.2};
-            SDL_FRect rect = { .x = last_server_position.x - halfLength, .y = last_server_position.y - halfLength, .w = length, .h = length};
-            SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
-            SDL_RenderFillRect(renderer, &rect);
+            // draw sprites
+            if (ECDB_EntityHasComponent(ec, i, animation_instance_handle))
+            {
+                struct Animation_Frame current_frame = animations[animation_instances[i].animation_index].frames[animation_instances[i].current_frame];
+                SDL_FRect sprite_rect = { .x = current_frame.spritesheet_clip_x, .y = current_frame.spritesheet_clip_y, .w = current_frame.spritesheet_clip_width, .h = current_frame.spritesheet_clip_height};
+
+                float scale = 5;
+                float width = current_frame.spritesheet_clip_width * scale;
+                float height = current_frame.spritesheet_clip_height * scale;
+                SDL_FRect pos_rect = { .x = last_server_position.x - (width / 2), .y = last_server_position.y - (height / 2), .w = width, .h = height};
+
+                // reposition the position rect based on the camera
+                SDL_RenderTexture(renderer, spritesheet, &sprite_rect, &pos_rect);
+            }
+            else
+            {
+                // draw ghost square
+                float halfLength = length / 2;
+                SDL_FColor color = { .r = 1, .g = 1, .b = 1, .a = 0.2};
+                SDL_FRect rect = { .x = last_server_position.x - halfLength, .y = last_server_position.y - halfLength, .w = length, .h = length};
+                SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, color.a );
+                SDL_RenderFillRect(renderer, &rect);
+            }
         }
     }
+
+    // Undo transparency to the base texture
+    SDL_SetTextureAlphaMod(spritesheet, 255);
 }
