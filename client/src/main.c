@@ -38,6 +38,8 @@
 #define SCREEN_HEIGHT 480
 #define CHAT_HISTORY_SIZE 50
 #define INTERP_DELAY_MS 300
+#define LEVEL_WIDTH 1000
+#define LEVEL_HEIGHT 1000
 
 enum Command_Contex
 {
@@ -311,10 +313,18 @@ int main(int argc, char* args[])
     Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
     SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
-    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {20.0f, 20.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {0.0f, 0.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {LEVEL_WIDTH, LEVEL_HEIGHT});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {0, LEVEL_HEIGHT});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {LEVEL_WIDTH, 0});
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {189.0f, 223.0f});
-    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {574.0f, 45.0f});
-    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {685.0f, 533.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {250.0f, 595.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {574.0f, 200.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {720.0f, 500.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {814.0f, 25.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {450.0f, 632.0f});
+    Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {350.0f, 900.0f});
+
     // Chat UI tracking
     float previousChatBottom = 0;
 
@@ -415,7 +425,7 @@ int main(int argc, char* args[])
                             }
 
                             // Calculate how many frames we expect to go back
-                            unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
+                            /*unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
                             if (sim_frames_since_last_update != going_back_frames)
                             {
                                 SDL_Log("Going back frames diverged: Sim frames since last update: %u. Frames going back: %u. Successes: %u", sim_frames_since_last_update, going_back_frames, successful_frames);
@@ -425,7 +435,7 @@ int main(int argc, char* args[])
                             {
                                 successful_frames++;
                             }
-                            sim_frames_at_last_update = sim_frames;
+                            sim_frames_at_last_update = sim_frames;*/
 
                             // Record removals
                             unsigned int* removal_buffer_ptr = (unsigned int*)(((char*)event.packet->data) + sizeof(struct P_Update_Header));
@@ -615,6 +625,11 @@ int main(int argc, char* args[])
                 else if (e.type == SDL_EVENT_WINDOW_RESIZED)
                 {
                     Clay_SetLayoutDimensions((Clay_Dimensions) { (float) e.window.data1, (float) e.window.data2 });
+
+                    // resize camera
+                    struct C_Camera* camera_position = (struct C_Camera*)ECDB_GetEntityComponent(gameData->ec, camera_id, gameData->componentHandles.camera_component_handle);
+                    camera_position->width = (float)e.window.data1;
+                    camera_position->height = (float)e.window.data2;
                 }
                 else if (e.type == SDL_EVENT_MOUSE_WHEEL)
                 {
@@ -752,7 +767,7 @@ int main(int argc, char* args[])
         SDL_SetRenderDrawColor(window_state->renderer, 98, 189, 32, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
         // TODO: Move hardcoded text size 
-        s_camera_reposition(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.camera_component_handle, 1000, 1000);
+        s_camera_reposition(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.camera_component_handle, LEVEL_WIDTH, LEVEL_HEIGHT);
         s_render(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.colors_handle, gameData->componentHandles.text_handle, gameData->componentHandles.player_states_handle, 401, window_state->font, window_state->textEngine, window_state->renderer);
         s_render_server_ghost(gameData->ec, gameData->componentHandles.last_server_position_handle, window_state->renderer);
 
