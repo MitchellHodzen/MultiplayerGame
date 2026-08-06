@@ -87,7 +87,7 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
     return true;
 }
 
-bool PlayerAdd(struct ECDB* ec, int* playerId)
+bool PlayerAdd(struct ECDB* ec, unsigned int* playerId)
 {
     if (ECDB_CreateEntity(ec, playerId) == false)
     {
@@ -98,7 +98,7 @@ bool PlayerAdd(struct ECDB* ec, int* playerId)
     return true;
 }
 
-void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHandles, int playerId, struct Vector2 position, float speed)
+void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int playerId, struct Vector2 position, float speed)
 {
     struct C_Transform* entityTransform = ECDB_EnableEntityComponent(ec, playerId, componentHandles->transforms_handle);
     entityTransform->position = position;
@@ -229,7 +229,7 @@ int main(int argc, char* args[])
             {
             case ENET_EVENT_TYPE_CONNECT:
                 printf("A new client connected from %x:%u.\n", event.peer->address.host, event.peer->address.port);
-                int* playerId = malloc(sizeof(int)); // TODO: Don't do mem allocation in the networking loop, preallocate and pull this out
+                unsigned int* playerId = malloc(sizeof(unsigned int)); // TODO: Don't do mem allocation in the networking loop, preallocate and pull this out
                 if (PlayerAdd(ecdb, playerId))
                 {
                     // If we create a player, add the data to the event peer data field for easier tracking
@@ -254,7 +254,7 @@ int main(int argc, char* args[])
                 }
                 else
                 {
-                    int playerId = *(int*)event.peer->data;
+                    unsigned int playerId = *(int*)event.peer->data;
                     // Channel 0 is general packets
                     switch(event.channelID)
                     {
@@ -305,7 +305,7 @@ int main(int argc, char* args[])
                         {
                             // Broadcast out the player's message
                             struct P_Chat_Header chatHeader = {.isServerMessage = false, .messageImportance = MESSAGE_IMPORTANCE_STANDARD, .networkId = playerId};
-                            BroadcastChatMessage(server, chatHeader, event.packet->data, event.packet->dataLength);
+                            BroadcastChatMessage(server, chatHeader, (char*)event.packet->data, event.packet->dataLength);
                             break;
                         }
                         default:
@@ -373,14 +373,14 @@ int main(int argc, char* args[])
             void* update_packet_memory = _malloca(max_update_packet_length);
 
             // Calculate the remove buffer pointer by skipping ahead P_Update_Header size
-            unsigned int* remove_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header);
+            unsigned int* remove_buffer_ptr = (unsigned int*)(((char*)update_packet_memory) + sizeof(struct P_Update_Header));
             // Copy the contents of the int stack into the buffer
             memcpy(remove_buffer_ptr, IntStack_Data(removal_stack), remove_packet_size);
             // Reset the buffer
             removal_stack->length = 0;
 
             // Calculate the update buffer pointer by skipping ahead P_Update_Header and remove packets size
-            struct P_Update_Entity_Data* update_buffer_ptr = ((char*)update_packet_memory) + sizeof(struct P_Update_Header) + remove_packet_size;
+            struct P_Update_Entity_Data* update_buffer_ptr = (struct P_Update_Entity_Data*)(((char*)update_packet_memory) + sizeof(struct P_Update_Header) + remove_packet_size);
 
             // Write updates to the update buffer
             for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)

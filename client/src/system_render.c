@@ -140,7 +140,7 @@ void s_render(struct ECDB const *const ec, unsigned int camera_id, struct Compon
     // draw the buffered sprites
     for(unsigned int i = 0; i < y_buffer_cnt; ++i)
     {
-        render_sprite(&y_order_buffer[i], y_order_buffer[i].position, animations, spritesheet, renderer);
+        render_sprite(&y_order_buffer[i].animation_instance, y_order_buffer[i].position, animations, spritesheet, renderer);
     }
 
     // Draw text above everything else

@@ -141,7 +141,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     {
         if (ecdb->validEntities[input->chat_cache[i].entity_id])
         {
-            int textMessageId;
+            unsigned int textMessageId;
             AddParentedTextWithLifetime(ecdb, component_handles, input->chat_cache[i].entity_id, (struct Vector2){ 0, -60}, input->chat_cache[i].message, 2, &textMessageId);
         }
     }
@@ -264,7 +264,7 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    int networked_player;
+    unsigned int networked_player;
     SDL_Log("Adding square at position %f, %f", joinGamePacket.position.x, joinGamePacket.position.y);
     if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &networked_player, "You"))
     {
@@ -286,7 +286,7 @@ int main(int argc, char* args[])
 
     //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
 
-    /*int local_player;
+    /*unsigned int local_player;
     if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player, "local"))
     {
         struct C_Input* input = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.inputs_handle);
@@ -456,7 +456,7 @@ int main(int argc, char* args[])
                                 if (gameData->networkIdEntityMap[update.networkId] == gameData->ec->invalidEntityId)
                                 {
                                     // if we don't know about the entity, add it
-                                    int entityId;
+                                    unsigned int entityId;
                                     char playerNameBuffer[10];
                                     int strlen = sprintf(playerNameBuffer, "Player %i", update.networkId);
                                     if (AddSquare(gameData->ec, &gameData->componentHandles, update.position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
@@ -571,7 +571,7 @@ int main(int argc, char* args[])
                         }
                         else
                         {
-                            int localEntityId = gameData->networkIdEntityMap[header->networkId];
+                            unsigned int localEntityId = gameData->networkIdEntityMap[header->networkId];
                             if (localEntityId == networked_player)
                             {
                                 prefixed_message_length = sprintf(prefixed_message_buffer, "You: %s", text_pointer);

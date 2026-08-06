@@ -9,7 +9,7 @@
 #include "component_player_state.h"
 #include "component_animation.h"
 
-bool AddParentedText(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, int* entityId)
+bool AddParentedText(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, unsigned int* entityId)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
     {
@@ -25,7 +25,7 @@ bool AddParentedText(struct ECDB* ec, struct Component_Handles* componentHandles
     return true;
 }
 
-bool AddParentedTextWithLifetime(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, float lifetimeS, int* entityId)
+bool AddParentedTextWithLifetime(struct ECDB* ec, struct Component_Handles* componentHandles, unsigned int parentId, struct Vector2 position, char* input_str, float lifetimeS, unsigned int* entityId)
 {
     if (!AddParentedText(ec, componentHandles, parentId, position, input_str, entityId))
     {
@@ -39,7 +39,7 @@ bool AddParentedTextWithLifetime(struct ECDB* ec, struct Component_Handles* comp
     return true;
 }
 
-bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, int* entityId, char* playerName)
+bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, struct Vector2 position, SDL_FColor color, unsigned int* entityId, char* playerName)
 {
     if (ECDB_CreateEntity(ec, entityId) == false)
     {
@@ -56,14 +56,14 @@ bool AddSquare(struct ECDB* ec, struct Component_Handles* componentHandles, stru
     // If a name was passed in, create a nameplate entity underneath the square
     if (playerName != NULL)
     {
-        int nameplate;
+        unsigned int nameplate;
         if (!AddParentedText(ec, componentHandles, *entityId, (struct Vector2){ 0, 50}, playerName, &nameplate))
         {
             SDL_Log("Failed to create nameplate for entity %i", *entityId);
         }
     }
 
-    int joinedText;
+    unsigned int joinedText;
     if (!AddParentedTextWithLifetime(ec, componentHandles, *entityId, (struct Vector2){ 0, -60}, "Joined", 2, &joinedText))
     {
         SDL_Log("Failed to create joined text for entity %i", *entityId);

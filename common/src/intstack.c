@@ -3,7 +3,7 @@
 
 size_t IntStack_Calculate_Required_Memory(unsigned int size)
 {
-    return sizeof(struct IntStack) + (size * sizeof(int));
+    return sizeof(struct IntStack) + (size * sizeof(unsigned int));
 }
 
 void IntStack_Init(struct IntStack* intStack, unsigned int size)
@@ -12,13 +12,13 @@ void IntStack_Init(struct IntStack* intStack, unsigned int size)
     intStack->length = 0;
 }
 
-int* IntStack_Data(const struct IntStack* intStack)
+unsigned int* IntStack_Data(const struct IntStack* intStack)
 {
     // The stack starts at the end of the header
-    return (int*)((char*)intStack + sizeof(struct IntStack));
+    return (unsigned int*)((char*)intStack + sizeof(struct IntStack));
 }
 
-bool IntStack_Push(struct IntStack* intStack, int value)
+bool IntStack_Push(struct IntStack* intStack, unsigned int value)
 {
     if (intStack->length >= intStack->maxSize)
     {
@@ -32,7 +32,7 @@ bool IntStack_Push(struct IntStack* intStack, int value)
     return true;
 }
 
-bool IntStack_Pop(struct IntStack* intStack, int* value)
+bool IntStack_Pop(struct IntStack* intStack, unsigned int* value)
 {
     if (intStack->length == 0)
     {

@@ -139,7 +139,7 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     return true;
 }
 
-bool ECDB_CreateEntity(struct ECDB* ecdb, int* entityId)
+bool ECDB_CreateEntity(struct ECDB* ecdb, unsigned int* entityId)
 {
     // Get an entity ID from the stack
     if (!IntStack_Pop(ecdb->_entityIdStack, entityId))
@@ -153,7 +153,7 @@ bool ECDB_CreateEntity(struct ECDB* ecdb, int* entityId)
     return true;
 }
 
-void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId)
+void ECDB_DestroyEntity(struct ECDB* ecdb, unsigned int entityId)
 {
     // Disable the entity
     ecdb->validEntities[entityId] = false;
@@ -168,12 +168,12 @@ void ECDB_DestroyEntity(struct ECDB* ecdb, int entityId)
     IntStack_Push(ecdb->_entityIdStack, entityId);
 }
 
-bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
+bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, unsigned int entityId, int componentHandle)
 {
     return ecdb->componentValidArrays[componentHandle][entityId];
 }
 
-void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle)
+void* ECDB_EnableEntityComponent(struct ECDB* ecdb, unsigned int entityId, int componentHandle)
 {
     if (ECDB_EntityHasComponent(ecdb, entityId, componentHandle))
     {
@@ -195,13 +195,13 @@ void* ECDB_EnableEntityComponent(struct ECDB* ecdb, int entityId, int componentH
     return component;
 }
 
-void ECDB_DisableEntityComponent(struct ECDB* ecdb, int entityId, int componentHandle)
+void ECDB_DisableEntityComponent(struct ECDB* ecdb, unsigned int entityId, int componentHandle)
 {
     // Disable the component for the entity
     ecdb->componentValidArrays[componentHandle][entityId] = false;
 }
 
-void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, int entityId, int componentHandle)
+void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, unsigned int entityId, int componentHandle)
 {
     // Get a pointer to the component in the components array
     void* componentArray = ecdb->componentArrays[componentHandle];
