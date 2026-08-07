@@ -7,12 +7,12 @@
 #include "component_animation.h"
 #include <math.h>
 
-bool AreSameSign(float a, float b)
+static bool AreSameSign(float a, float b)
 {
     return (a >= 0 && b >= 0) || (a < 0 && b < 0);
 }
 
-float CalculateMovementLeg(float input_leg, float current_velocity_leg, float delta_time_s, float acceleration, float friction)
+static float CalculateMovementLeg(float input_leg, float current_velocity_leg, float delta_time_s, float acceleration, float friction)
 {
     float retval = current_velocity_leg;
     

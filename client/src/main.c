@@ -7,7 +7,6 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include "ecdb.h"
 #include "vector2.h"
-#include "system_movement.h"
 #include "system_render.h"
 #include "system_write_input.h"
 #include "intstack.h"

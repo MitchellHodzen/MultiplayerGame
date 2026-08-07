@@ -3,13 +3,10 @@
 #include "ecdb.h"
 #include "packets.h"
 #include "vector2.h"
-#include "system_movement.h"
 #include "component_input.h"
 #include "component_physics_2d.h"
 #include "system_physics.h"
 #include <stdbool.h>
-#include "system_reset_input.h"
-#include "system_movement.h"
 #include "component_transform.h"
 #include <windows.h>
 #include "ring_buffer.h"

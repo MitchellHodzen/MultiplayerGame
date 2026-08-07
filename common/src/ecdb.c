@@ -249,20 +249,6 @@ void ECDB_Generate_Snapshot(struct ECDB const *const ecdb, void* snapshot)
     // Copy the valid entities array at the start of the snapshot
     size_t bool_array_size = ECDB_Bool_Array_Size(ecdb);
     memcpy(snapshot, ecdb->validEntities, bool_array_size);
-    /*printf("from array: ");
-    for(int i = 0; i < bool_array_size; ++i)
-    {
-        printf("%i ", ecdb->validEntities[i]);
-    }
-    printf("\n");
-
-    printf("  to array: ");
-    for(int i = 0; i < bool_array_size; ++i)
-    {
-        printf("%i ", ((bool*)snapshot)[i]);
-    }
-    printf("\n");*/
-
     snapshot = (char*)snapshot + bool_array_size;
     
     // Copy the int stack data
@@ -274,21 +260,6 @@ void ECDB_Generate_Snapshot(struct ECDB const *const ecdb, void* snapshot)
     for(unsigned int i = 0; i < ecdb->_componentCount; ++i)
     {
         memcpy(snapshot, ecdb->componentValidArrays[i], bool_array_size);
-
-        /*printf("from array: ", i);
-        for(int j = 0; j < bool_array_size; ++j)
-        {
-            printf("%i ", ecdb->componentValidArrays[i][j]);
-        }
-        printf("\n");
-
-        printf("  to array: ", i);
-        for(int j = 0; j < bool_array_size; ++j)
-        {
-            printf("%i ", ((bool*)snapshot)[j]);
-        }
-        printf("\n");*/
-
         snapshot = (char*)snapshot + bool_array_size;
 
     }
@@ -299,17 +270,6 @@ void ECDB_Generate_Snapshot(struct ECDB const *const ecdb, void* snapshot)
         // Each component array is max entities + 1 of the size of the component
         size_t arr_len = (ecdb->_maxEntities + 1) * ecdb->_componentSizes[i];
         memcpy(snapshot, ecdb->componentArrays[i], arr_len);
-
-        /*for(int j = 0; j < arr_len; ++j)
-        {
-            unsigned char original_byte = ((unsigned char*)(ecdb->componentArrays[i]))[j];
-            unsigned char new_byte = ((unsigned char*)snapshot)[j];
-            if (original_byte != new_byte)
-            {
-                printf("there's a problem\n");
-            }
-        }*/
-
         snapshot = (char*)snapshot + arr_len;
     }
 }

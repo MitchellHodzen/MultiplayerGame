@@ -4,3 +4,8 @@ start of game it shows ghost in the top left corner becuase we don't have server
 fix: random server crash on join after player requested
 fix chat box UI when chat message is really long
 fix chat snapshot buffer being hardcoded
+ecdb in built hierarchy?
+ecdb integrate paged memory approach to make low use components make more sense
+some way to roll back not entire state but a subset of state, without losing subsequent state (i.e particles, camera)
+calculate interpolation rather than hardcode
+use latest input to determine direction by using input event order

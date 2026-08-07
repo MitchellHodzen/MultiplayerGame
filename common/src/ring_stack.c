@@ -19,21 +19,21 @@ void Ring_Stack_Clear(struct Ring_Stack* stack)
     stack->_write_index = 0;
 }
 
-void* Ring_Stack_Get_Buffer_Start(const struct Ring_Stack* stack)
+static void* Get_Buffer_Start(const struct Ring_Stack* stack)
 {
     // The stack starts at the end of the header
     return (char*)stack + sizeof(struct Ring_Stack);
 }
 
-void* Ring_Stack_Get_Pointer_At(const struct Ring_Stack* stack, unsigned int index)
+static void* Get_Pointer_At(const struct Ring_Stack* stack, unsigned int index)
 {
-    return ((char*)Ring_Stack_Get_Buffer_Start(stack)) + (index * stack->element_size);
+    return ((char*)Get_Buffer_Start(stack)) + (index * stack->element_size);
 }
 
 void* Ring_Stack_Push(struct Ring_Stack* stack)
 {
     // Get a pointer to the next writable space
-    void* retval = Ring_Stack_Get_Pointer_At(stack, stack->_write_index);
+    void* retval = Get_Pointer_At(stack, stack->_write_index);
     
     // Increment the write index
     stack->_write_index++;
@@ -46,14 +46,14 @@ void* Ring_Stack_Push(struct Ring_Stack* stack)
     return retval;
 }
 
-void* Ring_Stack_Peek_Unsafe(const struct Ring_Stack* stack)
+static void* Peek_Unsafe(const struct Ring_Stack* stack)
 {
     // write index is always one ahead of the last value written, so the last value written is at write index - 1. Offset by max buffer size so won't go negative
     unsigned int index = stack->buffer_max_size - 1 + stack->_write_index;
 
     // Don't let index overflow
     index -= stack->buffer_max_size * (index >= stack->buffer_max_size);
-    return Ring_Stack_Get_Pointer_At(stack, index);
+    return Get_Pointer_At(stack, index);
 }
 
 void* Ring_Stack_Peek(const struct Ring_Stack* stack)
@@ -63,7 +63,7 @@ void* Ring_Stack_Peek(const struct Ring_Stack* stack)
         return NULL;
     }
     
-    return Ring_Stack_Peek_Unsafe(stack);
+    return Peek_Unsafe(stack);
 }
 
 void* Ring_Stack_Peek_Back(const struct Ring_Stack* stack)
@@ -75,7 +75,7 @@ void* Ring_Stack_Peek_Back(const struct Ring_Stack* stack)
 
     unsigned int end_index = stack->buffer_max_size + stack->_write_index - stack->buffer_size;
     end_index -= stack->buffer_max_size * (end_index >= stack->buffer_max_size);
-    return Ring_Stack_Get_Pointer_At(stack, end_index);
+    return Get_Pointer_At(stack, end_index);
 }
 
 void* Ring_Stack_Pop(struct Ring_Stack* stack)
@@ -85,7 +85,7 @@ void* Ring_Stack_Pop(struct Ring_Stack* stack)
         return NULL;
     }
 
-    void* retval = Ring_Stack_Peek_Unsafe(stack);
+    void* retval = Peek_Unsafe(stack);
 
     // popping, so decrement the count. If here we know it is greater than 0
     stack->buffer_size--;

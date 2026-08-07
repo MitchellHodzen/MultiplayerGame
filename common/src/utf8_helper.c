@@ -6,7 +6,7 @@ size_t Calculate_UTF8_Max_Size(unsigned int amount)
     return amount * 4;
 }
 
-bool Get_Bit_At(unsigned char byte, unsigned int index)
+static bool Get_Bit_At(unsigned char byte, unsigned int index)
 {
     return (byte & (1 << 7 - index)) != 0;
 }

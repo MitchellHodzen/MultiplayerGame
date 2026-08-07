@@ -5,7 +5,7 @@
 #include "component_input.h"
 #include "component_physics_2d.h"
 
-float apply_friction_on_axis(float velocity_leg, float friction, float deltaTimeS)
+static float apply_friction_on_axis(float velocity_leg, float friction, float deltaTimeS)
 {
     if (velocity_leg > 0)
     {
