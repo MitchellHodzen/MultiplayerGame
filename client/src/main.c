@@ -16,6 +16,7 @@
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 #include <clay_renderer_SDL3.c>
+#include "clay_ui.c"
 #include "game_state.h"
 #include "component_handles.h"
 #include "component_transform.h"
@@ -325,9 +326,6 @@ int main(int argc, char* args[])
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {814.0f, 25.0f});
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {450.0f, 632.0f});
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {350.0f, 900.0f});
-
-    // Chat UI tracking
-    float previousChatBottom = 0;
 
     struct Vector2 direction = {.x = 0, .y = 0};
     SDL_Event e;
@@ -769,95 +767,11 @@ int main(int argc, char* args[])
         // Clear previous render before drawing
         SDL_SetRenderDrawColor(window_state->renderer, 98, 189, 32, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
-        // TODO: Move hardcoded text size 
         s_camera_reposition(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.camera_component_handle, LEVEL_WIDTH, LEVEL_HEIGHT);
         s_render_server_ghost(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.last_server_position_handle, gameData->componentHandles.animation_instance_handle, gameData->animations, window_state->spritesheet, window_state->renderer);
-        s_render(gameData->ec, camera_id, &gameData->componentHandles, gameData->animations, window_state->spritesheet, gameData->chat_buffers->_buffer_size, window_state->font, window_state->textEngine, window_state->renderer);
+        s_render(gameData->ec, camera_id, &gameData->componentHandles, gameData->animations, window_state->spritesheet, gameData->chat_buffers->_buffer_size, window_state->font, window_state->textEngine, window_state->renderer);        
 
-        // Chat box UI
-        Clay_BeginLayout();
-        CLAY(CLAY_ID("WholeScreen"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
-            CLAY(CLAY_ID("UI_Top_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
-                CLAY(CLAY_ID("Controls_Text"), {
-                    .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 1, .padding = CLAY_PADDING_ALL(5), .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
-                }) {
-                    CLAY_TEXT(CLAY_STRING("Controls:"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                    CLAY_TEXT(CLAY_STRING("WASD: Move"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                    CLAY(CLAY_ID("Prediction_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
-                    if (client_side_prediction_enabled)
-                        {
-                            CLAY_TEXT(CLAY_STRING("1: Toggle Prediction (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                        }
-                        else
-                        {
-                            CLAY_TEXT(CLAY_STRING("1: Toggle Prediction "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                            CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
-                        }
-                    }
-
-                    CLAY(CLAY_ID("Interpolation_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
-                    if (client_side_interpolation_enabled)
-                        {
-                            CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                        }
-                        else
-                        {
-                            CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                            CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
-                        }
-                    }
-                }
-            }
-            CLAY(CLAY_ID("UI_Bottom_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
-                CLAY(CLAY_ID("ChatParentContainer"), { .layout = { .sizing = { .width = CLAY_SIZING_PERCENT(0.5f), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 5, .right = 0, .top = 0, .bottom = 5 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
-                    CLAY(CLAY_ID("FullChatWindowContainer"), {
-                        .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 3, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }, .backgroundColor = { 50, 50, 50, 100 }
-                    }) {
-                        CLAY(CLAY_ID("ChatHistoryContainer"), {
-                        .clip = { .vertical = true, .childOffset = { Clay_GetScrollOffset().x, Clay_GetScrollOffset().y } }, .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .childGap = 0, .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_BOTTOM} }
-                        }) {
-                            for (unsigned int i = 0; i < gameData->chat_buffers->chat_history_buffer->buffer_size; ++i)
-                            {
-                                CLAY(CLAY_IDI("Chat", i), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(5), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } } }) {
-                                    CLAY_TEXT(((Clay_String) { .length = strlen(Chat_Get_Message_At(gameData->chat_buffers, i)), .chars = Chat_Get_Message_At(gameData->chat_buffers, i) }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
-                                }
-                            }
-
-                            Clay_ScrollContainerData scrollContainerData = Clay_GetScrollContainerData(CLAY_ID("ChatHistoryContainer"));
-
-                            // If we're at the end, lock scroll to the end
-                            if (scrollContainerData.scrollPosition->y == previousChatBottom) // Could scrollposition be null here?
-                            {
-                                float bottomPosition = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
-                                scrollContainerData.scrollPosition->y = bottomPosition;
-                            }
-
-                            previousChatBottom = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
-                        }
-
-                        float chatInputBoxAlpha = 100;
-                        if (command_context == COMMAND_CHAT)
-                        {
-                            // if chatting, make the carrot more visible
-                            chatInputBoxAlpha = 200;
-                        }
-
-                        CLAY(CLAY_ID("ChatInputBox"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .padding = CLAY_PADDING_ALL(5), .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = { 50, 50, 50, chatInputBoxAlpha } }) {
-                            float carrotAlpha = 150;
-                            if (command_context == COMMAND_CHAT)
-                            {
-                                // if chatting, make the carrot more visible
-                                carrotAlpha = 255;
-                            }
-                            CLAY_TEXT(CLAY_STRING(">"), { .fontSize = 24, .textColor = {255, 255, 255, carrotAlpha} });
-                            CLAY_TEXT(((Clay_String) { .length = strlen(gameData->chat_buffers->chat_input_buffer), .chars = gameData->chat_buffers->chat_input_buffer }), { .fontSize = 24, .textColor = {255, 255, 255, 255} });
-                        }
-                    }
-                }
-            }
-        }
-
-        Clay_RenderCommandArray renderCommands = Clay_EndLayout(deltaTimeS);
+        Clay_RenderCommandArray renderCommands = Build_UI(gameData, command_context == COMMAND_CHAT, client_side_prediction_enabled, client_side_interpolation_enabled, deltaTimeS);
         Clay_SDL3RendererData renderData = {.renderer = window_state->renderer, .textEngine = window_state->textEngine, .fonts = &window_state->font};
         SDL_Clay_RenderClayCommands(&renderData, &renderCommands);
 
