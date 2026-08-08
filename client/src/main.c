@@ -772,7 +772,7 @@ int main(int argc, char* args[])
         // TODO: Move hardcoded text size 
         s_camera_reposition(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.camera_component_handle, LEVEL_WIDTH, LEVEL_HEIGHT);
         s_render_server_ghost(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.last_server_position_handle, gameData->componentHandles.animation_instance_handle, gameData->animations, window_state->spritesheet, window_state->renderer);
-        s_render(gameData->ec, camera_id, &gameData->componentHandles, gameData->animations, window_state->spritesheet, 401, window_state->font, window_state->textEngine, window_state->renderer);
+        s_render(gameData->ec, camera_id, &gameData->componentHandles, gameData->animations, window_state->spritesheet, gameData->chat_buffers->_buffer_size, window_state->font, window_state->textEngine, window_state->renderer);
 
         // Chat box UI
         Clay_BeginLayout();
