@@ -111,6 +111,7 @@ bool Net_Join_Server(struct Net_Manager* netManager, ENetAddress* address, struc
     // Wait for the join success packet
     if (Listen_For_Packet(netManager, 5000, JOIN_SERVER, (struct P_JOIN_SERVER*) output))
     {
+        netManager->update_packets_per_s = output->update_packets_per_s;
         return true;
     }
 
@@ -161,11 +162,17 @@ uint64_t Net_Estimate_Client_Time(const struct Net_Manager* netManager, uint64_t
     return server_time_ms - netManager->server_time_offset_ms;
 }
 
+unsigned int Net_Get_Round_Trip_Time_Ms(const struct Net_Manager* netManager)
+{
+    return netManager->serverPeer->roundTripTime + netManager->mocked_latency_ms;
+}
+
 void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms, unsigned int mocked_latency_ms)
 {
     // todo: we dont' know if client time is less than server time, this may result in an underflow
     unsigned int half_round_trip_time = (netManager->serverPeer->roundTripTime + mocked_latency_ms) / 2;
     netManager->server_time_offset_ms = server_time_ms + half_round_trip_time - client_time_ms;
+    netManager->mocked_latency_ms = mocked_latency_ms;
 }
 
 

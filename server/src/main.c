@@ -22,7 +22,7 @@
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
 #define UPDATE_SEND_PER_S 10
-#define MOCKED_LATENCY_MS 0
+#define MOCKED_LATENCY_MS 250
 
 struct Component_Handles
 {
@@ -268,7 +268,7 @@ int main(int argc, char* args[])
                                 PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
 
                                 // Send the join packet
-                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .server_time_ms = currentFrameTimeMs, .mocked_latency_ms = MOCKED_LATENCY_MS, .network_id = playerId, .position = position };
+                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .update_packets_per_s = UPDATE_SEND_PER_S, .server_time_ms = currentFrameTimeMs, .mocked_latency_ms = MOCKED_LATENCY_MS, .network_id = playerId, .position = position };
                                 ENetPacket * packet = enet_packet_create(&joinServerData, sizeof(struct P_JOIN_SERVER), ENET_PACKET_FLAG_RELIABLE);
                                 enet_peer_send(event.peer, 0, packet);
 
