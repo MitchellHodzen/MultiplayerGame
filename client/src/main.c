@@ -250,6 +250,7 @@ int main(int argc, char* args[])
     }
 
     // Set initial server time offset
+    // Todo: initial calculation seems off by some ms
     Net_Calculate_Server_Time_Offset(netManager, SDL_GetTicks(), joinGamePacket.server_time_ms, joinGamePacket.mocked_latency_ms);
 
     // Init game state based on server info

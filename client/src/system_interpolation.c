@@ -6,7 +6,7 @@
 static unsigned int calculate_interpolation_delay(unsigned int server_updates_per_s, unsigned int frame_drop_allowance, unsigned int round_trip_time_ms)
 {
     // How long it takes for a server to send us a packet is approximately half of round trip time
-    float server_delay_ms = (float)round_trip_time_ms / 2;
+    unsigned int server_delay_ms = round_trip_time_ms / 2;
 
     // Time between frames will be server updates per ms + server delay
     unsigned int frame_delay = (1000 / server_updates_per_s) + server_delay_ms;
