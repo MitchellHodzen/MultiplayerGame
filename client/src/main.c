@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <enet/enet.h>
-#include <windows.h> 
 #include <SDL3/SDL.H>
 #include <SDL3/SDL_main.h>
 #include <SDL3_ttf/SDL_ttf.h>
