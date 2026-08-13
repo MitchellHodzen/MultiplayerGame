@@ -55,7 +55,6 @@ static struct Vector2 calculate_interpolated_position(struct N_C_Transform_Inter
 void s_interpolate_position(struct ECDB const *const ec, int transforms_handle, int transforms_buffer_handle, unsigned long estimated_server_time, unsigned int server_updates_per_s, unsigned int frame_drop_allowance, unsigned int round_trip_time_ms)
 {
     unsigned int interpolation_delay_ms = calculate_interpolation_delay(server_updates_per_s, frame_drop_allowance, round_trip_time_ms);
-    //printf("Frame drop allownace: %u. Server updates per second: %u. Round trip time: %u. interpolation delay: %u\n", frame_drop_allowance, server_updates_per_s, round_trip_time_ms, interpolation_delay_ms);
     struct C_Transform* transforms = (struct C_Transform*) ec->componentArrays[transforms_handle];
     struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*) ec->componentArrays[transforms_buffer_handle];
 
