@@ -153,10 +153,8 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     }
     else if (input->prediction_toggled_on == true)
     {
-        // If prediction was enabled, enable by adding a physics component to the player
-        struct C_Physics_2d* new_player_physics = ECDB_EnableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
-        new_player_physics->max_speed = 100;
-        new_player_physics->friction = 500;
+        // If prediction was enabled, enable by adding a default physics component to the player
+        ECDB_EnableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
     }
 
     if (input->interpolation_toggled_off == true)
@@ -275,10 +273,7 @@ int main(int argc, char* args[])
     struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.inputs_handle);
     entityInput->speed=300;
 
-    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.player_physics_2d_handle);
-    physics->max_speed = 100;
-    physics->friction = 500;
-
+    ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.player_physics_2d_handle);
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
 
@@ -292,9 +287,7 @@ int main(int argc, char* args[])
         struct C_Input* input = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.inputs_handle);
         input->speed=300;
 
-        struct C_Physics_2d* player_physics = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.player_physics_2d_handle);
-        player_physics->max_speed = 100;
-        player_physics->friction = 500;
+        ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.player_physics_2d_handle);
     }
     ECDB_DisableEntityComponent(gameData->ec, local_player, gameData->componentHandles.colors_handle);*/
 

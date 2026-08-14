@@ -87,7 +87,7 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->player_physics_2d_handle), NULL))
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->player_physics_2d_handle), &DEFAULT_PLAYER_PHYSICS))
     {
         SDL_Log("Couldn't initialize player physics component");
         ECDB_Free(ecdb);
@@ -150,7 +150,7 @@ void Add_Anim_Move_Left(struct Game_Data* game_data)
     struct Animation* left = &(game_data->animations[game_data->animation_count]);
     left->frame_count = 0;
     left->loop = true;
-    left->miliseconds_per_frame = 250;
+    left->miliseconds_per_frame = 200;
     Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 0, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 17, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     game_data->animation_count++;
@@ -161,7 +161,7 @@ void Add_Anim_Move_Right(struct Game_Data* game_data)
     struct Animation* right = &(game_data->animations[game_data->animation_count]);
     right->frame_count = 0;
     right->loop = true;
-    right->miliseconds_per_frame = 250;
+    right->miliseconds_per_frame = 200;
     Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 89, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 104, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     game_data->animation_count++;
@@ -172,7 +172,7 @@ void Add_Anim_Move_Up(struct Game_Data* game_data)
     struct Animation* up = &(game_data->animations[game_data->animation_count]);
     up->frame_count = 0;
     up->loop = true;
-    up->miliseconds_per_frame = 250;
+    up->miliseconds_per_frame = 200;
     Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 61, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 75, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     game_data->animation_count++;
@@ -183,7 +183,7 @@ void Add_Anim_Move_Down(struct Game_Data* game_data)
     struct Animation* down = &(game_data->animations[game_data->animation_count]);
     down->frame_count = 0;
     down->loop = true;
-    down->miliseconds_per_frame = 250;
+    down->miliseconds_per_frame = 200;
     Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 31, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 46, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
     game_data->animation_count++;

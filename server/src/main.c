@@ -61,7 +61,8 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         ECDB_Free(ecdb);
         return false;
     }
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->player_physics_2d_handle), NULL))
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Physics_2d), &(componentHandles->player_physics_2d_handle), &DEFAULT_PLAYER_PHYSICS))
     {
         printf("Couldn't initialize player physics component\n");
         ECDB_Free(ecdb);
@@ -101,9 +102,7 @@ void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHand
     entityTransform->position = position;
     struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, playerId, componentHandles->inputs_handle);
     entityInput->speed=300;
-    struct C_Physics_2d* physics = ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_physics_2d_handle);
-    physics->max_speed = 100;
-    physics->friction = 500;
+    ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_physics_2d_handle);
     ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_states_handle);
 }
 
