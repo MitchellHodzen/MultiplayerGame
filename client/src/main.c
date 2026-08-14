@@ -764,7 +764,7 @@ int main(int argc, char* args[])
         s_render_server_ghost(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.last_server_position_handle, gameData->componentHandles.animation_instance_handle, gameData->animations, window_state->spritesheet, window_state->renderer);
         s_render(gameData->ec, camera_id, &gameData->componentHandles, gameData->animations, window_state->spritesheet, gameData->chat_buffers->_buffer_size, window_state->font, window_state->textEngine, window_state->renderer);        
 
-        Clay_RenderCommandArray renderCommands = Build_UI(gameData, command_context == COMMAND_CHAT, client_side_prediction_enabled, client_side_interpolation_enabled, deltaTimeS);
+        Clay_RenderCommandArray renderCommands = Build_UI(gameData, command_context == COMMAND_CHAT, client_side_prediction_enabled, client_side_interpolation_enabled, deltaTimeS, netManager->serverPeer->roundTripTime);
         Clay_SDL3RendererData renderData = {.renderer = window_state->renderer, .textEngine = window_state->textEngine, .fonts = &window_state->font};
         SDL_Clay_RenderClayCommands(&renderData, &renderCommands);
 

@@ -6,39 +6,50 @@
 
 static int previousChatBottom = 0;
 
-inline static Clay_RenderCommandArray Build_UI(struct Game_Data* game_data, bool chatting, bool client_side_prediction_enabled, bool client_side_interpolation_enabled, float delta_time)
+inline static Clay_RenderCommandArray Build_UI(struct Game_Data* game_data, bool chatting, bool client_side_prediction_enabled, bool client_side_interpolation_enabled, float delta_time, unsigned int ping)
 {
     Clay_BeginLayout();
     CLAY(CLAY_ID("WholeScreen"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
-        CLAY(CLAY_ID("UI_Top_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
-            CLAY(CLAY_ID("Controls_Text"), {
-                .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 1, .padding = CLAY_PADDING_ALL(5), .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
-            }) {
-                CLAY_TEXT(CLAY_STRING("Controls:"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                CLAY_TEXT(CLAY_STRING("WASD: Move"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                CLAY(CLAY_ID("Prediction_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
-                if (client_side_prediction_enabled)
-                    {
-                        CLAY_TEXT(CLAY_STRING("1: Toggle Prediction (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+        CLAY(CLAY_ID("UI_Top_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_LEFT_TO_RIGHT}, .backgroundColor = {0,0,0,0} }) {
+            CLAY(CLAY_ID("UI_Top_Left"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
+                CLAY(CLAY_ID("Controls_Text"), {
+                    .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 1, .padding = CLAY_PADDING_ALL(5), .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
+                }) {
+                    CLAY_TEXT(CLAY_STRING("Controls:"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                    CLAY_TEXT(CLAY_STRING("WASD: Move"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                    CLAY(CLAY_ID("Prediction_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
+                    if (client_side_prediction_enabled)
+                        {
+                            CLAY_TEXT(CLAY_STRING("1: Toggle Prediction (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                        }
+                        else
+                        {
+                            CLAY_TEXT(CLAY_STRING("1: Toggle Prediction "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                            CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
+                        }
                     }
-                    else
-                    {
-                        CLAY_TEXT(CLAY_STRING("1: Toggle Prediction "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                        CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
-                    }
-                }
 
-                CLAY(CLAY_ID("Interpolation_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
-                if (client_side_interpolation_enabled)
-                    {
-                        CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                    }
-                    else
-                    {
-                        CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
-                        CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
+                    CLAY(CLAY_ID("Interpolation_Instructions"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIT(0) }, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = {0,0,0,0} }) {
+                    if (client_side_interpolation_enabled)
+                        {
+                            CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation (enabled)"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                        }
+                        else
+                        {
+                            CLAY_TEXT(CLAY_STRING("2: Toggle Interpolation "), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                            CLAY_TEXT(CLAY_STRING("(disabled)"), { .fontSize = 24, .textColor = {255, 0, 0, 255} });
+                        }
                     }
                 }
+            }
+            
+            CLAY(CLAY_ID("Ping_Display"), {
+                .layout = { .layoutDirection = CLAY_LEFT_TO_RIGHT, .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) }, .childGap = 1, .padding = CLAY_PADDING_ALL(5), .childAlignment = {.x = CLAY_ALIGN_X_RIGHT, .y = CLAY_ALIGN_Y_TOP} }, .backgroundColor = { 0, 0, 0, 0 }
+            }) {
+                char ping_str[10];
+                sprintf(ping_str, "%d", ping);
+                CLAY_TEXT(CLAY_STRING("Ping:"), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
+                CLAY_TEXT(((Clay_String) { .length = strlen(ping_str), .chars = ping_str }), { .fontSize = 24, .textColor = {255, 255, 255, 150} });
             }
         }
         CLAY(CLAY_ID("UI_Bottom_Half"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_PERCENT(0.5f) }, .padding = {.left = 0, .right = 0, .top = 0, .bottom = 0 } , .childAlignment = {.x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_TOP}, .layoutDirection = CLAY_TOP_TO_BOTTOM}, .backgroundColor = {0,0,0,0} }) {
