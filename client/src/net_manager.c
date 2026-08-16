@@ -164,14 +164,13 @@ uint64_t Net_Estimate_Client_Time(const struct Net_Manager* netManager, uint64_t
 
 unsigned int Net_Get_Round_Trip_Time_Ms(const struct Net_Manager* netManager)
 {
-    return netManager->serverPeer->roundTripTime + netManager->mocked_latency_ms;
+    return netManager->serverPeer->roundTripTime;
 }
 
-void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms, unsigned int mocked_latency_ms)
+void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms)
 {
-    unsigned int half_round_trip_time = (netManager->serverPeer->roundTripTime + mocked_latency_ms) / 2;
+    unsigned int half_round_trip_time = netManager->serverPeer->roundTripTime / 2;
     netManager->server_time_offset_ms = server_time_ms + half_round_trip_time - client_time_ms;
-    netManager->mocked_latency_ms = mocked_latency_ms;
 }
 
 

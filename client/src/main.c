@@ -248,7 +248,7 @@ int main(int argc, char* args[])
 
     // Set initial server time offset
     // Todo: initial calculation seems off by some ms
-    Net_Calculate_Server_Time_Offset(netManager, SDL_GetTicks(), joinGamePacket.server_time_ms, joinGamePacket.mocked_latency_ms);
+    Net_Calculate_Server_Time_Offset(netManager, SDL_GetTicks(), joinGamePacket.server_time_ms);
 
     // Init game state based on server info
     struct Game_Data* gameData = NULL;
@@ -532,10 +532,10 @@ int main(int argc, char* args[])
                         case SERVER_TIME:
                         {
                             struct P_Server_Time* packetData = (struct P_Server_Time*) event.packet->data;
-                            unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs) - ((netManager->serverPeer->roundTripTime + packetData->mocked_latency_ms) / 2);
+                            unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs) - (netManager->serverPeer->roundTripTime / 2);
                             // TODO: packet loss is a fixed point number, convert to decimal notation before displaying
-                            SDL_Log("Server time: %lu. Estimated server time when message sent: %lu. Server time diff: %li. Round trip time: %i. Mocked round trip time: %i. Packet Loss: %i", packetData->server_time_ms, estimated_server_time_ms, (long)((estimated_server_time_ms + 1000) -  packetData->server_time_ms) - 1000, event.peer->roundTripTime, event.peer->roundTripTime + packetData->mocked_latency_ms, event.peer->packetLoss);
-                            Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms, packetData->mocked_latency_ms);
+                            SDL_Log("Server time: %lu. Estimated server time when message sent: %lu. Server time diff: %li. Round trip time: %i. Packet Loss: %i", packetData->server_time_ms, estimated_server_time_ms, (long)((estimated_server_time_ms + 1000) -  packetData->server_time_ms) - 1000, event.peer->roundTripTime, event.peer->packetLoss);
+                            Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms);
                             break;
                         }
                         default:

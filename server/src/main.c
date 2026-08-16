@@ -15,14 +15,13 @@
 #include "system_player_state_machine.h"
 #include "component_animation.h"
 
-#define MAX_CONNECTIONS 10
+#define MAX_CONNECTIONS 20
 #define CHANNELS 2
-#define ENTITY_COUNT 100
+#define ENTITY_COUNT 500
 #define TICK_PER_S 60
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
 #define UPDATE_SEND_PER_S 10
-#define MOCKED_LATENCY_MS 0
 
 struct Component_Handles
 {
@@ -210,7 +209,7 @@ int main(int argc, char* args[])
         if (time_packet_accumulator_s > TIME_SYNC_SEND_S)
         {
             // Send a time sync packet to all connected users. TODO: Update to send on a per-user basis as needed
-            struct P_Server_Time time = {.type = SERVER_TIME, .server_time_ms = currentFrameTimeMs, .mocked_latency_ms = MOCKED_LATENCY_MS};
+            struct P_Server_Time time = {.type = SERVER_TIME, .server_time_ms = currentFrameTimeMs};
             ENetPacket * packet = enet_packet_create(&time, sizeof(struct P_Server_Time), 0);
             enet_host_broadcast(server, 0, packet);
 
@@ -267,7 +266,7 @@ int main(int argc, char* args[])
                                 PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
 
                                 // Send the join packet
-                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .update_packets_per_s = UPDATE_SEND_PER_S, .server_time_ms = currentFrameTimeMs, .mocked_latency_ms = MOCKED_LATENCY_MS, .network_id = playerId, .position = position };
+                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .update_packets_per_s = UPDATE_SEND_PER_S, .server_time_ms = currentFrameTimeMs, .network_id = playerId, .position = position };
                                 ENetPacket * packet = enet_packet_create(&joinServerData, sizeof(struct P_JOIN_SERVER), ENET_PACKET_FLAG_RELIABLE);
                                 enet_peer_send(event.peer, 0, packet);
 

@@ -23,7 +23,6 @@ struct P_JOIN_SERVER
     unsigned int ticks_per_s;
     unsigned int update_packets_per_s;
     unsigned long server_time_ms;
-    unsigned int mocked_latency_ms;
     struct Vector2 position;
 };
 
@@ -54,7 +53,6 @@ struct P_Server_Time
 {
     enum Packet_Type type;
     unsigned long server_time_ms;
-    unsigned int mocked_latency_ms;
 };
 
 enum Message_Importance

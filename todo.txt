@@ -9,3 +9,4 @@ ecdb integrate paged memory approach to make low use components make more sense
 some way to roll back not entire state but a subset of state, without losing subsequent state (i.e particles, camera)
 use latest input to determine direction by using input event order
 delay other clients state similar to position
+track frames rather than time to ensure we don't have to send the full timestamp with each update
