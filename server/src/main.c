@@ -22,6 +22,7 @@
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
 #define UPDATE_SEND_PER_S 10
+#define PORT 1235
 
 struct Component_Handles
 {
@@ -155,7 +156,7 @@ int main(int argc, char* args[])
     ENetAddress address;
     ENetHost* server;
     address.host = ENET_HOST_ANY;
-    address.port = 1234;
+    address.port = PORT;
     server = enet_host_create(&address, MAX_CONNECTIONS, CHANNELS, 0, 0);
     if (server == NULL)
     {
