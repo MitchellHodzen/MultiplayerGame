@@ -1,16 +1,45 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <windows.h>
 #pragma comment(lib, "ws2_32.lib")
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <ws2ipdef.h>
+#include "ring_buffer.h"
 
+#define PACKET_DELAY_MS 25
 #define DEFAULT_BUFLEN 512
 #define PROXY_PORT "1234"
 #define SERVER_IP "localhost"
 #define SERVER_PORT "1235"
 #define MAX_CLIENTS 10
+
+#define MAX_BUFFERED_PACKETS 100
+
+struct Scheduled_Packet
+{
+    bool sent;
+    char data[DEFAULT_BUFLEN];
+    unsigned int bytes;
+    DWORD send_time;
+    SOCKADDR to;
+    int to_len;
+    SOCKET socket;
+};
+
+// TODO: avoid memcpy and write directly into buffer
+void Schedule_Packet(struct Ring_Buffer* scheduled_packets_buffer, SOCKET socket, char* data, unsigned int bytes, SOCKADDR *to, int to_len, DWORD current_time_ms)
+{
+    struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
+    memcpy(scheduled_packet->data, data, bytes);
+    scheduled_packet->socket = socket;
+    scheduled_packet->bytes = bytes;
+    scheduled_packet->to = *to;
+    scheduled_packet->to_len = to_len;
+    scheduled_packet->sent = false;
+    scheduled_packet->send_time = current_time_ms + PACKET_DELAY_MS;
+}
 
 bool Init_Entry_Socket(SOCKET* entry_socket, const char* port)
 {
@@ -177,6 +206,19 @@ int main(int argc, char* args[])
         printf("listener ioctlsocket failed with error: %ld\n", iResult);
     }
     
+    // Buffer packets being scheduled
+    // TODO: not ideal since size not sorted
+    size_t scheduled_packets_buffer_size = Ring_Buffer_Calculate_Required_Memory(sizeof(struct Scheduled_Packet), MAX_BUFFERED_PACKETS);
+    struct Ring_Buffer* scheduled_packets_buffer = calloc(1, scheduled_packets_buffer_size);
+    if (scheduled_packets_buffer == NULL)
+    {
+        // couldn't instantiate packet buffer
+        printf("cant alloc scheduled packets buffer\n");
+        return 1;
+    }
+
+    Ring_Buffer_Init(scheduled_packets_buffer, sizeof(struct Scheduled_Packet), MAX_BUFFERED_PACKETS);
+    
     struct Client_Proxy_Socket_Map client_proxy_maps[MAX_CLIENTS];
     int client_proxy_cnt = 0;
 
@@ -187,101 +229,23 @@ int main(int argc, char* args[])
     int fromlen;
     char servstr[NI_MAXSERV];
     char hoststr[NI_MAXHOST];
+
+    DWORD current_frame_time_ms;
     while(1)
     {
+        current_frame_time_ms = GetTickCount();
+
         fromlen = sizeof(from);
 
-        bytecount = recvfrom(entry_socket, recvbuf, recvbuflen, 0, (SOCKADDR *)&from, &fromlen);
-        if (bytecount == SOCKET_ERROR)
+        do
         {
-            int error = WSAGetLastError();
-            if (error != WSAEWOULDBLOCK)
-            {
-                printf("recv failed with error: %d\n", WSAGetLastError());
-                closesocket(entry_socket);
-                WSACleanup();
-                return 1;
-            }
-        }
-        else
-        {
-            // Display the source of the datagram
-            int retval = getnameinfo((SOCKADDR *)&from, fromlen, hoststr, NI_MAXHOST, servstr, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV);
-            if (retval != 0)
-            {
-                fprintf(stderr, "getnameinfo failed: %d\n", retval);
-                closesocket(entry_socket);
-                WSACleanup();
-                return 1;
-            }
-            
-            struct Client_Proxy_Socket_Map* client_proxy_map = NULL;
-            // Find the proxy associated with the client
-            for(unsigned int i = 0; i < client_proxy_cnt; ++i)
-            {
-                if (Sockaddr_storage_match(&from, &(client_proxy_maps[i].from)))
-                {
-                    client_proxy_map = &client_proxy_maps[i];
-                    break;
-                }
-            }
-
-            if (client_proxy_map == NULL)
-            {
-                if (client_proxy_cnt == MAX_CLIENTS)
-                {
-                    printf("max clients reached\n");
-                    closesocket(entry_socket);
-                    WSACleanup();
-                    return 1;
-                }
-
-                // if we cant find a client proxy for this client, create a new one
-                printf("Received first packet from client at host %s and port %s\n", hoststr, servstr);
-                client_proxy_map = &client_proxy_maps[client_proxy_cnt];
-                client_proxy_map->client_proxy_socket = INVALID_SOCKET;
-                if (Init_Client_Proxy_Socket(&(client_proxy_map->client_proxy_socket), server_addr_info) == false)
-                {
-                    printf("Unable to initialize client proxy socket\n");
-                    closesocket(entry_socket);
-                    WSACleanup();
-                    return 1;
-                }
-                client_proxy_map->from = from;
-                client_proxy_map->from_len = fromlen;
-                client_proxy_cnt++;
-            }
-            else
-            {
-                printf("Received packet from client at host %s and port %s\n", hoststr, servstr);
-            }
-
-            printf("\tread %d bytes from host %s and port %s\n", bytecount, hoststr, servstr);
-
-            // Send the packet to the server
-            bytecount = send(client_proxy_map->client_proxy_socket, recvbuf, bytecount, 0);
-            if (bytecount == SOCKET_ERROR)
-            {
-                fprintf(stderr, "Call to server failed: %d\n", WSAGetLastError());
-                closesocket(entry_socket);
-                WSACleanup();
-                return 1;
-            }
-
-            printf("\tsent %d bytes to server\n", bytecount, hoststr, servstr);
-        }
-
-
-        // listen for response for any client
-        for(unsigned int i = 0; i < client_proxy_cnt; ++i)
-        {
-            bytecount = recv(client_proxy_maps[i].client_proxy_socket, recvbuf, recvbuflen, 0);
+            bytecount = recvfrom(entry_socket, recvbuf, recvbuflen, 0, (SOCKADDR *)&from, &fromlen);
             if (bytecount == SOCKET_ERROR)
             {
                 int error = WSAGetLastError();
                 if (error != WSAEWOULDBLOCK)
                 {
-                    printf("recv from server failed with error: %d\n", WSAGetLastError());
+                    printf("recv failed with error: %d\n", WSAGetLastError());
                     closesocket(entry_socket);
                     WSACleanup();
                     return 1;
@@ -289,28 +253,110 @@ int main(int argc, char* args[])
             }
             else
             {
-                printf("received packet from server\n");
-                printf("\tread %d bytes from server\n", bytecount);
-
-                // send response to original client
-                bytecount = sendto(entry_socket, recvbuf, bytecount, 0, (SOCKADDR *)&(client_proxy_maps[i].from), client_proxy_maps[i].from_len);
-                if (bytecount == SOCKET_ERROR)
+                // Display the source of the datagram
+                int retval = getnameinfo((SOCKADDR *)&from, fromlen, hoststr, NI_MAXHOST, servstr, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV);
+                if (retval != 0)
                 {
-                    fprintf(stderr, "Call back to client failed: %d\n", WSAGetLastError());
+                    fprintf(stderr, "getnameinfo failed: %d\n", retval);
                     closesocket(entry_socket);
                     WSACleanup();
                     return 1;
                 }
+                
+                struct Client_Proxy_Socket_Map* client_proxy_map = NULL;
+                // Find the proxy associated with the client
+                for(unsigned int i = 0; i < client_proxy_cnt; ++i)
+                {
+                    if (Sockaddr_storage_match(&from, &(client_proxy_maps[i].from)))
+                    {
+                        client_proxy_map = &client_proxy_maps[i];
+                        break;
+                    }
+                }
 
-                printf("\tsent %d bytes to host %s and port %s\n", bytecount, hoststr, servstr);
+                if (client_proxy_map == NULL)
+                {
+                    if (client_proxy_cnt == MAX_CLIENTS)
+                    {
+                        printf("max clients reached\n");
+                        closesocket(entry_socket);
+                        WSACleanup();
+                        return 1;
+                    }
+
+                    // if we cant find a client proxy for this client, create a new one
+                    printf("Received first packet from client at host %s and port %s\n", hoststr, servstr);
+                    client_proxy_map = &client_proxy_maps[client_proxy_cnt];
+                    client_proxy_map->client_proxy_socket = INVALID_SOCKET;
+                    if (Init_Client_Proxy_Socket(&(client_proxy_map->client_proxy_socket), server_addr_info) == false)
+                    {
+                        printf("Unable to initialize client proxy socket\n");
+                        closesocket(entry_socket);
+                        WSACleanup();
+                        return 1;
+                    }
+                    client_proxy_map->from = from;
+                    client_proxy_map->from_len = fromlen;
+                    client_proxy_cnt++;
+                }
+
+                // Send the packet to the server
+                Schedule_Packet(scheduled_packets_buffer, client_proxy_map->client_proxy_socket, recvbuf, bytecount, server_addr_info->ai_addr, server_addr_info->ai_addrlen, current_frame_time_ms);
+            }
+        } while (bytecount != SOCKET_ERROR);
+
+
+        // listen for response for any client
+        for(unsigned int i = 0; i < client_proxy_cnt; ++i)
+        {
+            do
+            {
+                bytecount = recv(client_proxy_maps[i].client_proxy_socket, recvbuf, recvbuflen, 0);
+                if (bytecount == SOCKET_ERROR)
+                {
+                    int error = WSAGetLastError();
+                    if (error != WSAEWOULDBLOCK)
+                    {
+                        printf("recv from server failed with error: %d\n", WSAGetLastError());
+                        closesocket(entry_socket);
+                        WSACleanup();
+                        return 1;
+                    }
+                }
+                else
+                {
+                    // send response to original client
+                    Schedule_Packet(scheduled_packets_buffer, entry_socket, recvbuf, bytecount, (SOCKADDR *)&(client_proxy_maps[i].from), client_proxy_maps[i].from_len, current_frame_time_ms);
+                }
+            } while (bytecount != SOCKET_ERROR);
+        }
+
+
+        // Check if any scheduled packets need to be sent
+        for(unsigned int i = 0; i < scheduled_packets_buffer->buffer_size; ++i)
+        {
+            // loop backwards so we send older packets first
+            unsigned int index =  (scheduled_packets_buffer->buffer_size - 1) - i;
+            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_At(scheduled_packets_buffer, index);
+
+            // Send any unsent packets scheduled in the past
+            if (scheduled_packet->sent == false && scheduled_packet->send_time <= current_frame_time_ms)
+            {
+                bytecount = sendto(scheduled_packet->socket, scheduled_packet->data, scheduled_packet->bytes, 0, &scheduled_packet->to, scheduled_packet->to_len);
+                if (bytecount == SOCKET_ERROR)
+                {
+                    fprintf(stderr, "Failed to send scheduled packet: %d\n", WSAGetLastError());
+                    closesocket(entry_socket);
+                    WSACleanup();
+                    return 1;
+                }
+                scheduled_packet->sent = true;
             }
         }
 
     }
 
     // TODO: Close client sockets
-
-
     // shutdown the connection since we're done
     iResult = shutdown(entry_socket, SD_SEND);
     if (iResult == SOCKET_ERROR) {
