@@ -22,7 +22,7 @@
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
 #define UPDATE_SEND_PER_S 10
-#define PORT 1235
+#define PORT 1234
 
 struct Component_Handles
 {

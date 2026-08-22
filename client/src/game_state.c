@@ -145,14 +145,15 @@ bool InitializeNetworkTracking(struct ECDB* ecdb, unsigned int** networkIdEntity
     return true;
 }
 
+static int move_ms_per_frame = 160;
 void Add_Anim_Move_Left(struct Game_Data* game_data)
 {
     struct Animation* left = &(game_data->animations[game_data->animation_count]);
     left->frame_count = 0;
     left->loop = true;
-    left->miliseconds_per_frame = 200;
-    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 0, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
-    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 17, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    left->miliseconds_per_frame = move_ms_per_frame;
+    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 0, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
+    Animation_Add_Frame(left, (struct Animation_Frame) { .spritesheet_clip_x = 17, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
     game_data->animation_count++;
 }
 
@@ -161,9 +162,9 @@ void Add_Anim_Move_Right(struct Game_Data* game_data)
     struct Animation* right = &(game_data->animations[game_data->animation_count]);
     right->frame_count = 0;
     right->loop = true;
-    right->miliseconds_per_frame = 200;
-    Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 89, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
-    Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 104, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    right->miliseconds_per_frame = move_ms_per_frame;
+    Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 89, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
+    Animation_Add_Frame(right, (struct Animation_Frame) { .spritesheet_clip_x = 104, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
     game_data->animation_count++;
 }
 
@@ -172,9 +173,9 @@ void Add_Anim_Move_Up(struct Game_Data* game_data)
     struct Animation* up = &(game_data->animations[game_data->animation_count]);
     up->frame_count = 0;
     up->loop = true;
-    up->miliseconds_per_frame = 200;
-    Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 61, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
-    Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 75, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    up->miliseconds_per_frame = move_ms_per_frame;
+    Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 61, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
+    Animation_Add_Frame(up, (struct Animation_Frame) { .spritesheet_clip_x = 75, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
     game_data->animation_count++;
 }
 
@@ -183,11 +184,62 @@ void Add_Anim_Move_Down(struct Game_Data* game_data)
     struct Animation* down = &(game_data->animations[game_data->animation_count]);
     down->frame_count = 0;
     down->loop = true;
-    down->miliseconds_per_frame = 200;
-    Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 31, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
-    Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 46, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17});
+    down->miliseconds_per_frame = move_ms_per_frame;
+    Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 31, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
+    Animation_Add_Frame(down, (struct Animation_Frame) { .spritesheet_clip_x = 46, .spritesheet_clip_y = 0, .spritesheet_clip_width = 15, .spritesheet_clip_height = 17, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 9});
     game_data->animation_count++;
 }
+
+static int attack_ms_per_frame = 75;
+void Add_Anim_Attack_Left(struct Game_Data* game_data)
+{
+    struct Animation* anim = &(game_data->animations[game_data->animation_count]);
+    anim->frame_count = 0;
+    anim->loop = false;
+    anim->miliseconds_per_frame = attack_ms_per_frame;
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 191, .spritesheet_clip_y = 100, .spritesheet_clip_width = 18, .spritesheet_clip_height = 34, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 27});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 158, .spritesheet_clip_y = 103, .spritesheet_clip_width = 29, .spritesheet_clip_height = 31, .origin_offset_pixels_x = 20, .origin_offset_pixels_y = 24});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 124, .spritesheet_clip_y = 116, .spritesheet_clip_width = 32, .spritesheet_clip_height = 18, .origin_offset_pixels_x = 23, .origin_offset_pixels_y = 11});
+    game_data->animation_count++;
+}
+
+void Add_Anim_Attack_Right(struct Game_Data* game_data)
+{
+    struct Animation* anim = &(game_data->animations[game_data->animation_count]);
+    anim->frame_count = 0;
+    anim->loop = false;
+    anim->miliseconds_per_frame = attack_ms_per_frame;
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 36, .spritesheet_clip_y = 100, .spritesheet_clip_width = 18, .spritesheet_clip_height = 34, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 27});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 57, .spritesheet_clip_y = 103, .spritesheet_clip_width = 29, .spritesheet_clip_height = 31, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 24});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 88, .spritesheet_clip_y = 116, .spritesheet_clip_width = 32, .spritesheet_clip_height = 18, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 11});
+    game_data->animation_count++; //12
+}
+
+void Add_Anim_Attack_Up(struct Game_Data* game_data)
+{
+    struct Animation* anim = &(game_data->animations[game_data->animation_count]);
+    anim->frame_count = 0;
+    anim->loop = false;
+    anim->miliseconds_per_frame = attack_ms_per_frame;
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 177, .spritesheet_clip_y = 155, .spritesheet_clip_width = 32, .spritesheet_clip_height = 18, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 11});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 147, .spritesheet_clip_y = 142, .spritesheet_clip_width = 28, .spritesheet_clip_height = 31, .origin_offset_pixels_x = 8, .origin_offset_pixels_y = 22});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 124, .spritesheet_clip_y = 139, .spritesheet_clip_width = 18, .spritesheet_clip_height = 33, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 25});
+    game_data->animation_count++; //12
+}
+
+
+void Add_Anim_Attack_Down(struct Game_Data* game_data)
+{
+    struct Animation* anim = &(game_data->animations[game_data->animation_count]);
+    anim->frame_count = 0;
+    anim->loop = false;
+    anim->miliseconds_per_frame = attack_ms_per_frame;
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 25, .spritesheet_clip_y = 138, .spritesheet_clip_width = 31, .spritesheet_clip_height = 18, .origin_offset_pixels_x = 24, .origin_offset_pixels_y = 11});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 63, .spritesheet_clip_y = 138, .spritesheet_clip_width = 28, .spritesheet_clip_height = 31, .origin_offset_pixels_x = 21, .origin_offset_pixels_y = 12});
+    Animation_Add_Frame(anim, (struct Animation_Frame) { .spritesheet_clip_x = 96, .spritesheet_clip_y = 139, .spritesheet_clip_width = 18, .spritesheet_clip_height = 33, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 12});
+    game_data->animation_count++; //12
+}
+
 
 void Add_Anim_Flower(struct Game_Data* game_data)
 {
@@ -195,7 +247,7 @@ void Add_Anim_Flower(struct Game_Data* game_data)
     flower->frame_count = 0;
     flower->loop = true;
     flower->miliseconds_per_frame = 1000;
-    Animation_Add_Frame(flower, (struct Animation_Frame) { .spritesheet_clip_x = 0, .spritesheet_clip_y = 221, .spritesheet_clip_width = 18, .spritesheet_clip_height = 18});
+    Animation_Add_Frame(flower, (struct Animation_Frame) { .spritesheet_clip_x = 0, .spritesheet_clip_y = 221, .spritesheet_clip_width = 18, .spritesheet_clip_height = 18, .origin_offset_pixels_x = 9, .origin_offset_pixels_y = 9});
     game_data->animation_count++;
 }
 
@@ -208,6 +260,10 @@ void Initialize_Animations(struct Game_Data* game_data)
     Add_Anim_Move_Left(game_data);
     Add_Anim_Move_Right(game_data);
     Add_Anim_Flower(game_data);
+    Add_Anim_Attack_Up(game_data);
+    Add_Anim_Attack_Down(game_data);
+    Add_Anim_Attack_Left(game_data);
+    Add_Anim_Attack_Right(game_data);
 }
 
 bool Game_Data_Init(struct Game_Data** gameData, unsigned int max_entities, unsigned int max_chat_size, unsigned int chat_history_size)

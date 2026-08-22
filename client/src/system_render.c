@@ -21,10 +21,15 @@ void render_sprite(struct C_Animation_Instance* animation_instance, struct Vecto
     struct Animation_Frame current_frame = animations[animation_instance->animation_index].frames[animation_instance->current_frame];
     SDL_FRect sprite_rect = { .x = current_frame.spritesheet_clip_x, .y = current_frame.spritesheet_clip_y, .w = current_frame.spritesheet_clip_width, .h = current_frame.spritesheet_clip_height};
 
+    /*float scale = 5;
+    float width = current_frame.spritesheet_clip_width * scale;
+    float height = current_frame.spritesheet_clip_height * scale;
+    SDL_FRect pos_rect = { .x = position.x - (width / 2), .y = position.y - (height / 2), .w = width, .h = height};*/
+
     float scale = 5;
     float width = current_frame.spritesheet_clip_width * scale;
     float height = current_frame.spritesheet_clip_height * scale;
-    SDL_FRect pos_rect = { .x = position.x - (width / 2), .y = position.y - (height / 2), .w = width, .h = height};
+    SDL_FRect pos_rect = { .x = position.x - (current_frame.origin_offset_pixels_x * scale), .y = position.y - (current_frame.origin_offset_pixels_y * scale), .w = width, .h = height};
 
     // reposition the position rect based on the camera
     SDL_RenderTexture(renderer, spritesheet, &sprite_rect, &pos_rect);
@@ -213,16 +218,7 @@ void s_render_server_ghost(struct ECDB const *const ec, unsigned int camera_id, 
             // draw sprites
             if (ECDB_EntityHasComponent(ec, i, animation_instance_handle))
             {
-                struct Animation_Frame current_frame = animations[animation_instances[i].animation_index].frames[animation_instances[i].current_frame];
-                SDL_FRect sprite_rect = { .x = current_frame.spritesheet_clip_x, .y = current_frame.spritesheet_clip_y, .w = current_frame.spritesheet_clip_width, .h = current_frame.spritesheet_clip_height};
-
-                float scale = 5;
-                float width = current_frame.spritesheet_clip_width * scale;
-                float height = current_frame.spritesheet_clip_height * scale;
-                SDL_FRect pos_rect = { .x = last_server_position.x - (width / 2), .y = last_server_position.y - (height / 2), .w = width, .h = height};
-
-                // reposition the position rect based on the camera
-                SDL_RenderTexture(renderer, spritesheet, &sprite_rect, &pos_rect);
+                render_sprite(&animation_instances[i], last_server_position, animations, spritesheet, renderer);
             }
             else
             {
