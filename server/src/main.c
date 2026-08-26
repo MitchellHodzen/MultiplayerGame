@@ -16,7 +16,7 @@
 #include "component_animation.h"
 
 #define MAX_CONNECTIONS 20
-#define CHANNELS 2
+#define CHANNELS 3
 #define ENTITY_COUNT 500
 #define TICK_PER_S 60
 #define MAX_CHAT_LENGTH 100
@@ -124,15 +124,6 @@ void BroadcastChatMessage(ENetHost* server, struct P_Chat_Header header, char* s
     enet_host_broadcast(server, 1, chatPacket);
 }
 
-#define SCHEDULED_PACKET_BUFFER_SIZE 1000
-struct Scheduled_Packet
-{
-    bool sent;
-    ENetPacket* packet;
-    ENetPeer* peer; // Null to broadcast
-    DWORD send_time;
-};
-
 int main(int argc, char* args[])
 {
     if (enet_initialize () != 0)
@@ -163,20 +154,6 @@ int main(int argc, char* args[])
         fprintf (stderr, "An error occurred while trying to create an ENet server host.\n");
         return 1;
     }
-
-    // Buffer packets being scheduled
-    // TODO: Memory leak: if any packet is not sent before being removed from the buffer it will not be freed
-    // TODO: Remove packets from buffer that have been sent
-    size_t scheduled_packets_buffer_size = Ring_Buffer_Calculate_Required_Memory(sizeof(struct Scheduled_Packet), SCHEDULED_PACKET_BUFFER_SIZE);
-    struct Ring_Buffer* scheduled_packets_buffer = calloc(1, scheduled_packets_buffer_size);
-    if (scheduled_packets_buffer == NULL)
-    {
-        // couldn't instantiate game state history
-        printf("cant alloc scheduled packets buffer\n");
-        return 1;
-    }
-
-    Ring_Buffer_Init(scheduled_packets_buffer, sizeof(struct Scheduled_Packet), SCHEDULED_PACKET_BUFFER_SIZE);
 
     // Buffer for removals to send with each packet
     struct IntStack* removal_stack = (struct IntStack*) malloc(IntStack_Calculate_Required_Memory(ecdb->_maxEntities));
@@ -400,37 +377,9 @@ int main(int argc, char* args[])
             ENetPacket * update_packet = enet_packet_create(update_packet_memory, actual_update_packet_length, 0);
 
             enet_host_broadcast(server, 0, update_packet);
-            /*unsigned int packet_delay_ms = MOCKED_LATENCY_MS;
-            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_Next(scheduled_packets_buffer);
-            scheduled_packet->packet = update_packet;
-            scheduled_packet->sent = false;
-            scheduled_packet->peer = NULL;
-            scheduled_packet->send_time = currentFrameTimeMs + packet_delay_ms;*/
 
             // reset the accumulator
             update_packet_accumulator_s = 0;
-        }
-
-        // Check if any scheduled packets need to be sent
-        for(unsigned int i = 0; i < scheduled_packets_buffer->buffer_size; ++i)
-        {
-            // loop backwards so we send older packets first
-            unsigned int index =  (scheduled_packets_buffer->buffer_size - 1) - i;
-            struct Scheduled_Packet* scheduled_packet = Ring_Buffer_Get_At(scheduled_packets_buffer, index);
-
-            // Send any unsent packets scheduled in the past
-            if (scheduled_packet->sent == false && scheduled_packet->send_time <= currentFrameTimeMs)
-            {
-                if (scheduled_packet->peer == NULL)
-                {
-                    enet_host_broadcast(server, 0, scheduled_packet->packet);
-                }
-                else
-                {
-                    enet_peer_send(event.peer, 0, scheduled_packet->packet);
-                }
-                scheduled_packet->sent = true;
-            }
         }
 
         // Increment tick
