@@ -39,6 +39,7 @@
 #define INTERP_DELAY_MS 300
 #define LEVEL_WIDTH 1000
 #define LEVEL_HEIGHT 1000
+#define NETWORKING_CHANNELS 3
 
 enum Command_Contex
 {
@@ -449,7 +450,7 @@ int main(int argc, char* args[])
 
     // Initialize networking
     struct Net_Manager* netManager;
-    if (Net_Initialize(&netManager))
+    if (Net_Initialize(&netManager, NETWORKING_CHANNELS))
     {
         SDL_Log("NetManager Initialized");
     }
@@ -575,7 +576,7 @@ int main(int argc, char* args[])
     Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
 
     // Packet recv callbacks
-    bool (*on_recv_callbacks[3])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data) = {
+    bool (*on_recv_callbacks[NETWORKING_CHANNELS])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data) = {
         On_Packet_Received_Callback, On_Chat_Received_Callback, On_Time_Sync_Received_Callback
     };
 
@@ -629,8 +630,8 @@ int main(int argc, char* args[])
 
         struct Time_Sync_Recv_Data time_sync_recv_data = {.client_time_ms = currentFrameTimeMs};
 
-        void* callback_data_arr[3] = { &packet_recv_data, &chat_recv_data, &time_sync_recv_data};
-        Net_Receive(netManager, on_recv_callbacks, callback_data_arr);
+        void* callback_data_arr[NETWORKING_CHANNELS] = { &packet_recv_data, &chat_recv_data, &time_sync_recv_data};
+        Net_Receive(netManager, on_recv_callbacks, callback_data_arr, NETWORKING_CHANNELS);
 
         sim_accumulator_s += deltaTimeS;
         while (sim_accumulator_s > targetSecPerFrame)

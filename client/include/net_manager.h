@@ -13,14 +13,15 @@ struct Net_Manager
     struct _ENetHost* client;
     struct _ENetPeer* serverPeer;
     bool connected;
+    unsigned int channels;
     int server_time_offset_ms;
     unsigned int update_packets_per_s;
 };
 
-bool Net_Initialize(struct Net_Manager** netManager);
+bool Net_Initialize(struct Net_Manager** netManager, unsigned int channels);
 bool Net_Join_Server(struct Net_Manager* netManager, struct _ENetAddress* address, struct P_JOIN_SERVER* output);
 void Net_Disconnect(struct Net_Manager* netManager);
-void Net_Receive(struct Net_Manager* netManager, bool (*on_recv[3])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data), void* callback_data[3]);
+void Net_Receive(struct Net_Manager* netManager, bool (**on_recv_callbacks)(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data), void** callback_data_arr, unsigned int callback_cnt);
 void Net_Free(struct Net_Manager** netManager);
 uint64_t Net_Estimate_Server_Time(const struct Net_Manager* netManager, uint64_t client_time_ms);
 uint64_t Net_Estimate_Client_Time(const struct Net_Manager* netManager, uint64_t server_time_ms);

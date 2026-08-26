@@ -5,7 +5,7 @@
 #include "ecdb.h"
 #include <SDL3/SDL.H>
 
-bool Net_Initialize(struct Net_Manager** netManager)
+bool Net_Initialize(struct Net_Manager** netManager, unsigned int channels)
 {
     // Initialize ENet
     if (enet_initialize() != 0)
@@ -21,14 +21,16 @@ bool Net_Initialize(struct Net_Manager** netManager)
         return false;
     }
 
-    // Create a client to receive messages from the server with 1 outgoing connection, 2 channels, and unlimited incoming and outgoing bandwidth
-    (*netManager)->client = enet_host_create(NULL, 1, 3, 0, 0);
+    // Create a client to receive messages from the server with 1 outgoing connection, {channels} channels, and unlimited incoming and outgoing bandwidth
+    (*netManager)->client = enet_host_create(NULL, 1, channels, 0, 0);
     if ((*netManager)->client == NULL)
     {
         SDL_Log("Client Host Creation Failed");
         Net_Free(netManager);
         return false;
     }
+
+    (*netManager)->channels = channels;
 
     return true;
 }
@@ -119,9 +121,15 @@ bool Net_Join_Server(struct Net_Manager* netManager, ENetAddress* address, struc
     return false;
 }
 
-// Todo: do not hardcode channels
-void Net_Receive(struct Net_Manager* netManager, bool (*on_recv[3])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data), void* callback_data[3])
+void Net_Receive(struct Net_Manager* netManager, bool (**on_recv_callbacks)(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data), void** callback_data_arr, unsigned int callback_cnt)
 {
+    // require a callback per channel
+    if(callback_cnt != netManager->channels)
+    {
+        SDL_Log("Callback count does not match network channel count. disconnecting");
+        Net_Disconnect(netManager);
+    }
+
     ENetEvent event;
     while (enet_host_service(netManager->client, &event, 0) > 0 && netManager->connected)
     {
@@ -130,9 +138,9 @@ void Net_Receive(struct Net_Manager* netManager, bool (*on_recv[3])(struct Net_M
             case ENET_EVENT_TYPE_RECEIVE:
             {
                 bool valid;
-                if (event.channelID <= 3)
+                if (event.channelID <= callback_cnt)
                 {
-                    valid = on_recv[event.channelID](netManager, event.packet->data, event.packet->dataLength, callback_data[event.channelID]);
+                    valid = on_recv_callbacks[event.channelID](netManager, event.packet->data, event.packet->dataLength, callback_data_arr[event.channelID]);
                 }
                 else
                 {
