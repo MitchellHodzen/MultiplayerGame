@@ -188,6 +188,235 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     s_animation_iterate(ecdb, component_handles->animation_instance_handle, delta_time_s * 1000, animations); // TODO: Move out of sim so animations can be more fluid
 }
 
+struct Packet_Recv_Data
+{
+    bool client_side_prediction_enabled;
+    struct Ring_Stack* game_state_history_stack;
+    struct Game_Data* game_data;
+    Input_Snapshot_Buffer* input_queue;
+    float delta_time_s;
+    unsigned int networked_player_id;
+};
+
+bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char* packet_data, size_t packet_len, struct Packet_Recv_Data* callback_data)
+{
+    enum Packet_Type type = (enum Packet_Type) *packet_data;
+    switch(type)
+    {
+    case UPDATE:
+    {
+        // Update packets start with a header followed by an array of updates
+        struct P_Update_Header* header = (struct P_Update_Header*)packet_data;
+
+        // When we receive an update header, revert to the state that was right before that in server time
+        // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
+        // TODO: Calculate how many frames we should replay based on latency and see if it matches up
+        int going_back_frames = 0;
+        //SDL_Log("Server time: %lu", header->server_time_ms);
+        while(callback_data->client_side_prediction_enabled == true && callback_data->game_state_history_stack->buffer_size > 0)
+        {
+            // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
+            struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(callback_data->game_state_history_stack);
+            going_back_frames++;
+            // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it. look at the previous frame to make sure we are looking at the old
+            uint64_t snapshot_estimated_server_time = Net_Estimate_Server_Time(net_mgr_src, state->client_time_ms);
+            //SDL_Log("\tClient Estimated Server Time: %lu. Diff: %li", snapshot_estimated_server_time, (long)((snapshot_estimated_server_time + 1000) - header->server_time_ms) - 1000);
+            if (callback_data->game_state_history_stack->buffer_size == 0 || snapshot_estimated_server_time <= header->server_time_ms)
+            {
+                void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
+                ECDB_Apply_Snapshot(callback_data->game_data->ec, ecdb_state_snapshot);
+                // We have a new starting point, so clear state history
+                Ring_Stack_Clear(callback_data->game_state_history_stack);
+                break;
+            }
+        }
+
+        // Calculate how many frames we expect to go back
+        /*unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
+        if (sim_frames_since_last_update != going_back_frames)
+        {
+            SDL_Log("Going back frames diverged: Sim frames since last update: %u. Frames going back: %u. Successes: %u", sim_frames_since_last_update, going_back_frames, successful_frames);
+            successful_frames = 0;
+        }
+        else
+        {
+            successful_frames++;
+        }
+        sim_frames_at_last_update = sim_frames;*/
+
+        // Record removals
+        unsigned int* removal_buffer_ptr = (unsigned int*)(packet_data + sizeof(struct P_Update_Header));
+        for(unsigned int i = 0; i < header->removals_count; ++i)
+        {
+            unsigned int network_entity_to_remove = removal_buffer_ptr[i];
+            Remove_Networked_Entity(callback_data->game_data, callback_data->game_data->ec, callback_data->game_data->componentHandles.network_id_handle, network_entity_to_remove);
+        }
+
+        // Record updates
+        struct P_Update_Entity_Data* update_buffer_ptr = (struct P_Update_Entity_Data*)(packet_data + sizeof(struct P_Update_Header) + (header->removals_count * sizeof(unsigned int)));
+
+        for(unsigned int i = 0; i < header->updates_count; ++i)
+        {
+            struct P_Update_Entity_Data update = update_buffer_ptr[i];
+            if (callback_data->game_data->networkIdEntityMap[update.networkId] == callback_data->game_data->ec->invalidEntityId)
+            {
+                // if we don't know about the entity, add it
+                unsigned int entityId;
+                char playerNameBuffer[10];
+                int strlen = sprintf(playerNameBuffer, "Player %i", update.networkId);
+                if (AddSquare(callback_data->game_data->ec, &callback_data->game_data->componentHandles, update.position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
+                {
+                    // all incoming players will have transform interpolation
+                    ECDB_EnableEntityComponent(callback_data->game_data->ec, entityId, callback_data->game_data->componentHandles.transforms_interpolation_buffer_handle);
+                    ECDB_EnableEntityComponent(callback_data->game_data->ec, entityId, callback_data->game_data->componentHandles.last_server_position_handle);
+                    ECDB_EnableEntityComponent(callback_data->game_data->ec, entityId, callback_data->game_data->componentHandles.animation_instance_handle);
+                    int* z_order = ECDB_EnableEntityComponent(callback_data->game_data->ec, entityId, callback_data->game_data->componentHandles.y_order_handle);
+
+                    Add_Networked_Entity(callback_data->game_data, callback_data->game_data->ec, callback_data->game_data->componentHandles.network_id_handle, entityId, update.networkId);
+                    SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", update.position.x,  update.position.y, update.networkId, entityId);
+                }
+                else
+                {
+                    SDL_Log("Too many entities received from server. Disconnecting.");
+                    return false;
+                }
+            }
+
+            int localEntityId = callback_data->game_data->networkIdEntityMap[update.networkId];
+            if(ECDB_EntityHasComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.transforms_handle))
+            {
+                if (ECDB_EntityHasComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.transforms_interpolation_buffer_handle))
+                {
+                    // Unreliable packets are still sequenced, so we know this is the latest transform message
+                    struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.transforms_interpolation_buffer_handle);
+                    struct C_Transform* transform = (struct C_Transform*)ECDB_GetEntityComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.transforms_handle);
+                    struct N_C_Transform_Snapshot trans_snap = {.server_time = header->server_time_ms, .transform = *transform};
+                    trans_snap.transform.position = update.position;
+                    Interp_Buf_Add(trans_buf, trans_snap);
+                }
+                else
+                {
+                    // If we aren't interpolating, write actor position directly
+                    struct C_Transform* actorPosition = (struct C_Transform*)ECDB_GetEntityComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.transforms_handle);
+                    actorPosition->position = update.position;
+                }
+
+                // record last position for debugging
+                if (ECDB_EntityHasComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.last_server_position_handle))
+                {
+                    struct Vector2* lastposition = (struct Vector2*)ECDB_GetEntityComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.last_server_position_handle);
+                    *lastposition = update.position;
+                }
+            }
+
+            if (ECDB_EntityHasComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.player_physics_2d_handle))
+            {
+                struct C_Physics_2d* physics = (struct C_Physics_2d*)ECDB_GetEntityComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.player_physics_2d_handle);
+                physics->velocity = update.velocity;
+            }
+
+            if (ECDB_EntityHasComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.player_states_handle))
+            {
+                struct C_Player_State* state = (struct C_Player_State*)ECDB_GetEntityComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.player_states_handle);
+                *state = update.state;
+            }
+        }
+
+        // replay the same amount of input as missed frames. the input frame has already been played on the corresponding state frame
+        // as they are both written to at the same time, buffer size will always be at least as big as going back frames.
+        for(unsigned int i = callback_data->input_queue->buffer_size - going_back_frames + 1; i < callback_data->input_queue->buffer_size; ++i)
+        {
+            // Re-play any input captured after the last frame.
+            struct Input_Snapshot input = Input_Buffer_Get_At(callback_data->input_queue, i);
+
+            // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
+            float replay_delta_time_s = callback_data->delta_time_s;
+            if (i != 0)
+            {
+                // calculate delta time based on previous input time
+                float previous_frame_time_ms = Input_Buffer_Get_At(callback_data->input_queue, i - 1).client_time;
+                replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
+            }
+
+            // TODO - instead of calling run_sim in two places in the main loop, put all input together and then play it out later?
+            Run_Sim(callback_data->game_data->ec, net_mgr_src, &(callback_data->game_data->componentHandles), &input, callback_data->game_data->animations, callback_data->networked_player_id, replay_delta_time_s);
+        }
+
+        break;
+    }
+    default:
+        printf ("Some weird packet of type %i\n", type);
+        break;
+    }
+
+    return true;
+}
+
+struct Chat_Recv_Data
+{
+    struct Game_Data* game_data;
+    Input_Snapshot_Buffer* input_queue;
+    struct Input_Snapshot* current_input_snapshot;
+    unsigned int networked_player_id;
+};
+
+bool On_Chat_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char* packet_data, size_t packet_len, struct Chat_Recv_Data* callback_data)
+{
+    // Chat packets start with a header followed by the chat string
+    struct P_Chat_Header* header = (struct P_Chat_Header*)packet_data;
+    char* text_pointer = packet_data + sizeof(struct P_Chat_Header);
+    unsigned int chat_length = strlen(text_pointer);
+    unsigned int max_prefix_length = 10;
+    char* prefixed_message_buffer = _malloca(chat_length + max_prefix_length);
+    unsigned int prefixed_message_length;
+
+    if (header->isServerMessage)
+    {
+        prefixed_message_length = sprintf(prefixed_message_buffer, "Server: %s", text_pointer);
+    }
+    else
+    {
+        unsigned int localEntityId = callback_data->game_data->networkIdEntityMap[header->networkId];
+        if (localEntityId == callback_data->networked_player_id)
+        {
+            prefixed_message_length = sprintf(prefixed_message_buffer, "You: %s", text_pointer);
+        }
+        else
+        {
+            prefixed_message_length = sprintf(prefixed_message_buffer, "Player %i: %s", header->networkId, text_pointer);
+        }
+
+        if (callback_data->current_input_snapshot->chat_messages_cached < 10)
+        {
+            struct Chat_Snapshot_Info* chat_snapshot = &(callback_data->current_input_snapshot->chat_cache[callback_data->current_input_snapshot->chat_messages_cached]);
+            chat_snapshot->entity_id = localEntityId;
+            strcpy(chat_snapshot->message, text_pointer);
+            callback_data->current_input_snapshot->chat_messages_cached++;
+        }
+    }
+
+    // Write the prefixed message to the chat history
+    Chat_History_Write(callback_data->game_data->chat_buffers, prefixed_message_buffer, prefixed_message_length);
+
+    return true;
+}
+
+struct Time_Sync_Recv_Data
+{
+    u_int64 client_time_ms
+};
+
+bool On_Time_Sync_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char* packet_data, size_t packet_len, struct Time_Sync_Recv_Data* callback_data)
+{
+    struct P_Server_Time* packetData = (struct P_Server_Time*)packet_data;
+    unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(net_mgr_src, callback_data->client_time_ms) - (net_mgr_src->serverPeer->roundTripTime / 2);
+    // TODO: packet loss is a fixed point number, convert to decimal notation before displaying
+    SDL_Log("Server time: %lu. Estimated server time when message sent: %lu. Server time diff: %li. Round trip time: %i. Packet Loss: %i", packetData->server_time_ms, estimated_server_time_ms, (long)((estimated_server_time_ms + 1000) -  packetData->server_time_ms) - 1000, Net_Get_Round_Trip_Time_Ms(net_mgr_src), Net_Get_Packet_Loss(net_mgr_src));
+    Net_Calculate_Server_Time_Offset(net_mgr_src, callback_data->client_time_ms, packetData->server_time_ms);
+
+    return true;
+}
+
 int main(int argc, char* args[])
 {
     char* address_string;
@@ -345,6 +574,11 @@ int main(int argc, char* args[])
 
     Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
 
+    // Packet recv callbacks
+    bool (*on_recv_callbacks[3])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data) = {
+        On_Packet_Received_Callback, On_Chat_Received_Callback, On_Time_Sync_Received_Callback
+    };
+
     bool client_side_prediction_enabled = true;
     bool client_side_interpolation_enabled = true;
 
@@ -369,240 +603,34 @@ int main(int argc, char* args[])
         uint64_t deltaTimeMs = currentFrameTimeMs - previousFrameTimeMs;
         float deltaTimeS = (float)deltaTimeMs / 1000;
 
-        // The input snapshot for this frame
-        //struct Input_Snapshot input_snapshot = {.client_time = currentFrameTimeMs, .chat_messages_cached = 0 };
-
-        //SDL_Log("Corrected client time: %lu", Net_Estimate_Server_Time(netManager, currentFrameTimeMs));
-
-        // TODO: move to netmanager? decouple?
-        while (enet_host_service(netManager->client, &event, 0) > 0)
+        struct Chat_Recv_Data
         {
-            switch (event.type)
-            {
-            case ENET_EVENT_TYPE_RECEIVE:
-            {
-                switch(event.channelID)
-                {
-                    case 0: // General packets
-                    {
-                        enum Packet_Type type = (enum Packet_Type) *(event.packet->data);
-                        switch(type)
-                        {
-                        case UPDATE:
-                        {
-                            // Update packets start with a header followed by an array of updates
-                            struct P_Update_Header* header = (struct P_Update_Header*)event.packet->data;
+            struct Game_Data* game_data;
+            Input_Snapshot_Buffer* input_queue;
+            struct Input_Snapshot* current_input_snapshot;
+            unsigned int networked_player_id;
+        };
+                
+        struct Time_Sync_Recv_Data
+        {
+            u_int64 client_time_ms;
+        };
 
-                            // When we receive an update header, revert to the state that was right before that in server time
-                            // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
-                            // TODO: Calculate how many frames we should replay based on latency and see if it matches up
-                            int going_back_frames = 0;
-                            //SDL_Log("Server time: %lu", header->server_time_ms);
-                            while(client_side_prediction_enabled == true && game_state_history_stack->buffer_size > 0)
-                            {
-                                // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
-                                struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(game_state_history_stack);
-                                going_back_frames++;
-                                // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it. look at the previous frame to make sure we are looking at the old
-                                uint64_t snapshot_estimated_server_time = Net_Estimate_Server_Time(netManager, state->client_time_ms);
-                                //SDL_Log("\tClient Estimated Server Time: %lu. Diff: %li", snapshot_estimated_server_time, (long)((snapshot_estimated_server_time + 1000) - header->server_time_ms) - 1000);
-                                if (game_state_history_stack->buffer_size == 0 || snapshot_estimated_server_time <= header->server_time_ms)
-                                {
-                                    void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
-                                    ECDB_Apply_Snapshot(gameData->ec, ecdb_state_snapshot);
-                                    // We have a new starting point, so clear state history
-                                    Ring_Stack_Clear(game_state_history_stack);
-                                    break;
-                                }
-                            }
+        struct Packet_Recv_Data packet_recv_data = {
+            .client_side_prediction_enabled = client_side_prediction_enabled, 
+            .game_state_history_stack = game_state_history_stack, 
+            .game_data = gameData, 
+            .input_queue = input_queue, 
+            .delta_time_s = deltaTimeS, 
+            .networked_player_id = networked_player
+        };
+        
+        struct Chat_Recv_Data chat_recv_data = {.game_data = gameData, .input_queue = input_queue, .current_input_snapshot = &input_snapshot, .networked_player_id = networked_player};
 
-                            // Calculate how many frames we expect to go back
-                            /*unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
-                            if (sim_frames_since_last_update != going_back_frames)
-                            {
-                                SDL_Log("Going back frames diverged: Sim frames since last update: %u. Frames going back: %u. Successes: %u", sim_frames_since_last_update, going_back_frames, successful_frames);
-                                successful_frames = 0;
-                            }
-                            else
-                            {
-                                successful_frames++;
-                            }
-                            sim_frames_at_last_update = sim_frames;*/
+        struct Time_Sync_Recv_Data time_sync_recv_data = {.client_time_ms = currentFrameTimeMs};
 
-                            // Record removals
-                            unsigned int* removal_buffer_ptr = (unsigned int*)(((char*)event.packet->data) + sizeof(struct P_Update_Header));
-                            for(unsigned int i = 0; i < header->removals_count; ++i)
-                            {
-                                unsigned int network_entity_to_remove = removal_buffer_ptr[i];
-                                Remove_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, network_entity_to_remove);
-                            }
-
-                            // Record updates
-                            struct P_Update_Entity_Data* update_buffer_ptr = (struct P_Update_Entity_Data*)(((char*)event.packet->data) + sizeof(struct P_Update_Header) + (header->removals_count * sizeof(unsigned int)));
-
-                            for(unsigned int i = 0; i < header->updates_count; ++i)
-                            {
-                                struct P_Update_Entity_Data update = update_buffer_ptr[i];
-                                if (gameData->networkIdEntityMap[update.networkId] == gameData->ec->invalidEntityId)
-                                {
-                                    // if we don't know about the entity, add it
-                                    unsigned int entityId;
-                                    char playerNameBuffer[10];
-                                    int strlen = sprintf(playerNameBuffer, "Player %i", update.networkId);
-                                    if (AddSquare(gameData->ec, &gameData->componentHandles, update.position, (SDL_FColor){0.5f, 0.5f, 0.5f, SDL_ALPHA_OPAQUE_FLOAT}, &entityId, playerNameBuffer))
-                                    {
-                                        // all incoming players will have transform interpolation
-                                        ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                        ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.last_server_position_handle);
-                                        ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.animation_instance_handle);
-                                        int* z_order = ECDB_EnableEntityComponent(gameData->ec, entityId, gameData->componentHandles.y_order_handle);
-
-                                        Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, entityId, update.networkId);
-                                        SDL_Log("Player joined at position %f,%f with network ID of %i. Assigned to entity ID %i", update.position.x,  update.position.y, update.networkId, entityId);
-                                    }
-                                    else
-                                    {
-                                        SDL_Log("Too many entities received from server. Disconnecting.");
-                                        goto disconnect;
-                                    }
-                                }
-
-                                int localEntityId = gameData->networkIdEntityMap[update.networkId];
-                                if(ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle))
-                                {
-                                    if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle))
-                                    {
-                                        // Unreliable packets are still sequenced, so we know this is the latest transform message
-                                        struct N_C_Transform_Interpolation_Buffer* trans_buf = (struct N_C_Transform_Interpolation_Buffer*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_interpolation_buffer_handle);
-                                        struct C_Transform* transform = (struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
-                                        struct N_C_Transform_Snapshot trans_snap = {.server_time = header->server_time_ms, .transform = *transform};
-                                        trans_snap.transform.position = update.position;
-                                        Interp_Buf_Add(trans_buf, trans_snap);
-                                    }
-                                    else
-                                    {
-                                        // If we aren't interpolating, write actor position directly
-                                        struct C_Transform* actorPosition = (struct C_Transform*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.transforms_handle);
-                                        actorPosition->position = update.position;
-                                    }
-
-                                    // record last position for debugging
-                                    if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.last_server_position_handle))
-                                    {
-                                        struct Vector2* lastposition = (struct Vector2*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.last_server_position_handle);
-                                        *lastposition = update.position;
-                                    }
-                                }
-
-                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.player_physics_2d_handle))
-                                {
-                                    struct C_Physics_2d* physics = (struct C_Physics_2d*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.player_physics_2d_handle);
-                                    physics->velocity = update.velocity;
-                                }
-
-                                if (ECDB_EntityHasComponent(gameData->ec, localEntityId, gameData->componentHandles.player_states_handle))
-                                {
-                                    struct C_Player_State* state = (struct C_Player_State*)ECDB_GetEntityComponent(gameData->ec, localEntityId, gameData->componentHandles.player_states_handle);
-                                    *state = update.state;
-                                }
-                            }
-
-                            // replay the same amount of input as missed frames. the input frame has already been played on the corresponding state frame
-                            // as they are both written to at the same time, buffer size will always be at least as big as going back frames.
-                            for(unsigned int i = input_queue->buffer_size - going_back_frames + 1; i < input_queue->buffer_size; ++i)
-                            {
-                                // Re-play any input captured after the last frame.
-                                struct Input_Snapshot input = Input_Buffer_Get_At(input_queue, i);
-
-                                // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
-                                float replay_delta_time_s = deltaTimeS;
-                                if (i != 0)
-                                {
-                                    // calculate delta time based on previous input time
-                                    float previous_frame_time_ms = Input_Buffer_Get_At(input_queue, i - 1).client_time;
-                                    replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
-                                }
-
-                                // TODO - instead of calling run_sim in two places in the main loop, put all input together and then play it out later?
-                                Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input, gameData->animations, networked_player, replay_delta_time_s);
-                            }
-
-                            break;
-                        }
-                        case SERVER_TIME:
-                        {
-                            struct P_Server_Time* packetData = (struct P_Server_Time*) event.packet->data;
-                            unsigned long estimated_server_time_ms = Net_Estimate_Server_Time(netManager, currentFrameTimeMs) - (netManager->serverPeer->roundTripTime / 2);
-                            // TODO: packet loss is a fixed point number, convert to decimal notation before displaying
-                            SDL_Log("Server time: %lu. Estimated server time when message sent: %lu. Server time diff: %li. Round trip time: %i. Packet Loss: %i", packetData->server_time_ms, estimated_server_time_ms, (long)((estimated_server_time_ms + 1000) -  packetData->server_time_ms) - 1000, event.peer->roundTripTime, event.peer->packetLoss);
-                            Net_Calculate_Server_Time_Offset(netManager, currentFrameTimeMs, packetData->server_time_ms);
-                            break;
-                        }
-                        default:
-                            printf ("Some weird packet of type %i\n", type);
-                            break;
-                        }
-
-                        break;
-                    }
-                    case 1: // Chat packets
-                    {
-                        // Chat packets start with a header followed by the chat string
-                        struct P_Chat_Header* header = (struct P_Chat_Header*)event.packet->data;
-                        char* text_pointer = ((char*)event.packet->data) + sizeof(struct P_Chat_Header);
-                        unsigned int chat_length = strlen(text_pointer);
-                        unsigned int max_prefix_length = 10;
-                        char* prefixed_message_buffer = _malloca(chat_length + max_prefix_length);
-                        unsigned int prefixed_message_length;
-
-                        if (header->isServerMessage)
-                        {
-                            prefixed_message_length = sprintf(prefixed_message_buffer, "Server: %s", text_pointer);
-                        }
-                        else
-                        {
-                            unsigned int localEntityId = gameData->networkIdEntityMap[header->networkId];
-                            if (localEntityId == networked_player)
-                            {
-                                prefixed_message_length = sprintf(prefixed_message_buffer, "You: %s", text_pointer);
-                            }
-                            else
-                            {
-                                prefixed_message_length = sprintf(prefixed_message_buffer, "Player %i: %s", header->networkId, text_pointer);
-                            }
-
-                            if (input_snapshot.chat_messages_cached < 10)
-                            {
-                                struct Chat_Snapshot_Info* chat_snapshot = &(input_snapshot.chat_cache[input_snapshot.chat_messages_cached]);
-                                chat_snapshot->entity_id = localEntityId;
-                                strcpy(chat_snapshot->message, text_pointer);
-                                input_snapshot.chat_messages_cached++;
-                            }
-                        }
-
-                        // Write the prefixed message to the chat history
-                        Chat_History_Write(gameData->chat_buffers, prefixed_message_buffer, prefixed_message_length);
-
-                        break;
-                    }
-                    default:
-                    {
-                        printf("Message received from server on unexpected channel %i\n", event.channelID);
-                        break;
-                    }
-                }
-
-                enet_packet_destroy (event.packet);
-                break;
-            }
-            case ENET_EVENT_TYPE_DISCONNECT:
-            {
-                SDL_Log("Disconnected from the server.");
-                netManager->connected = false;
-                break;
-            }
-            }
-        }
+        void* callback_data_arr[3] = { &packet_recv_data, &chat_recv_data, &time_sync_recv_data};
+        Net_Receive(netManager, on_recv_callbacks, callback_data_arr);
 
         sim_accumulator_s += deltaTimeS;
         while (sim_accumulator_s > targetSecPerFrame)

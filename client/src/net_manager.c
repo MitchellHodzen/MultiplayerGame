@@ -22,7 +22,7 @@ bool Net_Initialize(struct Net_Manager** netManager)
     }
 
     // Create a client to receive messages from the server with 1 outgoing connection, 2 channels, and unlimited incoming and outgoing bandwidth
-    (*netManager)->client = enet_host_create(NULL, 1, 2, 0, 0);
+    (*netManager)->client = enet_host_create(NULL, 1, 3, 0, 0);
     if ((*netManager)->client == NULL)
     {
         SDL_Log("Client Host Creation Failed");
@@ -80,7 +80,7 @@ bool Net_Join_Server(struct Net_Manager* netManager, ENetAddress* address, struc
     SDL_Log("Connecting to server at %x:%u.", address->host, address->port);
     
     // Initiate the connection, allocating the two channels 0 and 1.
-    netManager->serverPeer = enet_host_connect(netManager->client, address, 2, 0);    
+    netManager->serverPeer = enet_host_connect(netManager->client, address, 3, 0);    
     
     if (netManager->serverPeer == NULL)
     {
@@ -117,6 +117,44 @@ bool Net_Join_Server(struct Net_Manager* netManager, ENetAddress* address, struc
 
     // never received the join packet, return false
     return false;
+}
+
+// Todo: do not hardcode channels
+void Net_Receive(struct Net_Manager* netManager, bool (*on_recv[3])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data), void* callback_data[3])
+{
+    ENetEvent event;
+    while (enet_host_service(netManager->client, &event, 0) > 0 && netManager->connected)
+    {
+        switch (event.type)
+        {
+            case ENET_EVENT_TYPE_RECEIVE:
+            {
+                bool valid;
+                if (event.channelID <= 3)
+                {
+                    valid = on_recv[event.channelID](netManager, event.packet->data, event.packet->dataLength, callback_data[event.channelID]);
+                }
+                else
+                {
+                    printf("Message received from server on unexpected channel. Disconnecting %i\n", event.channelID);
+                    valid = false;
+                }
+
+                if (!valid)
+                {
+                    Net_Disconnect(netManager);
+                }
+
+                enet_packet_destroy(event.packet);
+                break;
+            }
+            case ENET_EVENT_TYPE_DISCONNECT:
+            {
+                SDL_Log("Disconnected from the server.");
+                Net_Disconnect(netManager);
+            }
+        }
+    }
 }
 
 void Net_Disconnect(struct Net_Manager* netManager)
@@ -160,6 +198,11 @@ uint64_t Net_Estimate_Server_Time(const struct Net_Manager* netManager, uint64_t
 uint64_t Net_Estimate_Client_Time(const struct Net_Manager* netManager, uint64_t server_time_ms)
 {
     return server_time_ms - netManager->server_time_offset_ms;
+}
+
+unsigned int Net_Get_Packet_Loss(const struct Net_Manager* netManager)
+{
+    return netManager->serverPeer->packetLoss;
 }
 
 unsigned int Net_Get_Round_Trip_Time_Ms(const struct Net_Manager* netManager)

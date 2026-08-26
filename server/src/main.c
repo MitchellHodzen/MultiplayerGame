@@ -189,7 +189,7 @@ int main(int argc, char* args[])
             // Send a time sync packet to all connected users. TODO: Update to send on a per-user basis as needed
             struct P_Server_Time time = {.type = SERVER_TIME, .server_time_ms = currentFrameTimeMs};
             ENetPacket * packet = enet_packet_create(&time, sizeof(struct P_Server_Time), 0);
-            enet_host_broadcast(server, 0, packet);
+            enet_host_broadcast(server, 2, packet);
 
             // reset accumulator
             time_packet_accumulator_s = 0;
