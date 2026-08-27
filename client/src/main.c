@@ -28,10 +28,10 @@
 #include "system_physics.h"
 #include "system_interpolation.h"
 #include "input_buffer.h"
-#include "ring_stack.h"
 #include "system_player_state_machine.h"
 #include "component_animation.h"
 #include "camera.h"
+#include "stack.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -124,9 +124,9 @@ struct Game_State_Snapshot
     uint64_t client_time_ms;
 };
 
-void Save_State_History(struct ECDB* ecdb, struct Ring_Stack* game_state_history_stack, uint64_t client_time_ms)
+void Save_State_History(struct ECDB* ecdb, struct Ring_Buffer* game_state_history_stack, uint64_t client_time_ms)
 {
-    struct Game_State_Snapshot* snapshot = Ring_Stack_Push(game_state_history_stack);
+    struct Game_State_Snapshot* snapshot = Ring_Buffer_Get_Next(game_state_history_stack);
     snapshot->client_time_ms = client_time_ms;
 
     // Snapshot data is after the struct header
@@ -192,7 +192,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
 struct Packet_Recv_Data
 {
     bool client_side_prediction_enabled;
-    struct Ring_Stack* game_state_history_stack;
+    struct Ring_Buffer* game_state_history_stack;
     struct Game_Data* game_data;
     Input_Snapshot_Buffer* input_queue;
     float delta_time_s;
@@ -217,7 +217,7 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
         while(callback_data->client_side_prediction_enabled == true && callback_data->game_state_history_stack->buffer_size > 0)
         {
             // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
-            struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Stack_Pop(callback_data->game_state_history_stack);
+            struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Buffer_Pop(callback_data->game_state_history_stack);
             going_back_frames++;
             // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it. look at the previous frame to make sure we are looking at the old
             uint64_t snapshot_estimated_server_time = Net_Estimate_Server_Time(net_mgr_src, state->client_time_ms);
@@ -227,7 +227,7 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
                 void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
                 ECDB_Apply_Snapshot(callback_data->game_data->ec, ecdb_state_snapshot);
                 // We have a new starting point, so clear state history
-                Ring_Stack_Clear(callback_data->game_state_history_stack);
+                Ring_Buffer_Clear(callback_data->game_state_history_stack);
                 break;
             }
         }
@@ -420,6 +420,24 @@ bool On_Time_Sync_Received_Callback(struct Net_Manager* net_mgr_src, unsigned ch
 
 int main(int argc, char* args[])
 {
+    SDL_Log("stack Test");
+    size_t stack_size = Stack_Calculate_Required_Memory(sizeof(int), 5);
+    struct Stack* stack = malloc(stack_size);
+    Stack_Init(stack, sizeof(int), 5);
+    for(int i = 0; i < 5; ++i)
+    {
+        SDL_Log("Pushing %i", i);
+        *(int*)Stack_Push(stack) = i;
+        SDL_Log("\tPeeking %i", *(int*)Stack_Peek(stack));
+    }
+    for(int i = 0; i < 5; ++i)
+    {
+        int* val = Stack_Pop(stack);
+        SDL_Log("popped %i", *val);
+    }
+
+
+
     char* address_string;
     if (argc > 1)
     {
@@ -564,8 +582,8 @@ int main(int argc, char* args[])
 
     // Game state snapshot is the snapshot struct + the actual game state
     size_t ecdb_snapshot_size = ECDB_Snapshot_Size(gameData->ec);
-    size_t game_state_ring_stack_size = Ring_Stack_Calculate_Required_Memory(sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
-    struct Ring_Stack* game_state_history_stack = calloc(1, game_state_ring_stack_size);
+    size_t game_state_ring_stack_size = Ring_Buffer_Calculate_Required_Memory(sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
+    struct Ring_Buffer* game_state_history_stack = calloc(1, game_state_ring_stack_size);
     if (game_state_history_stack == NULL)
     {
         // couldn't instantiate game state history
@@ -573,10 +591,10 @@ int main(int argc, char* args[])
         return 1;
     }
 
-    Ring_Stack_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
+    Ring_Buffer_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
 
     // Packet recv callbacks
-    bool (*on_recv_callbacks[NETWORKING_CHANNELS])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data) = {
+    bool (*const on_recv_callbacks[NETWORKING_CHANNELS])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data) = {
         On_Packet_Received_Callback, On_Chat_Received_Callback, On_Time_Sync_Received_Callback
     };
 
@@ -603,19 +621,6 @@ int main(int argc, char* args[])
         // TODO: change all delta time usage from seconds to miliseconds to avoid floating points?
         uint64_t deltaTimeMs = currentFrameTimeMs - previousFrameTimeMs;
         float deltaTimeS = (float)deltaTimeMs / 1000;
-
-        struct Chat_Recv_Data
-        {
-            struct Game_Data* game_data;
-            Input_Snapshot_Buffer* input_queue;
-            struct Input_Snapshot* current_input_snapshot;
-            unsigned int networked_player_id;
-        };
-                
-        struct Time_Sync_Recv_Data
-        {
-            u_int64 client_time_ms;
-        };
 
         struct Packet_Recv_Data packet_recv_data = {
             .client_side_prediction_enabled = client_side_prediction_enabled, 

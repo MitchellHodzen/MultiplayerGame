@@ -9,9 +9,14 @@ size_t Ring_Buffer_Calculate_Required_Memory(size_t element_size, unsigned int m
 void Ring_Buffer_Init(struct Ring_Buffer* buffer, size_t element_size, unsigned int max_buffer_size)
 {    
     buffer->buffer_max_size = max_buffer_size;
+    buffer->element_size = element_size;
+    Ring_Buffer_Clear(buffer);
+}
+
+void Ring_Buffer_Clear(struct Ring_Buffer* buffer)
+{
     buffer->buffer_size = 0;
     buffer->_write_index = 0;
-    buffer->element_size = element_size;
 }
 
 static void* Get_Buffer_Start(const struct Ring_Buffer* buffer)
