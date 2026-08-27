@@ -23,7 +23,7 @@ void* Queue_Push(struct Queue* queue)
 
 void* Queue_Peek(const struct Queue* queue)
 {
-    return Ring_Buffer_Get_At(&queue->_buffer, queue->_buffer.buffer_size - 1);
+    return Ring_Buffer_Get_At(&queue->_buffer, 0);
 }
 
 void* Queue_Pop(struct Queue* queue)

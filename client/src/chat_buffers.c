@@ -48,8 +48,6 @@ bool Chat_Initialize(struct Chat_Buffers** chat_buffers, unsigned int max_chat_s
 
 char* Chat_Get_Message_At(struct Chat_Buffers* chat_buffers, unsigned int chat_history_index)
 {
-    // Chat messages are inverted - the oldest message is at position 0
-    chat_history_index =  (chat_buffers->chat_history_buffer->buffer_size - 1) - chat_history_index;
     return (char*)Ring_Buffer_Get_At(chat_buffers->chat_history_buffer, chat_history_index);
 }
 

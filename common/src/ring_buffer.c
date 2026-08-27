@@ -48,12 +48,11 @@ void* Ring_Buffer_Get_Next(struct Ring_Buffer* buffer)
 
 void* Ring_Buffer_Get_At(const struct Ring_Buffer* buffer, unsigned int index)
 {
-    // To flip do index =  (buffer->buffer_size - 1) - index;
     // write index is always one ahead of start, so start is write index - 1. Offset by max buffer size so won't go negative in next step
     unsigned int start_index = buffer->buffer_max_size - 1 + buffer->_write_index;
 
     // Offset the index based on the start index
-    index = start_index - index; 
+    index = start_index - ((buffer->buffer_size - 1) - index); 
 
     // Don't let index overflow
     index -= buffer->buffer_max_size * (index >= buffer->buffer_max_size);
@@ -68,7 +67,7 @@ void* Ring_Buffer_Pop(struct Ring_Buffer* buffer)
         return NULL;
     }
 
-    void* retval = Ring_Buffer_Get_At(buffer, 0);
+    void* retval = Ring_Buffer_Get_At(buffer, buffer->buffer_size - 1);
     buffer->buffer_size--;
 
     // decrement the write index without allowing underflow
@@ -85,5 +84,7 @@ void* Ring_Buffer_Dequeue(struct Ring_Buffer* buffer)
         return NULL;
     }
 
-    return Ring_Buffer_Get_At(buffer, --buffer->buffer_size);
+    void* retval = Ring_Buffer_Get_At(buffer, 0);
+    buffer->buffer_size--;
+    return retval;
 }
