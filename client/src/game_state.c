@@ -12,15 +12,24 @@
 #include "utf8_helper.h"
 #include "component_animation.h"
 #include "camera.h"
+#include "component_metadata.h"
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount, unsigned int max_chat_size)
 {
-    if (!ECDB_Init(ecdb, entityCount, 14))
+    if (!ECDB_Init(ecdb, entityCount, 15))
     {
         SDL_Log("Couldn't initialize component DB");
         return false;
     }
     
+    struct C_Game_Metadata default_metadata = {.client_side_interpolation_enabled = true, .client_side_prediction_enabled = true};
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Game_Metadata), &(componentHandles->game_metadata_handle), &default_metadata))
+    {
+        SDL_Log("Couldn't initialize game metadata component");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
     struct C_Transform defaultTransform = {.parent_id = (*ecdb)->invalidEntityId};
     if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Transform), &(componentHandles->transforms_handle), &defaultTransform))
     {

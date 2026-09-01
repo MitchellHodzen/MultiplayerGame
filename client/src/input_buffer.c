@@ -32,3 +32,21 @@ void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot)
 {
     memset(input_snapshot, 0, sizeof(struct Input_Snapshot));
 }
+
+bool Input_Snapshot_Push_Command(struct Input_Snapshot* snapshot, struct Command_Entry command)
+{
+    if (snapshot->command_cnt >= EVENT_BUF_SIZE)
+    {
+        return false;
+    }
+
+    snapshot->command_queue[snapshot->command_cnt++] = command;
+    return true;
+}
+
+unsigned int Input_Snapshot_Save_Keyboard_State(struct Input_Snapshot* snapshot, bool* keyboard_state, size_t keyboard_state_len)
+{
+    memcpy(snapshot->keyboard_state, keyboard_state, keyboard_state_len);
+    // Any keyboard state over and above the max keyboard size would get thrown out
+    return keyboard_state_len - MAX_KEYBOARD_SIZE;
+}

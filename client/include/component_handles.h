@@ -3,6 +3,7 @@
 
 struct Component_Handles
 {
+    int game_metadata_handle;
     int network_id_handle;
     int transforms_handle;
     int transforms_interpolation_buffer_handle;

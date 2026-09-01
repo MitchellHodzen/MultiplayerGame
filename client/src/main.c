@@ -4,6 +4,7 @@
 #include <SDL3/SDL.H>
 #include <SDL3/SDL_main.h>
 #include <SDL3_ttf/SDL_ttf.h>
+#include <assert.h>
 #include "ecdb.h"
 #include "vector2.h"
 #include "system_render.h"
@@ -32,6 +33,7 @@
 #include "component_animation.h"
 #include "camera.h"
 #include "stack.h"
+#include "component_metadata.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -53,8 +55,52 @@ struct Vector2 Get_Direction_From_Input_State()
     return (struct Vector2) {.x = -(keyboardStates[SDL_SCANCODE_A]) + keyboardStates[SDL_SCANCODE_D], .y = -(keyboardStates[SDL_SCANCODE_W]) + keyboardStates[SDL_SCANCODE_S]};
 }
 
-enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event)
+enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_Snapshot* input_snapshot)
 {
+    if ((event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) && event->key.repeat == 0)
+    {
+        struct Command_Entry cmnd = {.pressed = event->type == SDL_EVENT_KEY_DOWN};
+
+        switch(event->key.scancode)
+        {
+            case SDL_SCANCODE_1:
+                cmnd.command = TOGGLE_PREDICTION;
+                break;
+            case SDL_SCANCODE_2:
+                cmnd.command = TOGGLE_INTERPOLATION;
+                break;
+            case SDL_SCANCODE_RETURN:
+                cmnd.command = START_CHAT;
+                break;
+            case SDL_SCANCODE_W:
+                cmnd.command = MOVE_UP;
+                break;
+            case SDL_SCANCODE_S:
+                cmnd.command = MOVE_DOWN;
+                break;
+            case SDL_SCANCODE_A:
+                cmnd.command = MOVE_LEFT;
+                break;
+            case SDL_SCANCODE_D:
+                cmnd.command = MOVE_RIGHT;
+                break;
+            default:
+                cmnd.command = UNDETERMINED;
+                break;
+        }
+
+        // Write the command to the snapshot if its valid
+        if (cmnd.command != UNDETERMINED)
+        {
+            bool event_recorded = Input_Snapshot_Push_Command(input_snapshot, cmnd);
+            if (event_recorded == false)
+            {
+                SDL_Log("Could not record input event");
+            }
+        }
+    }
+
+    // Old event code
     if( event->type == SDL_EVENT_KEY_DOWN && event->key.repeat == 0)
     {
         // If enter clicked, change context to text context
@@ -136,6 +182,18 @@ void Save_State_History(struct ECDB* ecdb, struct Ring_Buffer* game_state_histor
 
 void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Component_Handles* component_handles, struct Input_Snapshot* input, struct Animation* animations, unsigned int player_id, float delta_time_s)
 {
+    // Get a reference to the game metadata
+    // TODO: Just pass it rather than trust it exists
+    struct C_Game_Metadata* game_metadata = NULL;
+    for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+    {
+        if(ECDB_EntityHasComponent(ecdb, i, component_handles->game_metadata_handle))
+        {
+            game_metadata = ECDB_GetEntityComponent(ecdb, i, component_handles->game_metadata_handle);
+        }
+    }
+    assert(game_metadata != NULL);
+
     // If any texts were received this frame, add them back
     for(unsigned int i = 0; i < input->chat_messages_cached; ++i)
     {
@@ -146,34 +204,51 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
         }
     }
 
-    // if prediction was toggled, add or remove physics
-    if (input->prediction_toggled_off == true)
+    // analyze input
+    for (unsigned int i = 0; i < input->command_cnt; ++i)
     {
-        // if prediction was disabled, disable by removing the physics component from the player
-        ECDB_DisableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
-    }
-    else if (input->prediction_toggled_on == true)
-    {
-        // If prediction was enabled, enable by adding a default physics component to the player
-        ECDB_EnableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
-    }
-
-    if (input->interpolation_toggled_off == true)
-    {
-        // Disable all interpolation buffers; if the entity doesn't have one, nothing happens
-        for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+        struct Command_Entry cmnd = input->command_queue[i];
+        if (cmnd.pressed == true)
         {
-            ECDB_DisableEntityComponent(ecdb, i, component_handles->transforms_interpolation_buffer_handle);
-        }
-    }
-    else if (input->interpolation_toggled_on == true)
-    {
-        // Enable interpolation by adding an interpolation buffer to every networked transform (ignore the player as a special case)
-        for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
-        {
-            if (i != player_id && ECDB_EntityHasComponent(ecdb, i, component_handles->network_id_handle) && ECDB_EntityHasComponent(ecdb, i, component_handles->transforms_handle))
+            if (cmnd.command == TOGGLE_INTERPOLATION)
             {
-                ECDB_EnableEntityComponent(ecdb, i, component_handles->transforms_interpolation_buffer_handle);
+                // Determine if interpolation is enabled or disabled
+                if (game_metadata->client_side_interpolation_enabled == true)
+                {
+                    // Disable all interpolation buffers; if the entity doesn't have one, nothing happens
+                    for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+                    {
+                        ECDB_DisableEntityComponent(ecdb, i, component_handles->transforms_interpolation_buffer_handle);
+                    }
+                }
+                else
+                {
+                    // Enable interpolation by adding an interpolation buffer to every networked transform (ignore the player as a special case)
+                    for(unsigned int i = 0; i < ecdb->_maxEntities; ++i)
+                    {
+                        if (i != player_id && ECDB_EntityHasComponent(ecdb, i, component_handles->network_id_handle) && ECDB_EntityHasComponent(ecdb, i, component_handles->transforms_handle))
+                        {
+                            ECDB_EnableEntityComponent(ecdb, i, component_handles->transforms_interpolation_buffer_handle);
+                        }
+                    }
+                }
+
+                game_metadata->client_side_interpolation_enabled = !game_metadata->client_side_interpolation_enabled;
+            }
+            else if (cmnd.command == TOGGLE_PREDICTION)
+            {
+                if (game_metadata->client_side_prediction_enabled == true)
+                {
+                    // if prediction was disabled, disable by removing the physics component from the player
+                    ECDB_DisableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
+                }
+                else
+                {
+                    // If prediction was enabled, enable by adding a default physics component to the player
+                    ECDB_EnableEntityComponent(ecdb, player_id, component_handles->player_physics_2d_handle);
+                }
+
+                game_metadata->client_side_prediction_enabled = !game_metadata->client_side_prediction_enabled;
             }
         }
     }
@@ -420,24 +495,6 @@ bool On_Time_Sync_Received_Callback(struct Net_Manager* net_mgr_src, unsigned ch
 
 int main(int argc, char* args[])
 {
-    SDL_Log("stack Test");
-    size_t stack_size = Stack_Calculate_Required_Memory(sizeof(int), 5);
-    struct Stack* stack = malloc(stack_size);
-    Stack_Init(stack, sizeof(int), 5);
-    for(int i = 0; i < 5; ++i)
-    {
-        SDL_Log("Pushing %i", i);
-        *(int*)Stack_Push(stack) = i;
-        SDL_Log("\tPeeking %i", *(int*)Stack_Peek(stack));
-    }
-    for(int i = 0; i < 5; ++i)
-    {
-        int* val = Stack_Pop(stack);
-        SDL_Log("popped %i", *val);
-    }
-
-
-
     char* address_string;
     if (argc > 1)
     {
@@ -509,6 +566,15 @@ int main(int argc, char* args[])
         SDL_Log("Game Data Initialization Failed");
         return 1;
     }
+
+    unsigned int game_metadata_id;
+    if (ECDB_CreateEntity(gameData->ec, &game_metadata_id) == false)
+    {
+        SDL_Log("Couldn't create game metadata");
+        goto disconnect;
+    }
+
+    struct C_Game_Metadata* game_metadata = ECDB_EnableEntityComponent(gameData->ec, game_metadata_id, gameData->componentHandles.game_metadata_handle);
 
     unsigned int networked_player;
     SDL_Log("Adding square at position %f, %f", joinGamePacket.position.x, joinGamePacket.position.y);
@@ -598,20 +664,13 @@ int main(int argc, char* args[])
         On_Packet_Received_Callback, On_Chat_Received_Callback, On_Time_Sync_Received_Callback
     };
 
-    bool client_side_prediction_enabled = true;
-    bool client_side_interpolation_enabled = true;
-
     float targetSecPerFrame = (1.0f / (float)60 );
     float sim_accumulator_s = 0;
 
     unsigned int sim_frames = 0;
-    unsigned int sim_frames_at_last_update = 0;
-    unsigned int successful_frames = 0;
 
     struct Input_Snapshot input_snapshot;
     Input_Snapshot_Init(&input_snapshot);
-
-    unsigned int last_checked = 0;
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -623,7 +682,7 @@ int main(int argc, char* args[])
         float deltaTimeS = (float)deltaTimeMs / 1000;
 
         struct Packet_Recv_Data packet_recv_data = {
-            .client_side_prediction_enabled = client_side_prediction_enabled, 
+            .client_side_prediction_enabled = game_metadata->client_side_prediction_enabled, 
             .game_state_history_stack = game_state_history_stack, 
             .game_data = gameData, 
             .input_queue = input_queue, 
@@ -664,41 +723,8 @@ int main(int argc, char* args[])
                     Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, targetSecPerFrame);
                 }
                 else if (command_context == COMMAND_STANDARD)
-                {
-                    if( e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0)
-                    {
-                        // If 1 clicked, turn client side prediction off
-                        if (e.key.key == SDLK_1)
-                        {
-                            if (client_side_prediction_enabled == true)
-                            {
-                                input_snapshot.prediction_toggled_off = true;
-                            }
-                            else
-                            {
-                                input_snapshot.prediction_toggled_on = true;
-                            }
-
-                            client_side_prediction_enabled = !client_side_prediction_enabled;
-                        }
-
-                        // If 2 clicked, turn off client side interpolation
-                        if (e.key.key == SDLK_2)
-                        {
-                            if (client_side_interpolation_enabled == true)
-                            {
-                                input_snapshot.interpolation_toggled_off = true;
-                            }
-                            else
-                            {
-                                input_snapshot.interpolation_toggled_on = true;
-                            }
-
-                            client_side_interpolation_enabled = !client_side_interpolation_enabled;
-                        }
-                    }
-                    
-                    command_context = Handle_Standard_Input_Event(&e);
+                {                    
+                    command_context = Handle_Standard_Input_Event(&e, &input_snapshot);
                     if (command_context != COMMAND_STANDARD)
                     {
                         // If the context changed, stop movement
@@ -743,6 +769,9 @@ int main(int argc, char* args[])
             // Handle keyboard state
             if (command_context == COMMAND_STANDARD)
             {
+                int num_keys;
+                const bool* keyboard_states = SDL_GetKeyboardState(&num_keys);
+                Input_Snapshot_Save_Keyboard_State(&input_snapshot, keyboard_states, num_keys);
                 struct Vector2 newDirection = Get_Direction_From_Input_State();
 
                 if (direction.x != newDirection.x || direction.y != newDirection.y)
@@ -798,7 +827,7 @@ int main(int argc, char* args[])
         s_render_server_ghost(gameData->ec, camera_id, gameData->componentHandles.transforms_handle, gameData->componentHandles.last_server_position_handle, gameData->componentHandles.animation_instance_handle, gameData->animations, window_state->spritesheet, window_state->renderer);
         s_render(gameData->ec, camera_id, &gameData->componentHandles, gameData->animations, window_state->spritesheet, gameData->chat_buffers->_buffer_size, window_state->font, window_state->textEngine, window_state->renderer);        
 
-        Clay_RenderCommandArray renderCommands = Build_UI(gameData, command_context == COMMAND_CHAT, client_side_prediction_enabled, client_side_interpolation_enabled, deltaTimeS, netManager->serverPeer->roundTripTime);
+        Clay_RenderCommandArray renderCommands = Build_UI(gameData, command_context == COMMAND_CHAT, game_metadata->client_side_prediction_enabled, game_metadata->client_side_interpolation_enabled, deltaTimeS, netManager->serverPeer->roundTripTime);
         Clay_SDL3RendererData renderData = {.renderer = window_state->renderer, .textEngine = window_state->textEngine, .fonts = &window_state->font};
         SDL_Clay_RenderClayCommands(&renderData, &renderCommands);
 
