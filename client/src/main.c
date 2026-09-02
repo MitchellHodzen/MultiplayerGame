@@ -42,6 +42,7 @@
 #define LEVEL_WIDTH 1000
 #define LEVEL_HEIGHT 1000
 #define NETWORKING_CHANNELS 3
+#define STATE_BUFFER_SIZE 10
 
 enum Command_Contex
 {
@@ -114,7 +115,7 @@ enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_S
     return COMMAND_STANDARD;
 }
 
-enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, struct Chat_Buffers* chat_buffers, bool* charWritten)
+enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, struct Chat_Buffers* chat_buffers)
 {
     if( event->type == SDL_EVENT_KEY_DOWN)
     {
@@ -130,7 +131,7 @@ enum Command_Contex Handle_Chat_Input_Event(SDL_Event* event, struct Chat_Buffer
     }
     else if (event->type == SDL_EVENT_TEXT_INPUT)
     {
-        *charWritten = Chat_Try_Write_To_Input(chat_buffers, event->text.text, strlen(event->text.text));
+        Chat_Try_Write_To_Input(chat_buffers, event->text.text, strlen(event->text.text));
     }
 
     // if here, no change in context
@@ -306,6 +307,8 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
                 break;
             }
         }
+
+        SDL_Log("Going back frames: %i", going_back_frames);
 
         // Calculate how many frames we expect to go back
         /*unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
@@ -567,15 +570,16 @@ int main(int argc, char* args[])
         return 1;
     }
 
+    // Create game metadata entity
     unsigned int game_metadata_id;
     if (ECDB_CreateEntity(gameData->ec, &game_metadata_id) == false)
     {
         SDL_Log("Couldn't create game metadata");
         goto disconnect;
     }
-
     struct C_Game_Metadata* game_metadata = ECDB_EnableEntityComponent(gameData->ec, game_metadata_id, gameData->componentHandles.game_metadata_handle);
 
+    // Create player
     unsigned int networked_player;
     SDL_Log("Adding square at position %f, %f", joinGamePacket.position.x, joinGamePacket.position.y);
     if (!AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &networked_player, "You"))
@@ -583,28 +587,14 @@ int main(int argc, char* args[])
         SDL_Log("Failed to create player, disconnecting");
         goto disconnect;
     }
-
     struct C_Input* entityInput = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.inputs_handle);
     entityInput->speed=300;
-
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.player_physics_2d_handle);
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.animation_instance_handle);
     ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.last_server_position_handle);
-
-    int* player_z_order = ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.y_order_handle);
-
-    //ECDB_DisableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.colors_handle);
-
-    /*unsigned int local_player;
-    if (AddSquare(gameData->ec, &gameData->componentHandles, joinGamePacket.position, (SDL_FColor){1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT}, &local_player, "local"))
-    {
-        struct C_Input* input = ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.inputs_handle);
-        input->speed=300;
-
-        ECDB_EnableEntityComponent(gameData->ec, local_player, gameData->componentHandles.player_physics_2d_handle);
-    }
-    ECDB_DisableEntityComponent(gameData->ec, local_player, gameData->componentHandles.colors_handle);*/
-
+    ECDB_EnableEntityComponent(gameData->ec, networked_player, gameData->componentHandles.y_order_handle);
+    Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
+    SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
 
     // create camera
     unsigned int camera_id;
@@ -619,9 +609,7 @@ int main(int argc, char* args[])
     camera_component->height = SCREEN_HEIGHT;
     camera_component->target_id = networked_player;
 
-    Add_Networked_Entity(gameData, gameData->ec, gameData->componentHandles.network_id_handle, networked_player, joinGamePacket.network_id);
-    SDL_Log("Successfully joined at position %f,%f with network ID of %i", joinGamePacket.position.x,  joinGamePacket.position.y, joinGamePacket.network_id);
-
+    // Scenery
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {0.0f, 0.0f});
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {LEVEL_WIDTH, LEVEL_HEIGHT});
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {0, LEVEL_HEIGHT});
@@ -634,15 +622,24 @@ int main(int argc, char* args[])
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {450.0f, 632.0f});
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {350.0f, 900.0f});
 
-    struct Vector2 direction = {.x = 0, .y = 0};
-    SDL_Event e;
+    // Input since the last sim frame
+    struct Input_Snapshot input_snapshot;
+    Input_Snapshot_Init(&input_snapshot);
+
+    // Timekeeping
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
-    ENetEvent event;
-    enum Command_Contex command_context = COMMAND_STANDARD;
+    float sim_target_s_per_frame = (1.0f / (float)60 );
+    float sim_accumulator_s = 0;
+    unsigned int sim_frames = 0;
+
+    // Packet recv callbacks
+    bool (*const on_recv_callbacks[NETWORKING_CHANNELS])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data) = {
+        On_Packet_Received_Callback, On_Chat_Received_Callback, On_Time_Sync_Received_Callback
+    };
 
     // TODO: Move prediction logic elsewhere, only here temporarily
-    unsigned int history_frames_to_save = 2000;
+    unsigned int history_frames_to_save = STATE_BUFFER_SIZE;
     Input_Snapshot_Buffer* input_queue;
     Input_Buffer_Init(&input_queue, history_frames_to_save);
 
@@ -656,21 +653,11 @@ int main(int argc, char* args[])
         SDL_Log("cant alloc state history buffer");
         return 1;
     }
-
     Ring_Buffer_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
-
-    // Packet recv callbacks
-    bool (*const on_recv_callbacks[NETWORKING_CHANNELS])(struct Net_Manager* net_mgr_src, unsigned char* data, size_t data_len, void* callback_data) = {
-        On_Packet_Received_Callback, On_Chat_Received_Callback, On_Time_Sync_Received_Callback
-    };
-
-    float targetSecPerFrame = (1.0f / (float)60 );
-    float sim_accumulator_s = 0;
-
-    unsigned int sim_frames = 0;
-
-    struct Input_Snapshot input_snapshot;
-    Input_Snapshot_Init(&input_snapshot);
+    
+    struct Vector2 direction = {.x = 0, .y = 0};
+    SDL_Event e;
+    enum Command_Contex command_context = COMMAND_STANDARD;
 
     SDL_Log("Starting game loop");
     while(quit == false)
@@ -698,7 +685,7 @@ int main(int argc, char* args[])
         Net_Receive(netManager, on_recv_callbacks, callback_data_arr, NETWORKING_CHANNELS);
 
         sim_accumulator_s += deltaTimeS;
-        while (sim_accumulator_s > targetSecPerFrame)
+        while (sim_accumulator_s > sim_target_s_per_frame)
         {
             bool directionChanged = false;
 
@@ -720,49 +707,48 @@ int main(int argc, char* args[])
                 }
                 else if (e.type == SDL_EVENT_MOUSE_WHEEL)
                 {
-                    Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, targetSecPerFrame);
+                    Clay_UpdateScrollContainers(true, (Clay_Vector2) { e.wheel.x, e.wheel.y }, sim_target_s_per_frame);
                 }
-                else if (command_context == COMMAND_STANDARD)
-                {                    
-                    command_context = Handle_Standard_Input_Event(&e, &input_snapshot);
-                    if (command_context != COMMAND_STANDARD)
-                    {
-                        // If the context changed, stop movement
-                        if (direction.x != 0 || direction.y != 0)
-                        {
-                            directionChanged = true;
-                            direction.x = 0;
-                            direction.y = 0;
-                        }
 
-                        if (command_context == COMMAND_CHAT)
-                        {
-                            SDL_StartTextInput(window_state->window);
-                        }
-                    }
-                }
-                else if (command_context == COMMAND_CHAT)
+                // Game state input delegation
+                switch(command_context)
                 {
-                    bool charWritten = false;
-                    command_context = Handle_Chat_Input_Event(&e, gameData->chat_buffers, &charWritten);
-                    if (command_context != COMMAND_CHAT)
-                    {
-                        // If we've stopped chatting, send the chat packet
-                        int messageSize = (sizeof(char) * gameData->chat_buffers->_input_cursor) + 1; // Size is number of characters + the null termination character
-                        ENetPacket* chatPacket = enet_packet_create(gameData->chat_buffers->chat_input_buffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
-                        enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
+                    case COMMAND_STANDARD:
+                        command_context = Handle_Standard_Input_Event(&e, &input_snapshot);
+                        if (command_context != COMMAND_STANDARD)
+                        {
+                            // If the context changed, stop movement
+                            if (direction.x != 0 || direction.y != 0)
+                            {
+                                directionChanged = true;
+                                direction.x = 0;
+                                direction.y = 0;
+                            }
 
-                        // reset the buffer
-                        Chat_Reset_Input_Buffer(gameData->chat_buffers);
+                            if (command_context == COMMAND_CHAT)
+                            {
+                                SDL_StartTextInput(window_state->window);
+                            }
+                        }
+                        break;
+                    case COMMAND_CHAT:
+                        command_context = Handle_Chat_Input_Event(&e, gameData->chat_buffers);
+                        if (command_context != COMMAND_CHAT)
+                        {
+                            // If we've stopped chatting, send the chat packet
+                            int messageSize = (sizeof(char) * gameData->chat_buffers->_input_cursor) + 1; // Size is number of characters + the null termination character
+                            ENetPacket* chatPacket = enet_packet_create(gameData->chat_buffers->chat_input_buffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
+                            enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
 
-                        printf("\n");
-                        SDL_StopTextInput(window_state->window);
-                    }
-                    else if (charWritten)
-                    {
-                        // If still chatting, write the recent character to the console
-                        printf("%c", gameData->chat_buffers->chat_input_buffer[gameData->chat_buffers->_input_cursor - 1]); // Chat cursor is always at current char + 1
-                    }
+                            // reset the buffer
+                            Chat_Reset_Input_Buffer(gameData->chat_buffers);
+
+                            printf("\n");
+                            SDL_StopTextInput(window_state->window);
+                        }
+                        break;
+                    default:
+                        break;
                 }
             }
 
@@ -804,8 +790,7 @@ int main(int argc, char* args[])
             
             input_snapshot.client_time = currentFrameTimeMs;
 
-            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, gameData->animations, networked_player, targetSecPerFrame);
-            //Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, networked_player, deltaTimeS);
+            Run_Sim(gameData->ec, netManager, &(gameData->componentHandles), &input_snapshot, gameData->animations, networked_player, sim_target_s_per_frame);
             
             // save state
             Input_Buffer_Put(input_queue, input_snapshot);
@@ -817,7 +802,7 @@ int main(int argc, char* args[])
             sim_frames++;
 
             // pull back the accumulator
-            sim_accumulator_s -= targetSecPerFrame;
+            sim_accumulator_s -= sim_target_s_per_frame;
         }
 
         // Clear previous render before drawing
