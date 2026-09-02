@@ -101,13 +101,27 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
     }
 
     // For both component arrays add one extra for the invalid entity
-    void* componentArray = calloc(ecdb->_maxEntities + 1, componentSize);
-    if (componentArray == NULL)
+    // Only allocate a component array if there is actual data to save. If not, simply keep it a null pointer. user should know not to use it.
+    void* componentArray = NULL;
+    if (componentSize > 0)
     {
-        // couldn't instantiate the component array
-        *componentHandle = ecdb->invalidComponentId;
-        return false;
+        componentArray = calloc(ecdb->_maxEntities + 1, componentSize);
+        if (componentArray == NULL)
+        {
+            // couldn't instantiate the component array
+            *componentHandle = ecdb->invalidComponentId;
+            return false;
+        }
+
+        // If there is a default value provided, save it
+        if (defaultValue != NULL)
+        {
+            // Store the default value at the invalid entity, as that should never change
+            void* comp = ((char*)componentArray) + (ecdb->invalidEntityId * componentSize);
+            memcpy(comp, defaultValue, componentSize);
+        }
     }
+
     bool* componentValidArray = (bool*) calloc(ecdb->_maxEntities + 1, sizeof(bool));
     if (componentValidArray == NULL)
     {
@@ -115,14 +129,6 @@ bool ECDB_RegisterComponent(struct ECDB* ecdb, size_t componentSize, int* compon
         free(componentArray); // Since we created the component array, but total initialization failed, free it
         *componentHandle = ecdb->invalidComponentId;
         return false;
-    }
-
-    // If there is a default value provided, save it
-    if (defaultValue != NULL)
-    {
-        // Store the default value at the invalid entity, as that should never change
-        void* comp = ((char*)componentArray) + (ecdb->invalidEntityId * componentSize);
-        memcpy(comp, defaultValue, componentSize);
     }
 
     // Add the components array to the component array collections
@@ -209,7 +215,7 @@ void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, unsigned int entity
     return ((char*)componentArray) + (entityId * componentSize);
 }
 
-size_t ECDB_Bool_Array_Size(struct ECDB const *const ecdb)
+static size_t ECDB_Bool_Array_Size(struct ECDB const *const ecdb)
 {
     // valid entities is an array of max entities + 1 bools
     return (ecdb->_maxEntities + 1) * sizeof(bool);
@@ -298,7 +304,7 @@ void ECDB_Apply_Snapshot(struct ECDB* ecdb, void* snapshot)
     {
         // Each component array is max entities + 1 of the size of the component
         size_t arr_len = (ecdb->_maxEntities + 1) * ecdb->_componentSizes[i];
-        memcpy(ecdb->componentArrays[i], snapshot, arr_len);
+        memcpy(ecdb->componentArrays[i], snapshot, arr_len); // TODO: destination is null here when arr_len is 0. technically undefined behavior, but probably works
         snapshot = (char*)snapshot + arr_len;
     }
 }
