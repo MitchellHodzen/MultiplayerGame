@@ -6,6 +6,7 @@
 #include "component_physics_2d.h"
 #include "component_animation.h"
 #include <math.h>
+#include "input_command_buffer.h"
 
 static bool AreSameSign(float a, float b)
 {
@@ -51,7 +52,32 @@ static float CalculateMovementLeg(float input_leg, float current_velocity_leg, f
     return retval;
 }
 
-void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, int player_states_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
+bool Try_Get_Last_Movement_Input(const struct Command_Buffer* cmnds, struct Command_Entry** last_move_cmnd)
+{
+    for (unsigned int i = cmnds->command_cnt - 1; i >= 0; --i)
+    {
+        struct Command_Entry* cmnd = &cmnds->command_queue[i];
+        if (cmnd->pressed == true && (cmnd->command == MOVE_LEFT || cmnd->command == MOVE_RIGHT || cmnd->command == MOVE_UP || cmnd->command == MOVE_DOWN))
+        {
+            *last_move_cmnd = cmnd;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void Idle_Handle_Input(const struct Command_Entry command, struct C_Player_State* state)
+{
+
+}
+
+static void Running_Handle_Input(const struct Command_Entry command, struct C_Player_State* state)
+{
+
+}
+
+void s_player_state_machine(struct ECDB const *const ecdb, struct Command_Buffer* cmnds, int inputs_handle, int player_states_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
 {
     struct C_Player_State* states = (struct C_Player_State*) ecdb->componentArrays[player_states_handle];
     struct C_Input* inputs = (struct C_Input*) ecdb->componentArrays[inputs_handle];
@@ -64,6 +90,23 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
         {
             if (ECDB_EntityHasComponent(ecdb, i, inputs_handle))
             {
+                // Loop through each input and apply it to the state
+                for (unsigned int i = 0; i < cmnds->command_cnt; ++i)
+                {
+                    struct Command_Entry cmnd = cmnds->command_queue[i];
+                    switch(states[i].state)
+                    {
+                        case IDLE:
+                            Idle_Handle_Input(cmnd, &states[i]);
+                            break;
+                        case RUNNING:
+                            Running_Handle_Input(cmnd, &states[i]);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
                 switch(states[i].state)
                 {
                     case IDLE:
@@ -82,26 +125,27 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                         break;
                 }
 
-                // TODO: replace by selecting the newest clicked direction
-                if (inputs[i].direction.y > 0)
+                // If there has been input, face direction will be based on the last input received. if no movement input, stays the same
+                struct Command_Entry* last_move_cmnd;
+                if (Try_Get_Last_Movement_Input(cmnds, &last_move_cmnd))
                 {
-                    // moving down
-                    states[i].direction = PLAYER_DOWN;
-                }
-                else if (inputs[i].direction.y < 0)
-                {
-                    // moving up
-                    states[i].direction = PLAYER_UP;
-                }
-                else if (inputs[i].direction.x > 0)
-                {
-                    // moving right
-                    states[i].direction = PLAYER_RIGHT;
-                }
-                else if (inputs[i].direction.x < 0)
-                {
-                    // moving left
-                    states[i].direction = PLAYER_LEFT;
+                    switch(last_move_cmnd->command)
+                    {
+                        case MOVE_LEFT:
+                            states[i].direction = PLAYER_LEFT;
+                            break;
+                        case MOVE_RIGHT:
+                            states[i].direction = PLAYER_RIGHT;
+                            break;
+                        case MOVE_UP:
+                            states[i].direction = PLAYER_UP;
+                            break;
+                        case MOVE_DOWN:
+                            states[i].direction = PLAYER_DOWN;
+                            break;
+                        default:
+                            break;
+                    }
                 }
 
                 // if input is being done, apply it to physics

@@ -206,9 +206,10 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     }
 
     // analyze input
-    for (unsigned int i = 0; i < input->command_cnt; ++i)
+
+    for (unsigned int i = 0; i < input->command_queue.command_cnt; ++i)
     {
-        struct Command_Entry cmnd = input->command_queue[i];
+        struct Command_Entry cmnd = input->command_queue.command_queue[i];
         if (cmnd.pressed == true)
         {
             if (cmnd.command == TOGGLE_INTERPOLATION)
@@ -258,7 +259,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_s);
     s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
     s_write_input(ecdb, component_handles->inputs_handle, input->direction);
-    s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, component_handles->animation_instance_handle, delta_time_s);
+    s_player_state_machine(ecdb, &input->command_queue, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, component_handles->animation_instance_handle, delta_time_s);
     s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->player_physics_2d_handle, component_handles->transforms_handle, delta_time_s);

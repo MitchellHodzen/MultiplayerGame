@@ -3,28 +3,8 @@
 #include "Vector2.h"
 #include "stdbool.h"
 #include "ring_buffer.h"
-
-#define EVENT_BUF_SIZE 100
+#include "input_command_buffer.h"
 #define MAX_KEYBOARD_SIZE 200
-
-enum COMMAND
-{
-    UNDETERMINED,
-    MOVE_LEFT,
-    MOVE_RIGHT,
-    MOVE_UP,
-    MOVE_DOWN,
-    ATTACK,
-    TOGGLE_INTERPOLATION,
-    TOGGLE_PREDICTION,
-    START_CHAT
-};
-
-struct Command_Entry
-{
-    enum COMMAND command;
-    bool pressed; // if not pressed then released
-};
 
 struct Chat_Snapshot_Info
 {
@@ -42,8 +22,7 @@ struct Input_Snapshot
     bool interpolation_toggled_off;
     unsigned int chat_messages_cached;
     struct Chat_Snapshot_Info chat_cache[10]; // unlikely to receive multiple chat messages in a single frame, dont cache many
-    struct Command_Entry command_queue[EVENT_BUF_SIZE];
-    unsigned int command_cnt;
+    struct Command_Buffer command_queue;
     bool* keyboard_state[MAX_KEYBOARD_SIZE];
 };
 

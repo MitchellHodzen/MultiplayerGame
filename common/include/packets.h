@@ -9,6 +9,7 @@ enum Packet_Type
     REQUEST_JOIN,
     JOIN_SERVER,
     ADD_SQUARE,
+    PACKET_INPUT,
     INPUT_DIRECTION,
     UPDATE,
     UNUSED,
@@ -24,6 +25,13 @@ struct P_JOIN_SERVER
     unsigned int update_packets_per_s;
     unsigned long server_time_ms;
     struct Vector2 position;
+};
+
+struct P_Input
+{
+    enum Packet_Type type;
+    unsigned int networkId;
+    struct Vector2 direction;
 };
 
 struct P_Input_Direction

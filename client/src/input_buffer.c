@@ -35,12 +35,12 @@ void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot)
 
 bool Input_Snapshot_Push_Command(struct Input_Snapshot* snapshot, struct Command_Entry command)
 {
-    if (snapshot->command_cnt >= EVENT_BUF_SIZE)
+    if (snapshot->command_queue.command_cnt >= EVENT_BUF_SIZE)
     {
         return false;
     }
 
-    snapshot->command_queue[snapshot->command_cnt++] = command;
+    snapshot->command_queue.command_queue[snapshot->command_queue.command_cnt++] = command;
     return true;
 }
 
