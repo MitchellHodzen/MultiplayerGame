@@ -54,7 +54,7 @@ static float CalculateMovementLeg(float input_leg, float current_velocity_leg, f
 
 bool Try_Get_Last_Movement_Input(const struct Command_Buffer* cmnds, struct Command_Entry** last_move_cmnd)
 {
-    for (unsigned int i = cmnds->command_cnt - 1; i >= 0; --i)
+    for (int i = cmnds->command_cnt - 1; i >= 0; --i)
     {
         struct Command_Entry* cmnd = &cmnds->command_queue[i];
         if (cmnd->pressed == true && (cmnd->command == MOVE_LEFT || cmnd->command == MOVE_RIGHT || cmnd->command == MOVE_UP || cmnd->command == MOVE_DOWN))

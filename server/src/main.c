@@ -14,6 +14,7 @@
 #include "component_player_state.h"
 #include "system_player_state_machine.h"
 #include "component_animation.h"
+#include "input_command_buffer.h"
 
 #define MAX_CONNECTIONS 20
 #define CHANNELS 3
@@ -319,8 +320,9 @@ int main(int argc, char* args[])
         sim_accumulator_s += deltaTimeS;
         while (sim_accumulator_s > targetSecPerFrame)
         {
+            struct Command_Buffer mock_cmnd_buf = {.command_cnt = 0};
             // Run the sim
-            s_player_state_machine(ecdb, componentHandles.inputs_handle, componentHandles.player_states_handle, componentHandles.player_physics_2d_handle, componentHandles.animation_instance_handle, targetSecPerFrame);
+            s_player_state_machine(ecdb, &mock_cmnd_buf, componentHandles.inputs_handle, componentHandles.player_states_handle, componentHandles.player_physics_2d_handle, componentHandles.animation_instance_handle, targetSecPerFrame);
             s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.player_physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
