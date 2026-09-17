@@ -77,7 +77,7 @@ static void Running_Handle_Input(const struct Command_Entry command, struct C_Pl
 
 }
 
-void s_player_state_machine(struct ECDB const *const ecdb, struct Command_Buffer* cmnds, int inputs_handle, int player_states_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
+void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, int player_states_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
 {
     struct C_Player_State* states = (struct C_Player_State*) ecdb->componentArrays[player_states_handle];
     struct C_Input* inputs = (struct C_Input*) ecdb->componentArrays[inputs_handle];
@@ -91,9 +91,9 @@ void s_player_state_machine(struct ECDB const *const ecdb, struct Command_Buffer
             if (ECDB_EntityHasComponent(ecdb, i, inputs_handle))
             {
                 // Loop through each input and apply it to the state
-                for (unsigned int i = 0; i < cmnds->command_cnt; ++i)
+                for (unsigned int i = 0; i < inputs[i].commands.command_cnt; ++i)
                 {
-                    struct Command_Entry cmnd = cmnds->command_queue[i];
+                    struct Command_Entry cmnd = inputs[i].commands.command_queue[i];
                     switch(states[i].state)
                     {
                         case IDLE:
@@ -126,8 +126,8 @@ void s_player_state_machine(struct ECDB const *const ecdb, struct Command_Buffer
                 }
 
                 // If there has been input, face direction will be based on the last input received. if no movement input, stays the same
-                struct Command_Entry* last_move_cmnd;
-                if (Try_Get_Last_Movement_Input(cmnds, &last_move_cmnd))
+                struct Command_Entry* last_move_cmnd; // TODO: this doesnt really work
+                if (Try_Get_Last_Movement_Input(&inputs[i].commands, &last_move_cmnd))
                 {
                     switch(last_move_cmnd->command)
                     {

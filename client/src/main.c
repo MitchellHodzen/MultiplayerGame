@@ -265,7 +265,7 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     s_interpolate_position(ecdb, component_handles->transforms_handle, component_handles->transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(net_manager, input->client_time), net_manager->update_packets_per_s, 2, Net_Get_Round_Trip_Time_Ms(net_manager));
     s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_s);
     s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
-    s_player_state_machine(ecdb, &input->command_queue, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, component_handles->animation_instance_handle, delta_time_s);
+    s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, component_handles->animation_instance_handle, delta_time_s);
     s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->player_physics_2d_handle, component_handles->transforms_handle, delta_time_s);
