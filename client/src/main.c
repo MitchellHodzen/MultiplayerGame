@@ -8,7 +8,6 @@
 #include "ecdb.h"
 #include "vector2.h"
 #include "system_render.h"
-#include "system_write_input.h"
 #include "intstack.h"
 #include "component_input.h"
 #include "packets.h"
@@ -255,10 +254,17 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
         }
     }
 
+    // Write input into player input component
+    if(ECDB_EntityHasComponent(ecdb, player_id, component_handles->inputs_handle))
+    {
+        struct C_Input* player_input = (struct C_Input*)ECDB_GetEntityComponent(ecdb, player_id, component_handles->inputs_handle);
+        player_input->direction = input->direction;
+        player_input->commands = input->command_queue;
+    }
+
     s_interpolate_position(ecdb, component_handles->transforms_handle, component_handles->transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(net_manager, input->client_time), net_manager->update_packets_per_s, 2, Net_Get_Round_Trip_Time_Ms(net_manager));
     s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_s);
     s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
-    s_write_input(ecdb, component_handles->inputs_handle, input->direction);
     s_player_state_machine(ecdb, &input->command_queue, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, component_handles->animation_instance_handle, delta_time_s);
     s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
@@ -782,11 +788,26 @@ int main(int argc, char* args[])
             
             if (directionChanged)
             {
-                // If input has been given, send an input packet
-                unsigned int* entityId = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
-                struct P_Input_Direction inputPacket = {.type = INPUT_DIRECTION, .networkId = *entityId, .direction = direction};
-                ENetPacket * packet = enet_packet_create(&inputPacket, sizeof(struct P_Input_Direction), ENET_PACKET_FLAG_RELIABLE);
-                enet_peer_send(netManager->serverPeer, 0, packet);
+                // Build an input packet on the stack to be sent.
+                size_t cmnd_arr_bytes = sizeof(struct Command_Entry) * input_snapshot.command_queue.command_cnt;
+                int input_packet_size = sizeof(struct P_Input) + cmnd_arr_bytes;
+                unsigned char* input_packet_data = SDL_stack_alloc(unsigned char, input_packet_size); // Todo: malloc a reusable buffer for this
+
+                // Set the header data
+                unsigned int* player_network_id = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
+                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .direction = direction, .cmnd_cnt = input_snapshot.command_queue.command_cnt};
+                *(struct P_Input*)input_packet_data = input_packet_header;
+
+                // Append the input commands to the end of the packet
+                char* input_packet_cmnd_arr = input_packet_data + sizeof(struct P_Input);
+                memcpy(input_packet_cmnd_arr, input_snapshot.command_queue.command_queue, cmnd_arr_bytes);
+
+                // Build and send the packet
+                ENetPacket* input_packet = enet_packet_create(input_packet_data, input_packet_size, ENET_PACKET_FLAG_RELIABLE); // TODO: avoid the second memcpy
+                enet_peer_send(netManager->serverPeer, 0, input_packet);
+
+                // In case it was not actually stack allocated, free the data
+                SDL_stack_free(input_packet_data);
             }
             
             input_snapshot.client_time = currentFrameTimeMs;

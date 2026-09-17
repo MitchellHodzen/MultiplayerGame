@@ -2,6 +2,7 @@
 #define PACKETS
 #include "vector2.h"
 #include "component_player_state.h"
+#include "input_command_buffer.h"
 
 enum Packet_Type
 {
@@ -32,6 +33,7 @@ struct P_Input
     enum Packet_Type type;
     unsigned int networkId;
     struct Vector2 direction;
+    unsigned int cmnd_cnt;
 };
 
 struct P_Input_Direction

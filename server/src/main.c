@@ -256,9 +256,17 @@ int main(int argc, char* args[])
                                 BroadcastChatMessage(server, chatHeader, joinedMessageBuffer, strlen + 1);
                                 break;
                             }
-                            case INPUT_DIRECTION:
+                            case PACKET_INPUT:
                             {
-                                struct P_Input_Direction* packetData = (struct P_Input_Direction*) event.packet->data;
+                                struct P_Input* packetData = (struct P_Input*) event.packet->data;
+                                printf("Received input from %i. Cmnd count: %i\n", packetData->networkId, packetData->cmnd_cnt);
+                                struct Command_Entry* cmnd_arr = (char*)packetData + sizeof(struct P_Input);
+
+                                for(unsigned int i = 0; i < packetData->cmnd_cnt; ++i)
+                                {
+                                    printf("\tCommand: %i. Pressed: %i\n", cmnd_arr[i].command, cmnd_arr[i].pressed);
+                                }
+
                                 // Apply input
                                 if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle))
                                 {
