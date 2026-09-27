@@ -90,6 +90,9 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
         {
             if (ECDB_EntityHasComponent(ecdb, i, inputs_handle))
             {
+                // build direction based on keyboard state
+                struct Vector2 input_direction = {.x = -(inputs[i].cmnd_states[MOVE_LEFT]) + inputs[i].cmnd_states[MOVE_RIGHT], .y = -(inputs[i].cmnd_states[MOVE_UP]) + inputs[i].cmnd_states[MOVE_DOWN]};
+
                 // Loop through each input and apply it to the state
                 for (unsigned int i = 0; i < inputs[i].commands.command_cnt; ++i)
                 {
@@ -110,13 +113,13 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                 switch(states[i].state)
                 {
                     case IDLE:
-                        if (inputs[i].direction.x != 0 || inputs[i].direction.y != 0)
+                        if (input_direction.x != 0 || input_direction.y != 0)
                         {
                             states[i].state = RUNNING;
                         }
                         break;
                     case RUNNING:
-                        if (inputs[i].direction.x == 0.0f && inputs[i].direction.y == 0.0f)
+                        if (input_direction.x == 0.0f && input_direction.y == 0.0f)
                         {
                             states[i].state = IDLE;
                         }
@@ -147,14 +150,34 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                             break;
                     }
                 }
+                else
+                {
+                    // If only going in one direction, update to that direction
+                    if (input_direction.y > 0 && input_direction.x == 0)
+                    {
+                        states[i].direction = PLAYER_DOWN;
+                    }
+                    else if (input_direction.y < 0 && input_direction.x == 0)
+                    {
+                        states[i].direction = PLAYER_UP;
+                    }
+                    else if (input_direction.x > 0 && input_direction.y == 0)
+                    {
+                        states[i].direction = PLAYER_RIGHT;
+                    }
+                    else if (input_direction.x < 0 && input_direction.y == 0)
+                    {
+                        states[i].direction = PLAYER_LEFT;
+                    }
+                }
 
                 // if input is being done, apply it to physics
                 if(ECDB_EntityHasComponent(ecdb, i, player_physics_2d_handle))
                 {
                     // Apply input if there is any
                     struct C_Input input = inputs[i];
-                    physics[i].velocity.x = CalculateMovementLeg(input.direction.x, physics[i].velocity.x, delta_time_s, input.speed, physics[i].friction);
-                    physics[i].velocity.y = CalculateMovementLeg(input.direction.y, physics[i].velocity.y, delta_time_s, input.speed, physics[i].friction);
+                    physics[i].velocity.x = CalculateMovementLeg(input_direction.x, physics[i].velocity.x, delta_time_s, input.speed, physics[i].friction);
+                    physics[i].velocity.y = CalculateMovementLeg(input_direction.y, physics[i].velocity.y, delta_time_s, input.speed, physics[i].friction);
 
                     // clamp to max speed. todo: move to physics sim?
                     float velocity_magnitude = sqrt(physics[i].velocity.x * physics[i].velocity.x + physics[i].velocity.y * physics[i].velocity.y);

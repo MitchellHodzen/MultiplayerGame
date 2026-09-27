@@ -3,6 +3,7 @@
 #include "stdbool.h"
 
 #define EVENT_BUF_SIZE 100
+#define CMND_MAX_CNT 9
 
 enum COMMAND
 {

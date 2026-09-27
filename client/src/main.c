@@ -49,13 +49,21 @@ enum Command_Contex
     COMMAND_CHAT,
 };
 
-struct Vector2 Get_Direction_From_Input_State()
+void Save_Command_State(struct Input_Snapshot* input_snapshot)
 {
-    const bool* keyboardStates = SDL_GetKeyboardState(NULL);
-    return (struct Vector2) {.x = -(keyboardStates[SDL_SCANCODE_A]) + keyboardStates[SDL_SCANCODE_D], .y = -(keyboardStates[SDL_SCANCODE_W]) + keyboardStates[SDL_SCANCODE_S]};
+    const bool* keyboard_states = SDL_GetKeyboardState(NULL);
+    bool command_states[CMND_MAX_CNT];
+    command_states[TOGGLE_PREDICTION] = keyboard_states[SDL_SCANCODE_1];
+    command_states[TOGGLE_INTERPOLATION] = keyboard_states[SDL_SCANCODE_2];
+    command_states[START_CHAT] = keyboard_states[SDL_SCANCODE_RETURN];
+    command_states[MOVE_UP] = keyboard_states[SDL_SCANCODE_W];
+    command_states[MOVE_DOWN] = keyboard_states[SDL_SCANCODE_S];
+    command_states[MOVE_LEFT] = keyboard_states[SDL_SCANCODE_A];
+    command_states[MOVE_RIGHT] = keyboard_states[SDL_SCANCODE_D];
+    Input_Snapshot_Save_Command_State(input_snapshot, command_states, CMND_MAX_CNT);
 }
 
-enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_Snapshot* input_snapshot)
+enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_Snapshot* input_snapshot, bool* send_to_server)
 {
     if ((event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) && event->key.repeat == 0)
     {
@@ -71,18 +79,23 @@ enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_S
                 break;
             case SDL_SCANCODE_RETURN:
                 cmnd.command = START_CHAT;
+                *send_to_server = true; // If we started chatting, send to server so it knows to shut off input
                 break;
             case SDL_SCANCODE_W:
                 cmnd.command = MOVE_UP;
+                *send_to_server = true;
                 break;
             case SDL_SCANCODE_S:
                 cmnd.command = MOVE_DOWN;
+                *send_to_server = true;
                 break;
             case SDL_SCANCODE_A:
                 cmnd.command = MOVE_LEFT;
+                *send_to_server = true;
                 break;
             case SDL_SCANCODE_D:
                 cmnd.command = MOVE_RIGHT;
+                *send_to_server = true;
                 break;
             default:
                 cmnd.command = UNDETERMINED;
@@ -258,15 +271,14 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     if(ECDB_EntityHasComponent(ecdb, player_id, component_handles->inputs_handle))
     {
         struct C_Input* player_input = (struct C_Input*)ECDB_GetEntityComponent(ecdb, player_id, component_handles->inputs_handle);
-        player_input->direction = input->direction;
         player_input->commands = input->command_queue;
+        memcpy(&player_input->cmnd_states, input->cmnd_states, CMND_MAX_CNT);
     }
 
     s_interpolate_position(ecdb, component_handles->transforms_handle, component_handles->transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(net_manager, input->client_time), net_manager->update_packets_per_s, 2, Net_Get_Round_Trip_Time_Ms(net_manager));
     s_lifetime_iterate(ecdb, component_handles->lifetimes_handle, delta_time_s);
     s_lifetime_remove(ecdb, component_handles->lifetimes_handle);
     s_player_state_machine(ecdb, component_handles->inputs_handle, component_handles->player_states_handle, component_handles->player_physics_2d_handle, component_handles->animation_instance_handle, delta_time_s);
-    s_update_physics(ecdb, component_handles->physics_2d_handle, component_handles->inputs_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->physics_2d_handle, component_handles->transforms_handle, delta_time_s);
     s_apply_physics(ecdb, component_handles->player_physics_2d_handle, component_handles->transforms_handle, delta_time_s);
     s_animation_iterate(ecdb, component_handles->animation_instance_handle, delta_time_s * 1000, animations); // TODO: Move out of sim so animations can be more fluid
@@ -662,7 +674,6 @@ int main(int argc, char* args[])
     }
     Ring_Buffer_Init(game_state_history_stack, sizeof(struct Game_State_Snapshot) + ecdb_snapshot_size, history_frames_to_save);
     
-    struct Vector2 direction = {.x = 0, .y = 0};
     SDL_Event e;
     enum Command_Contex command_context = COMMAND_STANDARD;
 
@@ -694,8 +705,7 @@ int main(int argc, char* args[])
         sim_accumulator_s += deltaTimeS;
         while (sim_accumulator_s > sim_target_s_per_frame)
         {
-            bool directionChanged = false;
-
+            bool send_input_to_server = false;
             //  Handle keyboard events
             while( SDL_PollEvent( &e ) == true )
             {
@@ -721,17 +731,9 @@ int main(int argc, char* args[])
                 switch(command_context)
                 {
                     case COMMAND_STANDARD:
-                        command_context = Handle_Standard_Input_Event(&e, &input_snapshot);
+                        command_context = Handle_Standard_Input_Event(&e, &input_snapshot, &send_input_to_server);
                         if (command_context != COMMAND_STANDARD)
                         {
-                            // If the context changed, stop movement
-                            if (direction.x != 0 || direction.y != 0)
-                            {
-                                directionChanged = true;
-                                direction.x = 0;
-                                direction.y = 0;
-                            }
-
                             if (command_context == COMMAND_CHAT)
                             {
                                 SDL_StartTextInput(window_state->window);
@@ -762,21 +764,8 @@ int main(int argc, char* args[])
             // Handle keyboard state
             if (command_context == COMMAND_STANDARD)
             {
-                int num_keys;
-                const bool* keyboard_states = SDL_GetKeyboardState(&num_keys);
-                Input_Snapshot_Save_Keyboard_State(&input_snapshot, keyboard_states, num_keys);
-                struct Vector2 newDirection = Get_Direction_From_Input_State();
-
-                if (direction.x != newDirection.x || direction.y != newDirection.y)
-                {
-                    directionChanged = true;
-                    direction.x = newDirection.x;
-                    direction.y = newDirection.y;
-                }
+                Save_Command_State(&input_snapshot);
             }
-
-            // save direction in the frame snapshot
-            input_snapshot.direction = direction;
 
             // Handle mouse movement
             struct Vector2 mousePos;
@@ -786,7 +775,7 @@ int main(int argc, char* args[])
                 buttons & SDL_BUTTON_LMASK
             );
             
-            if (directionChanged)
+            if (send_input_to_server)
             {
                 // Build an input packet on the stack to be sent.
                 size_t cmnd_arr_bytes = sizeof(struct Command_Entry) * input_snapshot.command_queue.command_cnt;
@@ -795,7 +784,8 @@ int main(int argc, char* args[])
 
                 // Set the header data
                 unsigned int* player_network_id = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
-                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .direction = direction, .cmnd_cnt = input_snapshot.command_queue.command_cnt};
+                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .cmnd_cnt = input_snapshot.command_queue.command_cnt};
+                memcpy(input_packet_header.cmnd_states, input_snapshot.cmnd_states, CMND_MAX_CNT);
                 *(struct P_Input*)input_packet_data = input_packet_header;
 
                 // Append the input commands to the end of the packet

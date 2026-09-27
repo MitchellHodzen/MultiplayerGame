@@ -265,9 +265,9 @@ int main(int argc, char* args[])
                                 if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle))
                                 {
                                     struct C_Input* playerInput = (struct C_Input*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.inputs_handle);
-                                    playerInput->direction = packetData->direction;
                                     playerInput->commands.command_cnt = packetData->cmnd_cnt;
                                     memcpy(&playerInput->commands.command_queue, cmnd_arr, sizeof(struct Command_Entry) * packetData->cmnd_cnt);
+                                    memcpy(&playerInput->cmnd_states, packetData->cmnd_states, CMND_MAX_CNT);
                                 }
 
                                 break;
@@ -326,7 +326,6 @@ int main(int argc, char* args[])
         {
             // Run the sim
             s_player_state_machine(ecdb, componentHandles.inputs_handle, componentHandles.player_states_handle, componentHandles.player_physics_2d_handle, componentHandles.animation_instance_handle, targetSecPerFrame);
-            s_update_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.inputs_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.player_physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
 

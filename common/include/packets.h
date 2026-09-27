@@ -11,7 +11,6 @@ enum Packet_Type
     JOIN_SERVER,
     ADD_SQUARE,
     PACKET_INPUT,
-    INPUT_DIRECTION,
     UPDATE,
     UNUSED,
 };
@@ -32,15 +31,8 @@ struct P_Input
 {
     enum Packet_Type type;
     unsigned int networkId;
-    struct Vector2 direction;
+    bool cmnd_states[CMND_MAX_CNT];
     unsigned int cmnd_cnt;
-};
-
-struct P_Input_Direction
-{
-    enum Packet_Type type;
-    unsigned int networkId;
-    struct Vector2 direction;
 };
 
 struct P_Update_Header

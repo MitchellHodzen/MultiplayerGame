@@ -44,9 +44,9 @@ bool Input_Snapshot_Push_Command(struct Input_Snapshot* snapshot, struct Command
     return true;
 }
 
-unsigned int Input_Snapshot_Save_Keyboard_State(struct Input_Snapshot* snapshot, bool* keyboard_state, size_t keyboard_state_len)
+unsigned int Input_Snapshot_Save_Command_State(struct Input_Snapshot* snapshot, bool* cmnd_states, size_t cmnd_state_len)
 {
-    memcpy(snapshot->keyboard_state, keyboard_state, keyboard_state_len);
-    // Any keyboard state over and above the max keyboard size would get thrown out
-    return keyboard_state_len - MAX_KEYBOARD_SIZE;
+    memcpy(snapshot->cmnd_states, cmnd_states, cmnd_state_len);
+    // Any keyboard state over and above the cmnd size would get thrown out
+    return cmnd_state_len - CMND_MAX_CNT;
 }

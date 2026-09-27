@@ -5,9 +5,9 @@
 
 struct C_Input
 {
-    struct Vector2 direction;
     float speed;
     struct Command_Buffer commands;
+    bool cmnd_states[CMND_MAX_CNT];
 };
 
 #endif /* COMPONENT_INPUT */
