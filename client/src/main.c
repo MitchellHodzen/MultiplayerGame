@@ -63,7 +63,7 @@ void Save_Command_State(struct Input_Snapshot* input_snapshot)
     Input_Snapshot_Save_Command_State(input_snapshot, command_states, CMND_MAX_CNT);
 }
 
-enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_Snapshot* input_snapshot, bool* send_to_server)
+enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_Snapshot* input_snapshot)
 {
     if ((event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) && event->key.repeat == 0)
     {
@@ -79,23 +79,18 @@ enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_S
                 break;
             case SDL_SCANCODE_RETURN:
                 cmnd.command = START_CHAT;
-                *send_to_server = true; // If we started chatting, send to server so it knows to shut off input
                 break;
             case SDL_SCANCODE_W:
                 cmnd.command = MOVE_UP;
-                *send_to_server = true;
                 break;
             case SDL_SCANCODE_S:
                 cmnd.command = MOVE_DOWN;
-                *send_to_server = true;
                 break;
             case SDL_SCANCODE_A:
                 cmnd.command = MOVE_LEFT;
-                *send_to_server = true;
                 break;
             case SDL_SCANCODE_D:
                 cmnd.command = MOVE_RIGHT;
-                *send_to_server = true;
                 break;
             default:
                 cmnd.command = UNDETERMINED;
@@ -327,7 +322,7 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             }
         }
 
-        SDL_Log("Going back frames: %i", going_back_frames);
+        //SDL_Log("Going back frames: %i", going_back_frames);
 
         // Calculate how many frames we expect to go back
         /*unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
@@ -705,7 +700,6 @@ int main(int argc, char* args[])
         sim_accumulator_s += deltaTimeS;
         while (sim_accumulator_s > sim_target_s_per_frame)
         {
-            bool send_input_to_server = false;
             //  Handle keyboard events
             while( SDL_PollEvent( &e ) == true )
             {
@@ -728,36 +722,40 @@ int main(int argc, char* args[])
                 }
 
                 // Game state input delegation
+                enum Command_Contex previous_context = command_context;
                 switch(command_context)
                 {
                     case COMMAND_STANDARD:
-                        command_context = Handle_Standard_Input_Event(&e, &input_snapshot, &send_input_to_server);
-                        if (command_context != COMMAND_STANDARD)
-                        {
-                            if (command_context == COMMAND_CHAT)
-                            {
-                                SDL_StartTextInput(window_state->window);
-                            }
-                        }
+                        command_context = Handle_Standard_Input_Event(&e, &input_snapshot);
                         break;
                     case COMMAND_CHAT:
                         command_context = Handle_Chat_Input_Event(&e, gameData->chat_buffers);
+
+                        // If we've stopped chatting, send the chat packet
                         if (command_context != COMMAND_CHAT)
                         {
-                            // If we've stopped chatting, send the chat packet
-                            int messageSize = (sizeof(char) * gameData->chat_buffers->_input_cursor) + 1; // Size is number of characters + the null termination character
-                            ENetPacket* chatPacket = enet_packet_create(gameData->chat_buffers->chat_input_buffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
-                            enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
+                            // If there is a chat message to send, send it to the server
+                            if (gameData->chat_buffers->chat_size > 0)
+                            {
+                                int messageSize = (sizeof(char) * gameData->chat_buffers->_input_cursor) + 1; // Size is number of bytes + the null termination character
+                                ENetPacket* chatPacket = enet_packet_create(gameData->chat_buffers->chat_input_buffer, messageSize, ENET_PACKET_FLAG_RELIABLE);
+                                enet_peer_send(netManager->serverPeer, 1, chatPacket); // Send on channel 1 as the chat channel
 
-                            // reset the buffer
-                            Chat_Reset_Input_Buffer(gameData->chat_buffers);
-
-                            printf("\n");
+                                // reset the buffer
+                                Chat_Reset_Input_Buffer(gameData->chat_buffers);
+                            }
+                            
                             SDL_StopTextInput(window_state->window);
                         }
                         break;
                     default:
                         break;
+                }
+
+                // If we've switched to chat, start text input
+                if (command_context == COMMAND_CHAT && previous_context != COMMAND_CHAT)
+                {
+                    SDL_StartTextInput(window_state->window);
                 }
             }
 
@@ -775,7 +773,8 @@ int main(int argc, char* args[])
                 buttons & SDL_BUTTON_LMASK
             );
             
-            if (send_input_to_server)
+            // If any commands generated from input, send to server
+            if (input_snapshot.command_queue.command_cnt > 0)
             {
                 // Build an input packet on the stack to be sent.
                 size_t cmnd_arr_bytes = sizeof(struct Command_Entry) * input_snapshot.command_queue.command_cnt;

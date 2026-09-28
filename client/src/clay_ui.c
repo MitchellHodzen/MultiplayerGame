@@ -70,6 +70,7 @@ inline static Clay_RenderCommandArray Build_UI(struct Game_Data* game_data, bool
                         Clay_ScrollContainerData scrollContainerData = Clay_GetScrollContainerData(CLAY_ID("ChatHistoryContainer"));
 
                         // If we're at the end, lock scroll to the end
+                        // TODO: This is broken now for some reason, need to fix
                         if (scrollContainerData.scrollPosition->y == previousChatBottom) // Could scrollposition be null here?
                         {
                             float bottomPosition = -(scrollContainerData.contentDimensions.height - scrollContainerData.scrollContainerDimensions.height);
