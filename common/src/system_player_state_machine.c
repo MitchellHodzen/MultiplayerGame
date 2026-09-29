@@ -13,6 +13,12 @@ static bool AreSameSign(float a, float b)
     return (a >= 0 && b >= 0) || (a < 0 && b < 0);
 }
 
+static struct Vector2 Calculate_Input_Direction(struct C_Input* input)
+{
+    struct Vector2 input_direction = {.x = -(input->cmnd_states[MOVE_LEFT]) + input->cmnd_states[MOVE_RIGHT], .y = -(input->cmnd_states[MOVE_UP]) + input->cmnd_states[MOVE_DOWN]};
+    return input_direction;
+}
+
 static float CalculateMovementLeg(float input_leg, float current_velocity_leg, float delta_time_s, float acceleration, float friction)
 {
     float retval = current_velocity_leg;
@@ -67,14 +73,163 @@ bool Try_Get_Last_Movement_Input(const struct Command_Buffer* cmnds, struct Comm
     return false;
 }
 
-static void Idle_Handle_Input(const struct Command_Entry command, struct C_Player_State* state)
+static void Idle_Execute(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
+{
+    struct C_Input* input;
+    if (ECDB_Try_Get_Entity_Component(ecdb, entity_id, inputs_handle, &input))
+    {
+        struct Vector2 input_direction = Calculate_Input_Direction(input);
+
+        // If we've started moving, go to running
+        if (input_direction.x != 0 || input_direction.y != 0)
+        {            
+            state->state = RUNNING;
+            return;
+        }
+
+        if(ECDB_EntityHasComponent(ecdb, entity_id, player_physics_2d_handle))
+        {
+            struct C_Physics_2d* physics = ECDB_GetEntityComponent(ecdb, entity_id, player_physics_2d_handle);
+
+            // slow down
+            physics->velocity.x = CalculateMovementLeg(0, physics->velocity.x, delta_time_s, input->speed, physics->friction);
+            physics->velocity.y = CalculateMovementLeg(0, physics->velocity.y, delta_time_s, input->speed, physics->friction);
+        }
+    }
+}
+
+static void Idle_Animate(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
 {
 
 }
 
-static void Running_Handle_Input(const struct Command_Entry command, struct C_Player_State* state)
+static void Running_Execute(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
 {
+    if (ECDB_EntityHasComponent(ecdb, entity_id, inputs_handle))
+    {
+        struct C_Input* input = ECDB_GetEntityComponent(ecdb, entity_id, inputs_handle);
+        // build direction based on keyboard state
+        struct Vector2 input_direction = Calculate_Input_Direction(input);
 
+        // If we aren't moving, go back to idle
+        if (input_direction.x == 0.0f && input_direction.y == 0.0f)
+        {
+            state->state = IDLE;
+            return;
+        }
+
+        // If there has been input, face direction will be based on the last input received. if no movement input, stays the same
+        struct Command_Entry* last_move_cmnd; // TODO: this doesnt really work
+        if (Try_Get_Last_Movement_Input(&input->commands, &last_move_cmnd))
+        {
+            switch(last_move_cmnd->command)
+            {
+                case MOVE_LEFT:
+                    state->direction = PLAYER_LEFT;
+                    break;
+                case MOVE_RIGHT:
+                    state->direction = PLAYER_RIGHT;
+                    break;
+                case MOVE_UP:
+                    state->direction = PLAYER_UP;
+                    break;
+                case MOVE_DOWN:
+                    state->direction = PLAYER_DOWN;
+                    break;
+                default:
+                    break;
+            }
+        }
+        else
+        {
+            // If only going in one direction, update to that direction
+            if (input_direction.y > 0 && input_direction.x == 0)
+            {
+                state->direction = PLAYER_DOWN;
+            }
+            else if (input_direction.y < 0 && input_direction.x == 0)
+            {
+                state->direction = PLAYER_UP;
+            }
+            else if (input_direction.x > 0 && input_direction.y == 0)
+            {
+                state->direction = PLAYER_RIGHT;
+            }
+            else if (input_direction.x < 0 && input_direction.y == 0)
+            {
+                state->direction = PLAYER_LEFT;
+            }
+        }
+
+        // if input is being done, apply it to physics
+        if(ECDB_EntityHasComponent(ecdb, entity_id, player_physics_2d_handle))
+        {
+            struct C_Physics_2d* physics = ECDB_GetEntityComponent(ecdb, entity_id, player_physics_2d_handle);
+
+            // Apply input if there is any
+            physics->velocity.x = CalculateMovementLeg(input_direction.x, physics->velocity.x, delta_time_s, input->speed, physics->friction);
+            physics->velocity.y = CalculateMovementLeg(input_direction.y, physics->velocity.y, delta_time_s, input->speed, physics->friction);
+
+            // clamp to max speed. todo: move to physics sim?
+            float velocity_magnitude = sqrt(physics->velocity.x * physics->velocity.x + physics->velocity.y * physics->velocity.y);
+            if (velocity_magnitude > physics->max_speed)
+            {
+                physics->velocity.x = (physics->velocity.x / velocity_magnitude) * physics->max_speed;
+                physics->velocity.y = (physics->velocity.y / velocity_magnitude) * physics->max_speed;
+            }
+        }
+    }
+}
+
+static void Run_Animate(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
+{
+    struct C_Animation_Instance* animation_instance;
+    if (ECDB_Try_Get_Entity_Component(ecdb, entity_id, animation_instance_handle, &animation_instance))
+    {
+        // todo: move to some resource manager
+        unsigned int move_up_anim_index = 0;
+        unsigned int move_down_anim_index = 1;
+        unsigned int move_left_anim_index = 2;
+        unsigned int move_right_anim_index = 3;
+
+        switch(state->direction)
+        {
+            case PLAYER_UP:
+                if (animation_instance->animation_index != move_up_anim_index)
+                {
+                    animation_instance->animation_index = move_up_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                }
+                break;
+            case PLAYER_DOWN:
+                if (animation_instance->animation_index != move_down_anim_index)
+                {
+                    animation_instance->animation_index = move_down_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                }
+                break;
+            case PLAYER_LEFT:
+                if (animation_instance->animation_index != move_left_anim_index)
+                {
+                    animation_instance->animation_index = move_left_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                }
+                break;
+            case PLAYER_RIGHT:
+                if (animation_instance->animation_index != move_right_anim_index)
+                {
+                    animation_instance->animation_index = move_right_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                }
+                break;
+            default:
+                break;
+        }
+    }
 }
 
 void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, int player_states_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
@@ -88,154 +243,35 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
     {
         if(ECDB_EntityHasComponent(ecdb, i, player_states_handle))
         {
-            if (ECDB_EntityHasComponent(ecdb, i, inputs_handle))
+            // Run execution logic
+            switch(states[i].state)
             {
-                // build direction based on keyboard state
-                struct Vector2 input_direction = {.x = -(inputs[i].cmnd_states[MOVE_LEFT]) + inputs[i].cmnd_states[MOVE_RIGHT], .y = -(inputs[i].cmnd_states[MOVE_UP]) + inputs[i].cmnd_states[MOVE_DOWN]};
-
-                // Loop through each input and apply it to the state
-                for (unsigned int i = 0; i < inputs[i].commands.command_cnt; ++i)
-                {
-                    struct Command_Entry cmnd = inputs[i].commands.command_queue[i];
-                    switch(states[i].state)
-                    {
-                        case IDLE:
-                            Idle_Handle_Input(cmnd, &states[i]);
-                            break;
-                        case RUNNING:
-                            Running_Handle_Input(cmnd, &states[i]);
-                            break;
-                        default:
-                            break;
-                    }
-                }
-
-                switch(states[i].state)
-                {
-                    case IDLE:
-                        if (input_direction.x != 0 || input_direction.y != 0)
-                        {
-                            states[i].state = RUNNING;
-                        }
-                        break;
-                    case RUNNING:
-                        if (input_direction.x == 0.0f && input_direction.y == 0.0f)
-                        {
-                            states[i].state = IDLE;
-                        }
-                        break;
-                    default:
-                        break;
-                }
-
-                // If there has been input, face direction will be based on the last input received. if no movement input, stays the same
-                struct Command_Entry* last_move_cmnd; // TODO: this doesnt really work
-                if (Try_Get_Last_Movement_Input(&inputs[i].commands, &last_move_cmnd))
-                {
-                    switch(last_move_cmnd->command)
-                    {
-                        case MOVE_LEFT:
-                            states[i].direction = PLAYER_LEFT;
-                            break;
-                        case MOVE_RIGHT:
-                            states[i].direction = PLAYER_RIGHT;
-                            break;
-                        case MOVE_UP:
-                            states[i].direction = PLAYER_UP;
-                            break;
-                        case MOVE_DOWN:
-                            states[i].direction = PLAYER_DOWN;
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                else
-                {
-                    // If only going in one direction, update to that direction
-                    if (input_direction.y > 0 && input_direction.x == 0)
-                    {
-                        states[i].direction = PLAYER_DOWN;
-                    }
-                    else if (input_direction.y < 0 && input_direction.x == 0)
-                    {
-                        states[i].direction = PLAYER_UP;
-                    }
-                    else if (input_direction.x > 0 && input_direction.y == 0)
-                    {
-                        states[i].direction = PLAYER_RIGHT;
-                    }
-                    else if (input_direction.x < 0 && input_direction.y == 0)
-                    {
-                        states[i].direction = PLAYER_LEFT;
-                    }
-                }
-
-                // if input is being done, apply it to physics
-                if(ECDB_EntityHasComponent(ecdb, i, player_physics_2d_handle))
-                {
-                    // Apply input if there is any
-                    struct C_Input input = inputs[i];
-                    physics[i].velocity.x = CalculateMovementLeg(input_direction.x, physics[i].velocity.x, delta_time_s, input.speed, physics[i].friction);
-                    physics[i].velocity.y = CalculateMovementLeg(input_direction.y, physics[i].velocity.y, delta_time_s, input.speed, physics[i].friction);
-
-                    // clamp to max speed. todo: move to physics sim?
-                    float velocity_magnitude = sqrt(physics[i].velocity.x * physics[i].velocity.x + physics[i].velocity.y * physics[i].velocity.y);
-                    if (velocity_magnitude > physics[i].max_speed)
-                    {
-                        physics[i].velocity.x = (physics[i].velocity.x / velocity_magnitude) * physics[i].max_speed;
-                        physics[i].velocity.y = (physics[i].velocity.y / velocity_magnitude) * physics[i].max_speed;
-                    }
-                }
+                case IDLE:
+                    Idle_Execute(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
+                    break;
+                case RUNNING:
+                    Running_Execute(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
+                    break;
+                default:
+                    break;
             }
 
-            // Todo: Don't change direction if moving already
+            // Run animation logic 
+            switch(states[i].state)
+            {
+                case IDLE:
+                    Idle_Animate(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
+                    break;
+                case RUNNING:
+                    Run_Animate(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
+                    break;
+                default:
+                    break;
+            }
+
+            // Special logic for idle that doesn't make sense to put elsewhere atm
             if (ECDB_EntityHasComponent(ecdb, i, animation_instance_handle))
             {
-                // todo: move to some resource manager
-                unsigned int move_up_anim_index = 0;
-                unsigned int move_down_anim_index = 1;
-                unsigned int move_left_anim_index = 2;
-                unsigned int move_right_anim_index = 3;
-
-                switch(states[i].direction)
-                {
-                    case PLAYER_UP:
-                        if (animation_instances[i].animation_index != move_up_anim_index)
-                        {
-                            animation_instances[i].animation_index = move_up_anim_index;
-                            animation_instances[i].current_frame = 0;
-                            animation_instances[i].frame_time_accumulator_ms = 0;
-                        }
-                        break;
-                    case PLAYER_DOWN:
-                        if (animation_instances[i].animation_index != move_down_anim_index)
-                        {
-                            animation_instances[i].animation_index = move_down_anim_index;
-                            animation_instances[i].current_frame = 0;
-                            animation_instances[i].frame_time_accumulator_ms = 0;
-                        }
-                        break;
-                    case PLAYER_LEFT:
-                        if (animation_instances[i].animation_index != move_left_anim_index)
-                        {
-                            animation_instances[i].animation_index = move_left_anim_index;
-                            animation_instances[i].current_frame = 0;
-                            animation_instances[i].frame_time_accumulator_ms = 0;
-                        }
-                        break;
-                    case PLAYER_RIGHT:
-                        if (animation_instances[i].animation_index != move_right_anim_index)
-                        {
-                            animation_instances[i].animation_index = move_right_anim_index;
-                            animation_instances[i].current_frame = 0;
-                            animation_instances[i].frame_time_accumulator_ms = 0;
-                        }
-                        break;
-                    default:
-                        break;
-                }
-
                 // Pause animation if we aren't moving, and restart if we are
                 if (states[i].state == IDLE)
                 {

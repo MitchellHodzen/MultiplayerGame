@@ -27,6 +27,7 @@ bool ECDB_EntityHasComponent(struct ECDB const *const ecdb, unsigned int entityI
 void* ECDB_EnableEntityComponent(struct ECDB* ecdb, unsigned int entityId, int componentHandle);
 void ECDB_DisableEntityComponent(struct ECDB* ecdb, unsigned int entityId, int componentHandle);
 void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, unsigned int entityId, int componentHandle);
+bool ECDB_Try_Get_Entity_Component(struct ECDB const *const ecdb, unsigned int entity_id, int component_handle, void** component);
 size_t ECDB_Snapshot_Size(struct ECDB const *const ecdb);
 void ECDB_Generate_Snapshot(struct ECDB const *const ecdb, void* snapshot);
 void ECDB_Apply_Snapshot(struct ECDB* ecdb, void* snapshot);

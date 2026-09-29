@@ -215,6 +215,17 @@ void* ECDB_GetEntityComponent(struct ECDB const *const ecdb, unsigned int entity
     return ((char*)componentArray) + (entityId * componentSize);
 }
 
+bool ECDB_Try_Get_Entity_Component(struct ECDB const *const ecdb, unsigned int entity_id, int component_handle, void** component)
+{
+    if (ECDB_EntityHasComponent(ecdb, entity_id, component_handle))
+    {
+        *component = ECDB_GetEntityComponent(ecdb, entity_id, component_handle);
+        return true;
+    }
+
+    return false;
+}
+
 static size_t ECDB_Bool_Array_Size(struct ECDB const *const ecdb)
 {
     // valid entities is an array of max entities + 1 bools
