@@ -10,6 +10,7 @@ struct C_Animation_Instance
     unsigned int current_frame;
     unsigned int frame_time_accumulator_ms;
     bool paused;
+    bool loop;
 };
 
 struct Animation_Frame
@@ -27,7 +28,6 @@ struct Animation
     struct Animation_Frame frames[50];
     unsigned int frame_count;
     unsigned int miliseconds_per_frame;
-    bool loop;
 };
 
 bool Animation_Add_Frame(struct Animation* animation, struct Animation_Frame frame);

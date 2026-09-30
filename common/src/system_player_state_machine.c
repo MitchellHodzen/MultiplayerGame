@@ -58,6 +58,20 @@ static float CalculateMovementLeg(float input_leg, float current_velocity_leg, f
     return retval;
 }
 
+bool Attack_Triggered(const struct Command_Buffer* cmnds)
+{
+    for (int i = cmnds->command_cnt - 1; i >= 0; --i)
+    {
+        struct Command_Entry* cmnd = &cmnds->command_queue[i];
+        if (cmnd->pressed == true && cmnd->command == ATTACK)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool Try_Get_Last_Movement_Input(const struct Command_Buffer* cmnds, struct Command_Entry** last_move_cmnd)
 {
     for (int i = cmnds->command_cnt - 1; i >= 0; --i)
@@ -80,6 +94,14 @@ static void Idle_Execute(struct ECDB const *const ecdb, unsigned int entity_id, 
     {
         struct Vector2 input_direction = Calculate_Input_Direction(input);
 
+        // if we attacked, swap to attack state
+        if (Attack_Triggered(&input->commands))
+        {
+            state->timer_elapsed = 0;
+            state->state = ATTACKING;
+            return;
+        }
+
         // If we've started moving, go to running
         if (input_direction.x != 0 || input_direction.y != 0)
         {            
@@ -98,11 +120,6 @@ static void Idle_Execute(struct ECDB const *const ecdb, unsigned int entity_id, 
     }
 }
 
-static void Idle_Animate(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
-{
-
-}
-
 static void Running_Execute(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
 {
     if (ECDB_EntityHasComponent(ecdb, entity_id, inputs_handle))
@@ -110,6 +127,14 @@ static void Running_Execute(struct ECDB const *const ecdb, unsigned int entity_i
         struct C_Input* input = ECDB_GetEntityComponent(ecdb, entity_id, inputs_handle);
         // build direction based on keyboard state
         struct Vector2 input_direction = Calculate_Input_Direction(input);
+
+        // if we attacked, swap to attack state
+        if (Attack_Triggered(&input->commands))
+        {
+            state->timer_elapsed = 0;
+            state->state = ATTACKING;
+            return;
+        }
 
         // If we aren't moving, go back to idle
         if (input_direction.x == 0.0f && input_direction.y == 0.0f)
@@ -200,6 +225,7 @@ static void Run_Animate(struct ECDB const *const ecdb, unsigned int entity_id, s
                     animation_instance->animation_index = move_up_anim_index;
                     animation_instance->current_frame = 0;
                     animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = true;
                 }
                 break;
             case PLAYER_DOWN:
@@ -208,6 +234,7 @@ static void Run_Animate(struct ECDB const *const ecdb, unsigned int entity_id, s
                     animation_instance->animation_index = move_down_anim_index;
                     animation_instance->current_frame = 0;
                     animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = true;
                 }
                 break;
             case PLAYER_LEFT:
@@ -216,6 +243,7 @@ static void Run_Animate(struct ECDB const *const ecdb, unsigned int entity_id, s
                     animation_instance->animation_index = move_left_anim_index;
                     animation_instance->current_frame = 0;
                     animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = true;
                 }
                 break;
             case PLAYER_RIGHT:
@@ -224,6 +252,84 @@ static void Run_Animate(struct ECDB const *const ecdb, unsigned int entity_id, s
                     animation_instance->animation_index = move_right_anim_index;
                     animation_instance->current_frame = 0;
                     animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = true;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+#define ATTACK_LEN_S 0.3
+static void Attacking_Execute(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
+{
+    state->timer_elapsed += delta_time_s;
+    if (state->timer_elapsed >= ATTACK_LEN_S)
+    {
+        state->timer_elapsed = 0;
+        state->state = IDLE;
+        return;
+    }
+
+    if(ECDB_EntityHasComponent(ecdb, entity_id, player_physics_2d_handle) && ECDB_EntityHasComponent(ecdb, entity_id, inputs_handle))
+    {
+        struct C_Physics_2d* physics = ECDB_GetEntityComponent(ecdb, entity_id, player_physics_2d_handle);
+        struct C_Input* input = ECDB_GetEntityComponent(ecdb, entity_id, inputs_handle);
+
+        // slow down
+        physics->velocity.x = CalculateMovementLeg(0, physics->velocity.x, delta_time_s, input->speed, physics->friction);
+        physics->velocity.y = CalculateMovementLeg(0, physics->velocity.y, delta_time_s, input->speed, physics->friction);
+    }
+}
+
+static void Attacking_Animate(struct ECDB const *const ecdb, unsigned int entity_id, struct C_Player_State* state, int inputs_handle, int player_physics_2d_handle, int animation_instance_handle, float delta_time_s)
+{
+    struct C_Animation_Instance* animation_instance;
+    if (ECDB_Try_Get_Entity_Component(ecdb, entity_id, animation_instance_handle, &animation_instance))
+    {
+        // todo: move to some resource manager
+        unsigned int attack_up_anim_index = 5;
+        unsigned int attack_down_anim_index = 6;
+        unsigned int attack_left_anim_index = 7;
+        unsigned int attack_right_anim_index = 8;
+
+        switch(state->direction)
+        {
+            case PLAYER_UP:
+                if (animation_instance->animation_index != attack_up_anim_index)
+                {
+                    animation_instance->animation_index = attack_up_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = false;
+                }
+                break;
+            case PLAYER_DOWN:
+                if (animation_instance->animation_index != attack_down_anim_index)
+                {
+                    animation_instance->animation_index = attack_down_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = false;
+                }
+                break;
+            case PLAYER_LEFT:
+                if (animation_instance->animation_index != attack_left_anim_index)
+                {
+                    animation_instance->animation_index = attack_left_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = false;
+                }
+                break;
+            case PLAYER_RIGHT:
+                if (animation_instance->animation_index != attack_right_anim_index)
+                {
+                    animation_instance->animation_index = attack_right_anim_index;
+                    animation_instance->current_frame = 0;
+                    animation_instance->frame_time_accumulator_ms = 0;
+                    animation_instance->loop = false;
                 }
                 break;
             default:
@@ -252,6 +358,9 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
                 case RUNNING:
                     Running_Execute(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
                     break;
+                case ATTACKING:
+                    Attacking_Execute(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
+                    break;
                 default:
                     break;
             }
@@ -260,10 +369,14 @@ void s_player_state_machine(struct ECDB const *const ecdb, int inputs_handle, in
             switch(states[i].state)
             {
                 case IDLE:
-                    Idle_Animate(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
+                    // Idle uses the same animations as running
+                    Run_Animate(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
                     break;
                 case RUNNING:
                     Run_Animate(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
+                    break;
+                case ATTACKING:
+                    Attacking_Animate(ecdb, i, &states[i], inputs_handle, player_physics_2d_handle, animation_instance_handle, delta_time_s);
                     break;
                 default:
                     break;

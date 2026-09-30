@@ -30,7 +30,14 @@ void s_animation_iterate(struct ECDB* ecdb, int animation_instance_handle, unsig
                     animation_instance->current_frame++;
                     if (animation_instance->current_frame >= animation->frame_count)
                     {
-                        animation_instance->current_frame = 0;
+                        if (animation_instance->loop)
+                        {
+                            animation_instance->current_frame = 0;
+                        }
+                        else
+                        {
+                            animation_instance->current_frame = animation->frame_count - 1;
+                        }
                     }
 
                     animation_instance->frame_time_accumulator_ms -= animation->miliseconds_per_frame;

@@ -20,6 +20,7 @@ struct C_Player_State
 {
     enum Player_State_Type state;
     enum Player_Direction direction;
+    float timer_elapsed;
 };
 
 #endif /* PLAYER_STATES_DEF */

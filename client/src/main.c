@@ -60,6 +60,7 @@ void Save_Command_State(struct Input_Snapshot* input_snapshot)
     command_states[MOVE_DOWN] = keyboard_states[SDL_SCANCODE_S];
     command_states[MOVE_LEFT] = keyboard_states[SDL_SCANCODE_A];
     command_states[MOVE_RIGHT] = keyboard_states[SDL_SCANCODE_D];
+    command_states[ATTACK] = keyboard_states[SDL_SCANCODE_SPACE];
     Input_Snapshot_Save_Command_State(input_snapshot, command_states, CMND_MAX_CNT);
 }
 
@@ -91,6 +92,9 @@ enum Command_Contex Handle_Standard_Input_Event(SDL_Event* event, struct Input_S
                 break;
             case SDL_SCANCODE_D:
                 cmnd.command = MOVE_RIGHT;
+                break;
+            case SDL_SCANCODE_SPACE:
+                cmnd.command = ATTACK;
                 break;
             default:
                 cmnd.command = UNDETERMINED;
@@ -322,7 +326,7 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             }
         }
 
-        //SDL_Log("Going back frames: %i", going_back_frames);
+        SDL_Log("Going back frames: %i", going_back_frames);
 
         // Calculate how many frames we expect to go back
         /*unsigned int sim_frames_since_last_update = sim_frames - sim_frames_at_last_update;
@@ -744,7 +748,7 @@ int main(int argc, char* args[])
                                 // reset the buffer
                                 Chat_Reset_Input_Buffer(gameData->chat_buffers);
                             }
-                            
+
                             SDL_StopTextInput(window_state->window);
                         }
                         break;
@@ -815,7 +819,7 @@ int main(int argc, char* args[])
             // pull back the accumulator
             sim_accumulator_s -= sim_target_s_per_frame;
         }
-
+        
         // Clear previous render before drawing
         SDL_SetRenderDrawColor(window_state->renderer, 98, 189, 32, SDL_ALPHA_OPAQUE ); // Black
         SDL_RenderClear(window_state->renderer);
