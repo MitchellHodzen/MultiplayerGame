@@ -177,7 +177,7 @@ int main(int argc, char* args[])
     float time_packet_accumulator_s = 0;
     float sim_accumulator_s = 0;
     float update_packet_accumulator_s = 0;
-    unsigned int current_tick = 0;
+    unsigned int sim_tick = 0;
     while(1)
     {
         previousFrameTimeMs = currentFrameTimeMs;
@@ -245,7 +245,7 @@ int main(int argc, char* args[])
                                 PlayerAddCharacter(ecdb, &componentHandles, playerId, position, 100);
 
                                 // Send the join packet
-                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .update_packets_per_s = UPDATE_SEND_PER_S, .server_time_ms = currentFrameTimeMs, .network_id = playerId, .position = position };
+                                struct P_JOIN_SERVER joinServerData = {.type = JOIN_SERVER, .max_entities = ENTITY_COUNT, .max_chat_length = MAX_CHAT_LENGTH, .ticks_per_s = TICK_PER_S, .update_packets_per_s = UPDATE_SEND_PER_S, .sim_tick = sim_tick, .server_time_ms = currentFrameTimeMs, .network_id = playerId, .position = position };
                                 ENetPacket * packet = enet_packet_create(&joinServerData, sizeof(struct P_JOIN_SERVER), ENET_PACKET_FLAG_RELIABLE);
                                 enet_peer_send(event.peer, 0, packet);
 
@@ -262,6 +262,7 @@ int main(int argc, char* args[])
                                 struct Command_Entry* cmnd_arr = (char*)packetData + sizeof(struct P_Input);
 
                                 // Apply input
+                                // TODO: Combine multiple input events
                                 if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle))
                                 {
                                     struct C_Input* playerInput = (struct C_Input*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.inputs_handle);
@@ -329,6 +330,9 @@ int main(int argc, char* args[])
             s_apply_physics(ecdb, componentHandles.physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
             s_apply_physics(ecdb, componentHandles.player_physics_2d_handle, componentHandles.transforms_handle, targetSecPerFrame);
 
+            // track sim ticks
+            sim_tick++;
+
             // pull back the accumulator
             sim_accumulator_s -= targetSecPerFrame;
         }
@@ -371,7 +375,7 @@ int main(int argc, char* args[])
             }
 
             // set the first P_Update_Header bytes to the update header
-            struct P_Update_Header update_header = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .removals_count = remove_packet_ct, .updates_count = entities_to_update};
+            struct P_Update_Header update_header = {.type = UPDATE, .server_time_ms = currentFrameTimeMs, .removals_count = remove_packet_ct, .updates_count = entities_to_update, .sim_tick = sim_tick};
             *(struct P_Update_Header*)update_packet_memory = update_header;
 
             // calculate the actual packet length with the entities to update count
@@ -385,9 +389,6 @@ int main(int argc, char* args[])
             // reset the accumulator
             update_packet_accumulator_s = 0;
         }
-
-        // Increment tick
-        current_tick++;
     }
 
     enet_host_destroy(server);

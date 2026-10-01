@@ -25,6 +25,7 @@ struct P_JOIN_SERVER
     unsigned int update_packets_per_s;
     unsigned long server_time_ms;
     struct Vector2 position;
+    unsigned int sim_tick;
 };
 
 struct P_Input
@@ -41,6 +42,7 @@ struct P_Update_Header
     unsigned int removals_count;
     unsigned int updates_count;
     unsigned long server_time_ms;
+    unsigned int sim_tick;
 };
 
 struct P_Update_Entity_Data

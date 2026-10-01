@@ -14,6 +14,7 @@ struct Chat_Snapshot_Info
 struct Input_Snapshot
 {
     long client_time;
+    unsigned int sim_tick;
     unsigned int chat_messages_cached;
     struct Chat_Snapshot_Info chat_cache[10]; // unlikely to receive multiple chat messages in a single frame, dont cache many
     struct Command_Buffer command_queue;
