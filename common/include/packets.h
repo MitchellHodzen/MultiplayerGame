@@ -32,6 +32,7 @@ struct P_Input
 {
     enum Packet_Type type;
     unsigned int networkId;
+    unsigned int input_sequence_nmbr;
     bool cmnd_states[CMND_MAX_CNT];
     unsigned int cmnd_cnt;
 };
@@ -51,6 +52,7 @@ struct P_Update_Entity_Data
     struct Vector2 position;
     struct Vector2 velocity;
     struct C_Player_State state;
+    unsigned int latest_input_seq_nmbr; // TODO: move to update header and send specialized updates
 };
 
 struct P_Server_Time

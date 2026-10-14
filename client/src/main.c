@@ -322,6 +322,9 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
         bool continue_checking_timestamp = true;
         bool continue_checking_ticks = true;
 
+        bool found_last_seq_nmbr = false;
+        unsigned int server_input_seq_nmbr;
+
         // Todo: base tick count needs to update after rollback
         enet_uint32 ms_server_in_past = net_mgr_src->serverPeer->roundTripTime / 2;
         float server_ticks_per_ms = (float)callback_data->server_ticks_per_s / 1000.0f;
@@ -422,6 +425,12 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             }
 
             int localEntityId = callback_data->game_data->networkIdEntityMap[update.networkId];
+            if (localEntityId == callback_data->networked_player_id)
+            {
+                // If the update is for the player, record the last input
+                found_last_seq_nmbr = true;
+                server_input_seq_nmbr = update.latest_input_seq_nmbr;
+            }
             if(ECDB_EntityHasComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.transforms_handle))
             {
                 if (ECDB_EntityHasComponent(callback_data->game_data->ec, localEntityId, callback_data->game_data->componentHandles.transforms_interpolation_buffer_handle))
@@ -461,7 +470,8 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             }
         }
 
-        unsigned long input_lag_compensated_server_time = header->server_time_ms - ms_server_in_past;
+        //unsigned long input_lag_compensated_server_time = header->server_time_ms - ms_server_in_past;  
+        unsigned int wrap_around_check = 20;
         int inputs_replayed = 0;
         //for(unsigned int i = callback_data->input_queue->buffer_size - going_back_frames + 1; i < callback_data->input_queue->buffer_size; ++i)
         for(unsigned int i = 0; i < callback_data->input_queue->buffer_size; ++i)
@@ -469,9 +479,16 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             // Re-play any input captured after the last frame.
             struct Input_Snapshot input = Input_Buffer_Get_At(callback_data->input_queue, i);
 
-            uint64_t input_estimated_server_time = Net_Estimate_Server_Time(net_mgr_src, input.client_time);
-            if (input_estimated_server_time >= input_lag_compensated_server_time)
+            // If the sequence number from the server is earlier than the input snapshot, replay the input
+            // TODO: Group any input that is before the go back frames as a single input event
+            //uint64_t input_estimated_server_time = Net_Estimate_Server_Time(net_mgr_src, input.client_time);                                      
+            //if (input_estimated_server_time >= input_lag_compensated_server_time)      
+            if (found_last_seq_nmbr == true 
+                && 
+                ((input.input_sequence_nmbr > server_input_seq_nmbr)
+                || (server_input_seq_nmbr - input.input_sequence_nmbr > wrap_around_check)))
             {
+                SDL_Log("\t\tinput seq: %i. Server seq: %i", input.input_sequence_nmbr, server_input_seq_nmbr);
                 inputs_replayed++;
                 // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
                 float replay_delta_time_s = callback_data->delta_time_s;
@@ -691,10 +708,6 @@ int main(int argc, char* args[])
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {450.0f, 632.0f});
     Add_Flower(gameData->ec, &gameData->componentHandles, (struct Vector2) {350.0f, 900.0f});
 
-    // Input since the last sim frame
-    struct Input_Snapshot input_snapshot;
-    Input_Snapshot_Init(&input_snapshot);
-
     // Timekeeping
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
@@ -710,6 +723,9 @@ int main(int argc, char* args[])
     unsigned int history_frames_to_save = STATE_BUFFER_SIZE;
     Input_Snapshot_Buffer* input_queue;
     Input_Buffer_Init(&input_queue, history_frames_to_save);
+    unsigned int input_sequence_nmbr = 0;
+    struct Input_Snapshot input_snapshot;
+    Input_Snapshot_Init(&input_snapshot, input_sequence_nmbr);
 
     // Game state snapshot is the snapshot struct + the actual game state
     size_t ecdb_snapshot_size = ECDB_Snapshot_Size(gameData->ec);
@@ -829,8 +845,9 @@ int main(int argc, char* args[])
             );
             
             // If any commands generated from input, send to server
-            if (input_snapshot.command_queue.command_cnt > 0)
-            {
+            // TODO: Get away with only sending input when there is a change? 
+            //if (input_snapshot.command_queue.command_cnt > 0)
+            //{
                 // Build an input packet on the stack to be sent.
                 size_t cmnd_arr_bytes = sizeof(struct Command_Entry) * input_snapshot.command_queue.command_cnt;
                 int input_packet_size = sizeof(struct P_Input) + cmnd_arr_bytes;
@@ -838,7 +855,7 @@ int main(int argc, char* args[])
 
                 // Set the header data
                 unsigned int* player_network_id = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
-                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .cmnd_cnt = input_snapshot.command_queue.command_cnt};
+                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .cmnd_cnt = input_snapshot.command_queue.command_cnt, .input_sequence_nmbr = input_snapshot.input_sequence_nmbr};
                 memcpy(input_packet_header.cmnd_states, input_snapshot.cmnd_states, CMND_MAX_CNT);
                 *(struct P_Input*)input_packet_data = input_packet_header;
 
@@ -852,7 +869,7 @@ int main(int argc, char* args[])
 
                 // In case it was not actually stack allocated, free the data
                 SDL_stack_free(input_packet_data);
-            }
+            //}
             
             input_snapshot.client_time = currentFrameTimeMs;
             input_snapshot.sim_tick = sim_tick;
@@ -863,8 +880,9 @@ int main(int argc, char* args[])
             Input_Buffer_Put(input_queue, input_snapshot);
             Save_State_History(gameData->ec, game_state_history_stack, currentFrameTimeMs, sim_tick);
 
-            // reset the input snapshot
-            Input_Snapshot_Init(&input_snapshot);
+            // reset the input snapshot and increment the sequence number
+            input_sequence_nmbr++; // Will overflow but that's fine we account for it
+            Input_Snapshot_Init(&input_snapshot, input_sequence_nmbr);
 
             sim_tick++;
             // pull back the accumulator

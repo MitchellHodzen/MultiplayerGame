@@ -28,9 +28,10 @@ void Input_Buffer_Put(Input_Snapshot_Buffer* buffer, struct Input_Snapshot snaps
     *next = snapshot;
 }
 
-void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot)
+void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot, unsigned int input_sequence_nmbr)
 {
     memset(input_snapshot, 0, sizeof(struct Input_Snapshot));
+    input_snapshot->input_sequence_nmbr = input_sequence_nmbr;
 }
 
 bool Input_Snapshot_Push_Command(struct Input_Snapshot* snapshot, struct Command_Entry command)

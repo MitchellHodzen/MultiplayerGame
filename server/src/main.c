@@ -33,11 +33,12 @@ struct Component_Handles
     int player_physics_2d_handle;
     int player_states_handle;
     int animation_instance_handle;
+    int latest_input_seq_nmbr_handle;
 };
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
 {
-    if (!ECDB_Init(ecdb, entityCount, 6))
+    if (!ECDB_Init(ecdb, entityCount, 7))
     {
         printf("Couldn't initialize component DB\n");
         return false;
@@ -76,9 +77,16 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         ECDB_Free(ecdb);
         return false;
     }
-    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Animation_Instance), &(componentHandles->animation_instance_handle), &default_state))
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(struct C_Animation_Instance), &(componentHandles->animation_instance_handle), NULL))
     {
         printf("Couldn't initialize animation instance component\n");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
+    if (!ECDB_RegisterComponent(*ecdb, sizeof(unsigned int), &(componentHandles->latest_input_seq_nmbr_handle), NULL))
+    {
+        printf("Couldn't initialize last input sequence number component\n");
         ECDB_Free(ecdb);
         return false;
     }
@@ -105,6 +113,7 @@ void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHand
     entityInput->speed=300;
     ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_physics_2d_handle);
     ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_states_handle);
+    ECDB_EnableEntityComponent(ec, playerId, componentHandles->latest_input_seq_nmbr_handle);
 }
 
 void BroadcastChatMessage(ENetHost* server, struct P_Chat_Header header, char* string, size_t strlen)
@@ -263,12 +272,15 @@ int main(int argc, char* args[])
 
                                 // Apply input
                                 // TODO: Combine multiple input events
-                                if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle))
+                                if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle) && ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.latest_input_seq_nmbr_handle))
                                 {
                                     struct C_Input* playerInput = (struct C_Input*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.inputs_handle);
                                     playerInput->commands.command_cnt = packetData->cmnd_cnt;
                                     memcpy(&playerInput->commands.command_queue, cmnd_arr, sizeof(struct Command_Entry) * packetData->cmnd_cnt);
                                     memcpy(&playerInput->cmnd_states, packetData->cmnd_states, CMND_MAX_CNT);
+
+                                    unsigned int* input_seq_nmbr = (unsigned int*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.latest_input_seq_nmbr_handle);
+                                    *input_seq_nmbr = packetData->input_sequence_nmbr;
                                 }
 
                                 break;
@@ -340,6 +352,7 @@ int main(int argc, char* args[])
         update_packet_accumulator_s += deltaTimeS;
         if (update_packet_accumulator_s > targetSecPerUpdate)
         {
+            unsigned int* last_input_seq_nmbrs = (unsigned int*) ecdb->componentArrays[componentHandles.latest_input_seq_nmbr_handle];
             struct C_Transform* transforms = (struct C_Transform*) ecdb->componentArrays[componentHandles.transforms_handle];
             struct C_Physics_2d* physics = (struct C_Physics_2d*) ecdb->componentArrays[componentHandles.player_physics_2d_handle];
             struct C_Player_State* states = (struct C_Player_State*) ecdb->componentArrays[componentHandles.player_states_handle];
@@ -368,7 +381,7 @@ int main(int argc, char* args[])
             {
                 if(ECDB_EntityHasComponent(ecdb, i, componentHandles.transforms_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.inputs_handle && ECDB_EntityHasComponent(ecdb, i, componentHandles.player_physics_2d_handle) && ECDB_EntityHasComponent(ecdb, i, componentHandles.player_states_handle)))
                 {
-                    struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position, .velocity = physics[i].velocity, .state = states[i]};
+                    struct P_Update_Entity_Data data = {.networkId = i, .position = transforms[i].position, .velocity = physics[i].velocity, .state = states[i], .latest_input_seq_nmbr = last_input_seq_nmbrs[i]};
                     update_buffer_ptr[entities_to_update] = data;
                     entities_to_update++;
                 }

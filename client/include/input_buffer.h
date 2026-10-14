@@ -14,6 +14,7 @@ struct Chat_Snapshot_Info
 struct Input_Snapshot
 {
     long client_time;
+    unsigned int input_sequence_nmbr;
     unsigned int sim_tick;
     unsigned int chat_messages_cached;
     struct Chat_Snapshot_Info chat_cache[10]; // unlikely to receive multiple chat messages in a single frame, dont cache many
@@ -26,7 +27,7 @@ typedef struct Ring_Buffer Input_Snapshot_Buffer;
 bool Input_Buffer_Init(Input_Snapshot_Buffer** buffer, unsigned int buffer_max_size);
 struct Input_Snapshot Input_Buffer_Get_At(Input_Snapshot_Buffer* buffer, unsigned int index);
 void Input_Buffer_Put(Input_Snapshot_Buffer* buffer, struct Input_Snapshot snapshot);
-void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot);
+void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot, unsigned int input_sequence_nmbr);
 bool Input_Snapshot_Push_Command(struct Input_Snapshot* snapshot, struct Command_Entry command);
 unsigned int Input_Snapshot_Save_Command_State(struct Input_Snapshot* snapshot, bool* cmnd_states, size_t cmnd_state_len);
 
