@@ -470,11 +470,15 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             }
         }
 
-        //unsigned long input_lag_compensated_server_time = header->server_time_ms - ms_server_in_past;  
+        unsigned long input_lag_compensated_server_time = header->server_time_ms - ms_server_in_past;  
         unsigned int wrap_around_check = 20;
         int inputs_replayed = 0;
         //for(unsigned int i = callback_data->input_queue->buffer_size - going_back_frames + 1; i < callback_data->input_queue->buffer_size; ++i)
-        for(unsigned int i = 0; i < callback_data->input_queue->buffer_size; ++i)
+        //for(unsigned int i = 0; i < callback_data->input_queue->buffer_size; ++i)
+
+        // replay the same amount of input as missed frames. the input frame has already been played on the corresponding state frame
+        // as they are both written to at the same time, buffer size will always be at least as big as going back frames.
+        for(unsigned int i = callback_data->input_queue->buffer_size - going_back_frames + 1; i < callback_data->input_queue->buffer_size; ++i)
         {
             // Re-play any input captured after the last frame.
             struct Input_Snapshot input = Input_Buffer_Get_At(callback_data->input_queue, i);
@@ -483,12 +487,12 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             // TODO: Group any input that is before the go back frames as a single input event
             //uint64_t input_estimated_server_time = Net_Estimate_Server_Time(net_mgr_src, input.client_time);                                      
             //if (input_estimated_server_time >= input_lag_compensated_server_time)      
-            if (found_last_seq_nmbr == true 
-                && 
-                ((input.input_sequence_nmbr > server_input_seq_nmbr)
-                || (server_input_seq_nmbr - input.input_sequence_nmbr > wrap_around_check)))
-            {
-                SDL_Log("\t\tinput seq: %i. Server seq: %i", input.input_sequence_nmbr, server_input_seq_nmbr);
+            //if (found_last_seq_nmbr == true 
+            //    && 
+            //    ((input.input_sequence_nmbr > server_input_seq_nmbr)
+            //    || (server_input_seq_nmbr - input.input_sequence_nmbr > wrap_around_check)))
+            //{
+                //SDL_Log("\t\tinput seq: %i. Server seq: %i", input.input_sequence_nmbr, server_input_seq_nmbr);
                 inputs_replayed++;
                 // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
                 float replay_delta_time_s = callback_data->delta_time_s;
@@ -501,7 +505,7 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
 
                 // TODO - instead of calling run_sim in two places in the main loop, put all input together and then play it out later?
                 Run_Sim(callback_data->game_data->ec, net_mgr_src, &(callback_data->game_data->componentHandles), &input, callback_data->game_data->animations, callback_data->networked_player_id, replay_delta_time_s);
-            }
+            //}
         }
 
         SDL_Log("\tInputs replayed: %i", inputs_replayed);
@@ -855,7 +859,8 @@ int main(int argc, char* args[])
 
                 // Set the header data
                 unsigned int* player_network_id = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
-                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .cmnd_cnt = input_snapshot.command_queue.command_cnt, .input_sequence_nmbr = input_snapshot.input_sequence_nmbr};
+                uint64_t client_est_server_Time = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
+                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .client_time_ms = client_est_server_Time, .cmnd_cnt = input_snapshot.command_queue.command_cnt, .input_sequence_nmbr = input_snapshot.input_sequence_nmbr};
                 memcpy(input_packet_header.cmnd_states, input_snapshot.cmnd_states, CMND_MAX_CNT);
                 *(struct P_Input*)input_packet_data = input_packet_header;
 

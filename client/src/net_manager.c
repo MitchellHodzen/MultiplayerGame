@@ -202,12 +202,6 @@ uint64_t Net_Estimate_Server_Time(const struct Net_Manager* netManager, uint64_t
     return client_time_ms + netManager->server_time_offset_ms;
 }
 
-
-uint64_t Net_Estimate_Client_Time(const struct Net_Manager* netManager, uint64_t server_time_ms)
-{
-    return server_time_ms - netManager->server_time_offset_ms;
-}
-
 unsigned int Net_Get_Packet_Loss(const struct Net_Manager* netManager)
 {
     return netManager->serverPeer->packetLoss;
@@ -218,10 +212,13 @@ unsigned int Net_Get_Round_Trip_Time_Ms(const struct Net_Manager* netManager)
     return netManager->serverPeer->roundTripTime;
 }
 
+#define SERVER_INPUT_BUF_TIME_MS 10 // TODO: This is arbitrary, find an actual good value
 void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms)
 {
-    unsigned int half_round_trip_time = netManager->serverPeer->roundTripTime / 2;
-    netManager->server_time_offset_ms = server_time_ms + half_round_trip_time - client_time_ms;
+    // We want to put the client time ahead of the server by half round trip time + the input buffer amt
+    // Actual server time will be server_time_ms + half round trip time
+    // So estimated client time will be server_time_ms + round trip time + buffer
+    netManager->server_time_offset_ms = server_time_ms + netManager->serverPeer->roundTripTime + SERVER_INPUT_BUF_TIME_MS  - client_time_ms;
 }
 
 
