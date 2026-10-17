@@ -16,6 +16,7 @@ struct Net_Manager
     unsigned int channels;
     int server_time_offset_ms;
     unsigned int update_packets_per_s;
+    unsigned int desired_additional_ticks;
 };
 
 bool Net_Initialize(struct Net_Manager** netManager, unsigned int channels);
@@ -27,5 +28,6 @@ uint64_t Net_Estimate_Server_Time(const struct Net_Manager* netManager, uint64_t
 unsigned int Net_Get_Round_Trip_Time_Ms(const struct Net_Manager* netManager);
 unsigned int Net_Get_Packet_Loss(const struct Net_Manager* netManager);
 void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t client_time_ms, uint64_t server_time_ms);
+void Net_Calculate_Target_Ticks_Ahead(struct Net_Manager* net_manager, unsigned int server_ticks_per_s);
 
 #endif /* NET_MANAGER */

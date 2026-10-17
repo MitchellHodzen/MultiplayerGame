@@ -221,6 +221,16 @@ void Net_Calculate_Server_Time_Offset(struct Net_Manager* netManager, uint64_t c
     netManager->server_time_offset_ms = server_time_ms + netManager->serverPeer->roundTripTime + SERVER_INPUT_BUF_TIME_MS  - client_time_ms;
 }
 
+#define SERVER_INPUT_BUF_TICKS 10 // TODO: This is arbitrary, find an actual good value
+void Net_Calculate_Target_Ticks_Ahead(struct Net_Manager* net_manager, unsigned int server_ticks_per_s)
+{
+    // We want to put the client time ahead of the server by half round trip time + the input buffer amt
+    // Actual server time will be server_time_ms + half round trip time
+    // So estimated client time will be server_time_ms + round trip time + buffer
+    float server_ticks_per_ms = (float)server_ticks_per_s / 1000.0f;
+    unsigned int frames_of_ping = server_ticks_per_ms * net_manager->serverPeer->roundTripTime;
+    net_manager->desired_additional_ticks = frames_of_ping + SERVER_INPUT_BUF_TICKS;
+}
 
 void Net_Free(struct Net_Manager** netManager)
 {

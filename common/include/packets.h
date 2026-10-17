@@ -33,6 +33,7 @@ struct P_Input
     enum Packet_Type type;
     unsigned int networkId;
     unsigned long client_time_ms;
+    unsigned int sim_tick;
     unsigned int input_sequence_nmbr;
     bool cmnd_states[CMND_MAX_CNT];
     unsigned int cmnd_cnt;

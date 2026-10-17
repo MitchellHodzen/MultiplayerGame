@@ -23,7 +23,7 @@
 #define MAX_CHAT_LENGTH 100
 #define TIME_SYNC_SEND_S 15
 #define UPDATE_SEND_PER_S 10
-#define PORT 1235
+#define PORT 1234
 
 struct Component_Handles
 {
@@ -268,7 +268,15 @@ int main(int argc, char* args[])
                             case PACKET_INPUT:
                             {
                                 struct P_Input* packetData = (struct P_Input*) event.packet->data;
-                                printf("Client input recv time: %u. Server time: %u. Diff: %u\n", packetData->client_time_ms, currentFrameTimeMs, packetData->client_time_ms - currentFrameTimeMs);
+                                long diff = (long)((packetData->client_time_ms + 1000) -  currentFrameTimeMs) - 1000;
+                                if (diff >= 0)
+                                {
+                                    printf("Client input time ahead: %ld (server time: %lu, client time: %lu)\n", diff, currentFrameTimeMs, packetData->client_time_ms);
+                                }
+                                else
+                                {
+                                    printf("Client input time behind: %ld (server time: %lu, client time: %lu)\n", diff, currentFrameTimeMs, packetData->client_time_ms);
+                                }
                                 struct Command_Entry* cmnd_arr = (char*)packetData + sizeof(struct P_Input);
 
                                 // Apply input

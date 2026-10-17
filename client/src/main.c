@@ -41,7 +41,7 @@
 #define LEVEL_WIDTH 1000
 #define LEVEL_HEIGHT 1000
 #define NETWORKING_CHANNELS 3
-#define STATE_BUFFER_SIZE 10
+#define STATE_BUFFER_SIZE 30
 
 enum Command_Contex
 {
@@ -312,79 +312,39 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
 
         // When we receive an update header, revert to the state that was right before that in server time
         // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
-        // TODO: Calculate how many frames we should replay based on latency and see if it matches up
         int going_back_frames = 0;
-
-        bool use_ticks_for_rollback = false;
-        int going_back_frames_from_ticks = 0;
-        int going_back_frames_from_timestamp = 0;
-
-        bool continue_checking_timestamp = true;
-        bool continue_checking_ticks = true;
 
         bool found_last_seq_nmbr = false;
         unsigned int server_input_seq_nmbr;
 
-        // Todo: base tick count needs to update after rollback
-        enet_uint32 ms_server_in_past = net_mgr_src->serverPeer->roundTripTime / 2;
-        float server_ticks_per_ms = (float)callback_data->server_ticks_per_s / 1000.0f;
-        unsigned int estimated_frames_ahead = server_ticks_per_ms * ms_server_in_past;
-        float estimated_frames_ahead_f = server_ticks_per_ms * ms_server_in_past;
-        SDL_Log("estimated frames server is in the past: %i (as float: %f)", estimated_frames_ahead, estimated_frames_ahead_f);
         //SDL_Log("Server time: %lu", header->server_time_ms);
         while(callback_data->client_side_prediction_enabled == true && callback_data->game_state_history_stack->buffer_size > 0)
         {
-            // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it 
+            // TODO: becuase the first saved snapshot is always the current state, it doesn't make sense to test it or roll back to it
+            // TODO: better account for if the server is in front by doing no rollback and snapping to the new state
             struct Game_State_Snapshot* state = (struct Game_State_Snapshot*)Ring_Buffer_Pop(callback_data->game_state_history_stack);
+            going_back_frames++;
 
-            if (continue_checking_timestamp == true)
-            {
-                going_back_frames_from_timestamp++;
-            }
-            if (continue_checking_ticks == true)
-            {
-                going_back_frames_from_ticks++;
-            }
+            // If we've found the sim frame from the server roll back to it
+            bool sim_tick_to_roll_back = state->sim_tick <= header->sim_tick;
 
-            // If the state is less than or matches server time, or if we are at the oldest state we have on record, use it. look at the previous frame to make sure we are looking at the old
-            uint64_t snapshot_estimated_server_time = Net_Estimate_Server_Time(net_mgr_src, state->client_time_ms);
-            //SDL_Log("\tClient Estimated Server Time: %lu. Diff: %li", snapshot_estimated_server_time, (long)((snapshot_estimated_server_time + 1000) - header->server_time_ms) - 1000);
-            if (callback_data->game_state_history_stack->buffer_size == 0 || snapshot_estimated_server_time <= header->server_time_ms)
+            // If we're at the last state we can roll back to, or we've found the sim frame from the server, roll back to that so we can apply input
+            if (callback_data->game_state_history_stack->buffer_size == 0 || sim_tick_to_roll_back)
             {
-                continue_checking_timestamp = false;
-                if (use_ticks_for_rollback == false)
+                if (!sim_tick_to_roll_back)
                 {
-                    void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
-                    ECDB_Apply_Snapshot(callback_data->game_data->ec, ecdb_state_snapshot);
-                    going_back_frames = going_back_frames_from_timestamp;
+                    // log if we ran out of ticks
+                    SDL_Log("Ran out of sims to roll back. Local Tick: %i. Server Tick: %i", state->sim_tick, header->sim_tick);
                 }
-            }
-            
-            unsigned int server_sim_tick = header->sim_tick - estimated_frames_ahead;
-            unsigned int client_sim_tick = state->sim_tick;
-
-            if (callback_data->game_state_history_stack->buffer_size == 0 || client_sim_tick <= server_sim_tick)
-            {
-                continue_checking_ticks = false;
-                if (use_ticks_for_rollback == true)
-                {
-                    void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
-                    ECDB_Apply_Snapshot(callback_data->game_data->ec, ecdb_state_snapshot);
-                    going_back_frames = going_back_frames_from_ticks;
-                    // We have a new starting point, so clear state history
-                    //Ring_Buffer_Clear(callback_data->game_state_history_stack);
-                    //break;
-                }
-            }
-
-            if (continue_checking_ticks == false && continue_checking_timestamp == false)
-            {
+                
+                // TODO: Instead of rolling back completely and applying new state, keep original state and compare?
+                void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
+                ECDB_Apply_Snapshot(callback_data->game_data->ec, ecdb_state_snapshot);
+                // We have a new starting point, so clear state history
                 Ring_Buffer_Clear(callback_data->game_state_history_stack);
-                break;   
-            } 
+                break;
+            }
         }
-
-        SDL_Log("Server update received, going back frames: %i (timestamp: %i. tick: %i)", going_back_frames, going_back_frames_from_timestamp, going_back_frames_from_ticks);
 
         // Record removals
         unsigned int* removal_buffer_ptr = (unsigned int*)(packet_data + sizeof(struct P_Update_Header));
@@ -470,45 +430,36 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             }
         }
 
-        unsigned long input_lag_compensated_server_time = header->server_time_ms - ms_server_in_past;  
-        unsigned int wrap_around_check = 20;
-        int inputs_replayed = 0;
-        //for(unsigned int i = callback_data->input_queue->buffer_size - going_back_frames + 1; i < callback_data->input_queue->buffer_size; ++i)
-        //for(unsigned int i = 0; i < callback_data->input_queue->buffer_size; ++i)
-
         // replay the same amount of input as missed frames. the input frame has already been played on the corresponding state frame
         // as they are both written to at the same time, buffer size will always be at least as big as going back frames.
+        int inputs_replayed = 0;
         for(unsigned int i = callback_data->input_queue->buffer_size - going_back_frames + 1; i < callback_data->input_queue->buffer_size; ++i)
         {
             // Re-play any input captured after the last frame.
             struct Input_Snapshot input = Input_Buffer_Get_At(callback_data->input_queue, i);
 
-            // If the sequence number from the server is earlier than the input snapshot, replay the input
-            // TODO: Group any input that is before the go back frames as a single input event
-            //uint64_t input_estimated_server_time = Net_Estimate_Server_Time(net_mgr_src, input.client_time);                                      
-            //if (input_estimated_server_time >= input_lag_compensated_server_time)      
-            //if (found_last_seq_nmbr == true 
-            //    && 
-            //    ((input.input_sequence_nmbr > server_input_seq_nmbr)
-            //    || (server_input_seq_nmbr - input.input_sequence_nmbr > wrap_around_check)))
-            //{
-                //SDL_Log("\t\tinput seq: %i. Server seq: %i", input.input_sequence_nmbr, server_input_seq_nmbr);
-                inputs_replayed++;
-                // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
-                float replay_delta_time_s = callback_data->delta_time_s;
-                if (i != 0)
-                {
-                    // calculate delta time based on previous input time
-                    float previous_frame_time_ms = Input_Buffer_Get_At(callback_data->input_queue, i - 1).client_time;
-                    replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
-                }
+            inputs_replayed++;
+            // calculate delta time based on previous input time. If no previous value, use the current frame's as an approximation
+            float replay_delta_time_s = callback_data->delta_time_s;
+            if (i != 0)
+            {
+                // calculate delta time based on previous input time
+                float previous_frame_time_ms = Input_Buffer_Get_At(callback_data->input_queue, i - 1).client_time;
+                replay_delta_time_s = (float)(input.client_time - previous_frame_time_ms) / 1000;
+            }
 
-                // TODO - instead of calling run_sim in two places in the main loop, put all input together and then play it out later?
-                Run_Sim(callback_data->game_data->ec, net_mgr_src, &(callback_data->game_data->componentHandles), &input, callback_data->game_data->animations, callback_data->networked_player_id, replay_delta_time_s);
-            //}
+            Run_Sim(callback_data->game_data->ec, net_mgr_src, &(callback_data->game_data->componentHandles), &input, callback_data->game_data->animations, callback_data->networked_player_id, replay_delta_time_s);
         }
 
-        SDL_Log("\tInputs replayed: %i", inputs_replayed);
+        Net_Calculate_Target_Ticks_Ahead(net_mgr_src, callback_data->server_ticks_per_s);
+
+        // just doing this for logging
+        float server_ticks_per_ms = (float)callback_data->server_ticks_per_s / 1000.0f;
+        unsigned int frames_of_ping = server_ticks_per_ms * net_mgr_src->serverPeer->roundTripTime;
+        unsigned int estimated_current_server_frame = header->sim_tick + (frames_of_ping / 2);
+
+        unsigned int desired_current_frame = header->sim_tick + net_mgr_src->desired_additional_ticks;
+        SDL_Log("Rolled back frames: %i. Inputs replayed: %i. Desired additional frames: %i (estimated server frame: %i. Target local frame: %i)", going_back_frames, inputs_replayed, net_mgr_src->desired_additional_ticks, estimated_current_server_frame, desired_current_frame);
         break;
     }
     default:
@@ -645,7 +596,8 @@ int main(int argc, char* args[])
     // Set initial server time offset
     // Todo: initial calculation seems off by some ms
     Net_Calculate_Server_Time_Offset(netManager, SDL_GetTicks(), joinGamePacket.server_time_ms);
-    unsigned int sim_tick = joinGamePacket.sim_tick;
+    Net_Calculate_Target_Ticks_Ahead(netManager, joinGamePacket.ticks_per_s);
+    unsigned int sim_tick = joinGamePacket.sim_tick + netManager->desired_additional_ticks;
     unsigned int server_ticks_per_s = joinGamePacket.ticks_per_s;
 
     // Init game state based on server info
@@ -715,7 +667,7 @@ int main(int argc, char* args[])
     // Timekeeping
     Uint64 currentFrameTimeMs = SDL_GetTicks();
     Uint64 previousFrameTimeMs = currentFrameTimeMs;
-    float sim_target_s_per_frame = (1.0f / (float)60 );
+    float sim_target_s_per_frame = (1.0f / (float)server_ticks_per_s );
     float sim_accumulator_s = 0;
 
     // Packet recv callbacks
@@ -860,7 +812,7 @@ int main(int argc, char* args[])
                 // Set the header data
                 unsigned int* player_network_id = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
                 uint64_t client_est_server_Time = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
-                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .client_time_ms = client_est_server_Time, .cmnd_cnt = input_snapshot.command_queue.command_cnt, .input_sequence_nmbr = input_snapshot.input_sequence_nmbr};
+                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .client_time_ms = client_est_server_Time, .sim_tick = sim_tick, .cmnd_cnt = input_snapshot.command_queue.command_cnt, .input_sequence_nmbr = input_snapshot.input_sequence_nmbr};
                 memcpy(input_packet_header.cmnd_states, input_snapshot.cmnd_states, CMND_MAX_CNT);
                 *(struct P_Input*)input_packet_data = input_packet_header;
 
