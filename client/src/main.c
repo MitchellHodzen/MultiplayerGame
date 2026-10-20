@@ -313,6 +313,7 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
         // When we receive an update header, revert to the state that was right before that in server time
         // TODO: End of frame is actually equivalent to current ECDB data since the sim hasn't been re-run yet. make more clear?
         int going_back_frames = 0;
+        unsigned long revert_sim_tick = 0;
 
         bool found_last_seq_nmbr = false;
         unsigned int server_input_seq_nmbr;
@@ -336,7 +337,8 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
                     // log if we ran out of ticks
                     SDL_Log("Ran out of sims to roll back. Local Tick: %i. Server Tick: %i", state->sim_tick, header->sim_tick);
                 }
-                
+
+                revert_sim_tick = state->sim_tick;
                 // TODO: Instead of rolling back completely and applying new state, keep original state and compare?
                 void* ecdb_state_snapshot = (char*)state + sizeof(struct Game_State_Snapshot);
                 ECDB_Apply_Snapshot(callback_data->game_data->ec, ecdb_state_snapshot);
@@ -449,6 +451,8 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
             }
 
             Run_Sim(callback_data->game_data->ec, net_mgr_src, &(callback_data->game_data->componentHandles), &input, callback_data->game_data->animations, callback_data->networked_player_id, replay_delta_time_s);
+            // save state
+            Save_State_History(callback_data->game_data->ec, callback_data->game_state_history_stack, 0, input.sim_tick); // TODO: client time not accurate here but we dont use it anymore, delete
         }
 
         Net_Calculate_Target_Ticks_Ahead(net_mgr_src, callback_data->server_ticks_per_s);
@@ -459,7 +463,7 @@ bool On_Packet_Received_Callback(struct Net_Manager* net_mgr_src, unsigned char*
         unsigned int estimated_current_server_frame = header->sim_tick + (frames_of_ping / 2);
 
         unsigned int desired_current_frame = header->sim_tick + net_mgr_src->desired_additional_ticks;
-        SDL_Log("Rolled back frames: %i. Inputs replayed: %i. Desired additional frames: %i (estimated server frame: %i. Target local frame: %i)", going_back_frames, inputs_replayed, net_mgr_src->desired_additional_ticks, estimated_current_server_frame, desired_current_frame);
+        SDL_Log("Rolled back frames: %i (back to frame %i). Inputs replayed: %i (new sim frame: %i). Desired additional frames: %i (estimated server frame: %i. Target local frame: %i)", going_back_frames, revert_sim_tick, inputs_replayed, revert_sim_tick + inputs_replayed + 1, net_mgr_src->desired_additional_ticks, estimated_current_server_frame, desired_current_frame);
         break;
     }
     default:
@@ -698,7 +702,7 @@ int main(int argc, char* args[])
     SDL_Event e;
     enum Command_Contex command_context = COMMAND_STANDARD;
 
-    SDL_Log("Starting game loop");
+    SDL_Log("Starting game loop at tick %i", sim_tick);
     while(quit == false)
     {
         previousFrameTimeMs = currentFrameTimeMs;
