@@ -185,6 +185,8 @@ static inline void Test_Tick_Input()
     Tick_Input_Buffer_Add(stack, &input5_2);
     Print_Buffer(stack);
     printf("\n");
+
+    free(stack);
 }
 
 
