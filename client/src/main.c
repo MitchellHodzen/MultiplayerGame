@@ -224,9 +224,9 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
 
     // analyze input
 
-    for (unsigned int i = 0; i < input->command_queue.command_cnt; ++i)
+    for (unsigned int i = 0; i < input->cmnd_snapshot.commands.command_cnt; ++i)
     {
-        struct Command_Entry cmnd = input->command_queue.command_queue[i];
+        struct Command_Entry cmnd = input->cmnd_snapshot.commands.command_queue[i];
         if (cmnd.pressed == true)
         {
             if (cmnd.command == TOGGLE_INTERPOLATION)
@@ -276,8 +276,8 @@ void Run_Sim(struct ECDB* ecdb, struct Net_Manager* net_manager, struct Componen
     if(ECDB_EntityHasComponent(ecdb, player_id, component_handles->inputs_handle))
     {
         struct C_Input* player_input = (struct C_Input*)ECDB_GetEntityComponent(ecdb, player_id, component_handles->inputs_handle);
-        player_input->commands = input->command_queue;
-        memcpy(&player_input->cmnd_states, input->cmnd_states, CMND_MAX_CNT);
+        player_input->cmnd_snapshot.commands = input->cmnd_snapshot.commands;
+        memcpy(&player_input->cmnd_snapshot.cmnd_states, input->cmnd_snapshot.cmnd_states, CMND_MAX_CNT);
     }
 
     s_interpolate_position(ecdb, component_handles->transforms_handle, component_handles->transforms_interpolation_buffer_handle, Net_Estimate_Server_Time(net_manager, input->client_time), net_manager->update_packets_per_s, 2, Net_Get_Round_Trip_Time_Ms(net_manager));
@@ -809,20 +809,20 @@ int main(int argc, char* args[])
             //if (input_snapshot.command_queue.command_cnt > 0)
             //{
                 // Build an input packet on the stack to be sent.
-                size_t cmnd_arr_bytes = sizeof(struct Command_Entry) * input_snapshot.command_queue.command_cnt;
+                size_t cmnd_arr_bytes = sizeof(struct Command_Entry) * input_snapshot.cmnd_snapshot.commands.command_cnt;
                 int input_packet_size = sizeof(struct P_Input) + cmnd_arr_bytes;
                 unsigned char* input_packet_data = SDL_stack_alloc(unsigned char, input_packet_size); // Todo: malloc a reusable buffer for this
 
                 // Set the header data
                 unsigned int* player_network_id = ECDB_GetEntityComponent(gameData->ec, networked_player, gameData->componentHandles.network_id_handle);
                 uint64_t client_est_server_Time = Net_Estimate_Server_Time(netManager, currentFrameTimeMs);
-                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .client_time_ms = client_est_server_Time, .sim_tick = sim_tick, .cmnd_cnt = input_snapshot.command_queue.command_cnt, .input_sequence_nmbr = input_snapshot.input_sequence_nmbr};
-                memcpy(input_packet_header.cmnd_states, input_snapshot.cmnd_states, CMND_MAX_CNT);
+                struct P_Input input_packet_header = {.type = PACKET_INPUT, .networkId = *player_network_id, .client_time_ms = client_est_server_Time, .sim_tick = sim_tick, .cmnd_cnt = input_snapshot.cmnd_snapshot.commands.command_cnt, .input_sequence_nmbr = input_snapshot.input_sequence_nmbr};
+                memcpy(input_packet_header.cmnd_states, input_snapshot.cmnd_snapshot.cmnd_states, CMND_MAX_CNT);
                 *(struct P_Input*)input_packet_data = input_packet_header;
 
                 // Append the input commands to the end of the packet
                 char* input_packet_cmnd_arr = input_packet_data + sizeof(struct P_Input);
-                memcpy(input_packet_cmnd_arr, input_snapshot.command_queue.command_queue, cmnd_arr_bytes);
+                memcpy(input_packet_cmnd_arr, input_snapshot.cmnd_snapshot.commands.command_queue, cmnd_arr_bytes);
 
                 // Build and send the packet
                 ENetPacket* input_packet = enet_packet_create(input_packet_data, input_packet_size, ENET_PACKET_FLAG_RELIABLE); // TODO: avoid the second memcpy

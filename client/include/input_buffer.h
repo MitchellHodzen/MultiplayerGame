@@ -18,8 +18,7 @@ struct Input_Snapshot
     unsigned int sim_tick;
     unsigned int chat_messages_cached;
     struct Chat_Snapshot_Info chat_cache[10]; // unlikely to receive multiple chat messages in a single frame, dont cache many
-    struct Command_Buffer command_queue;
-    bool cmnd_states[CMND_MAX_CNT];
+    struct Command_Snapshot cmnd_snapshot;
 };
 
 typedef struct Ring_Buffer Input_Snapshot_Buffer;

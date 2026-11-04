@@ -6,8 +6,7 @@
 struct C_Input
 {
     float speed;
-    struct Command_Buffer commands;
-    bool cmnd_states[CMND_MAX_CNT];
+    struct Command_Snapshot cmnd_snapshot
 };
 
 #endif /* COMPONENT_INPUT */

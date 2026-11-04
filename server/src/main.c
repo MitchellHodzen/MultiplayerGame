@@ -339,9 +339,9 @@ int main(int argc, char* args[])
                                 if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle) && ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.latest_input_seq_nmbr_handle))
                                 {
                                     struct C_Input* playerInput = (struct C_Input*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.inputs_handle);
-                                    playerInput->commands.command_cnt = packetData->cmnd_cnt;
-                                    memcpy(&playerInput->commands.command_queue, cmnd_arr, sizeof(struct Command_Entry) * packetData->cmnd_cnt);
-                                    memcpy(&playerInput->cmnd_states, packetData->cmnd_states, CMND_MAX_CNT);
+                                    playerInput->cmnd_snapshot.commands.command_cnt = packetData->cmnd_cnt;
+                                    memcpy(&playerInput->cmnd_snapshot.commands.command_queue, cmnd_arr, sizeof(struct Command_Entry) * packetData->cmnd_cnt);
+                                    memcpy(&playerInput->cmnd_snapshot.cmnd_states, packetData->cmnd_states, CMND_MAX_CNT);
 
                                     unsigned int* input_seq_nmbr = (unsigned int*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.latest_input_seq_nmbr_handle);
                                     *input_seq_nmbr = packetData->input_sequence_nmbr;

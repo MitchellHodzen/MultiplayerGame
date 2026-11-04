@@ -15,7 +15,7 @@ static bool AreSameSign(float a, float b)
 
 static struct Vector2 Calculate_Input_Direction(struct C_Input* input)
 {
-    struct Vector2 input_direction = {.x = -(input->cmnd_states[MOVE_LEFT]) + input->cmnd_states[MOVE_RIGHT], .y = -(input->cmnd_states[MOVE_UP]) + input->cmnd_states[MOVE_DOWN]};
+    struct Vector2 input_direction = {.x = -(input->cmnd_snapshot.cmnd_states[MOVE_LEFT]) + input->cmnd_snapshot.cmnd_states[MOVE_RIGHT], .y = -(input->cmnd_snapshot.cmnd_states[MOVE_UP]) + input->cmnd_snapshot.cmnd_states[MOVE_DOWN]};
     return input_direction;
 }
 
@@ -95,7 +95,7 @@ static void Idle_Execute(struct ECDB const *const ecdb, unsigned int entity_id, 
         struct Vector2 input_direction = Calculate_Input_Direction(input);
 
         // if we attacked, swap to attack state
-        if (Attack_Triggered(&input->commands))
+        if (Attack_Triggered(&input->cmnd_snapshot.commands))
         {
             state->timer_elapsed = 0;
             state->state = ATTACKING;
@@ -129,7 +129,7 @@ static void Running_Execute(struct ECDB const *const ecdb, unsigned int entity_i
         struct Vector2 input_direction = Calculate_Input_Direction(input);
 
         // if we attacked, swap to attack state
-        if (Attack_Triggered(&input->commands))
+        if (Attack_Triggered(&input->cmnd_snapshot.commands))
         {
             state->timer_elapsed = 0;
             state->state = ATTACKING;
@@ -145,7 +145,7 @@ static void Running_Execute(struct ECDB const *const ecdb, unsigned int entity_i
 
         // If there has been input, face direction will be based on the last input received. if no movement input, stays the same
         struct Command_Entry* last_move_cmnd; // TODO: this doesnt really work
-        if (Try_Get_Last_Movement_Input(&input->commands, &last_move_cmnd))
+        if (Try_Get_Last_Movement_Input(&input->cmnd_snapshot.commands, &last_move_cmnd))
         {
             switch(last_move_cmnd->command)
             {
