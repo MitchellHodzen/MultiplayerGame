@@ -44,4 +44,4 @@ run: $(EXE)
 	$<
 
 clean:
-	$(RMDIR) $(OBJ) $(BIN)
+	$(RMDIR) -f $(OBJ) $(BIN)
