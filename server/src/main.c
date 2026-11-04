@@ -35,11 +35,12 @@ struct Component_Handles
     int player_states_handle;
     int animation_instance_handle;
     int latest_input_seq_nmbr_handle;
+    int input_buffer_handle;
 };
 
 bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandles, unsigned int entityCount)
 {
-    if (!ECDB_Init(ecdb, entityCount, 7))
+    if (!ECDB_Init(ecdb, entityCount, 8))
     {
         printf("Couldn't initialize component DB\n");
         return false;
@@ -92,6 +93,17 @@ bool InitializeECDB(struct ECDB** ecdb, struct Component_Handles* componentHandl
         return false;
     }
 
+    size_t buff_size = 10;
+    size_t buff_mem = Ring_Buffer_Calculate_Required_Memory(sizeof(struct Tick_Input), buff_size);
+    struct Ring_Buffer* default_input_buffer = (struct Ring_Buffer*)_malloca(buff_mem);
+    Ring_Buffer_Init(default_input_buffer, sizeof(struct Tick_Input), buff_size);
+    if (!ECDB_RegisterComponent(*ecdb, buff_mem, &(componentHandles->input_buffer_handle), default_input_buffer))
+    {
+        printf("Couldn't initialize input buffer component\n");
+        ECDB_Free(ecdb);
+        return false;
+    }
+
     return true;
 }
 
@@ -112,6 +124,7 @@ void PlayerAddCharacter(struct ECDB* ec, struct Component_Handles* componentHand
     entityTransform->position = position;
     struct C_Input* entityInput = ECDB_EnableEntityComponent(ec, playerId, componentHandles->inputs_handle);
     entityInput->speed=300;
+    ECDB_EnableEntityComponent(ec, playerId, componentHandles->input_buffer_handle);
     ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_physics_2d_handle);
     ECDB_EnableEntityComponent(ec, playerId, componentHandles->player_states_handle);
     ECDB_EnableEntityComponent(ec, playerId, componentHandles->latest_input_seq_nmbr_handle);
@@ -142,7 +155,7 @@ static inline void Print_Buffer(struct Ring_Buffer* tick_input_buffer)
         struct Tick_Input* tick_input = (struct Tick_Input*)Ring_Buffer_Get_At(tick_input_buffer, i);
         printf("\t%i: {Tick=%i,FromUser=%i,CommandCnt=%i,CommandState:{%i,%i,%i,%i,%i}}\n", i, tick_input->tick, tick_input->from_client, tick_input->command_snapshot.commands.command_cnt,
         tick_input->command_snapshot.cmnd_states[0], tick_input->command_snapshot.cmnd_states[1], tick_input->command_snapshot.cmnd_states[2], 
-        tick_input->command_snapshot.cmnd_states[3], tick_input->command_snapshot.cmnd_states[4], tick_input->command_snapshot.cmnd_states[5]);
+        tick_input->command_snapshot.cmnd_states[3], tick_input->command_snapshot.cmnd_states[4]);
     }
 }
 
@@ -325,25 +338,32 @@ int main(int argc, char* args[])
                             case PACKET_INPUT:
                             {
                                 struct P_Input* packetData = (struct P_Input*) event.packet->data;
-                                long diff = (long)((packetData->client_time_ms + 1000) -  currentFrameTimeMs) - 1000;
+
+                                long diff = (long)((packetData->sim_tick + 1000) -  sim_tick) - 1000;
                                 if (diff >= 0)
                                 {
-                                    printf("Client input time ahead: %ld (server time: %lu, client time: %lu)\n", diff, currentFrameTimeMs, packetData->client_time_ms);
+                                    printf("Client input tick ahead: %ld (server tick: %lu, client tick: %lu)\n", diff, sim_tick, packetData->sim_tick);
                                 }
                                 else
                                 {
-                                    printf("Client input time behind: %ld (server time: %lu, client time: %lu)\n", diff, currentFrameTimeMs, packetData->client_time_ms);
+                                    printf("!!Client input tick behind: %ld (server tick: %lu, client tick: %lu)\n", diff, sim_tick, packetData->sim_tick);
                                 }
                                 struct Command_Entry* cmnd_arr = (char*)packetData + sizeof(struct P_Input);
 
                                 // Apply input
-                                // TODO: Combine multiple input events
-                                if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.inputs_handle) && ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.latest_input_seq_nmbr_handle))
+                                // TODO: apply initial input and backfill on join, ensure buffer doesn't overflow
+                                if(ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.input_buffer_handle) && ECDB_EntityHasComponent(ecdb, packetData->networkId, componentHandles.latest_input_seq_nmbr_handle))
                                 {
-                                    struct C_Input* playerInput = (struct C_Input*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.inputs_handle);
-                                    playerInput->cmnd_snapshot.commands.command_cnt = packetData->cmnd_cnt;
-                                    memcpy(&playerInput->cmnd_snapshot.commands.command_queue, cmnd_arr, sizeof(struct Command_Entry) * packetData->cmnd_cnt);
-                                    memcpy(&playerInput->cmnd_snapshot.cmnd_states, packetData->cmnd_states, CMND_MAX_CNT);
+                                    // copy packet data to tick input struct
+                                    struct Tick_Input incoming_input = {.from_client = true, .tick = packetData->sim_tick};
+                                    incoming_input.command_snapshot.commands.command_cnt = packetData->cmnd_cnt;
+                                    memcpy(&incoming_input.command_snapshot.commands.command_queue, cmnd_arr, sizeof(struct Command_Entry) * packetData->cmnd_cnt);
+                                    memcpy(&incoming_input.command_snapshot.cmnd_states, packetData->cmnd_states, CMND_MAX_CNT);
+
+                                    // Add to buffer
+                                    struct Ring_Buffer* player_input_buffer = (struct Ring_Buffer*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.input_buffer_handle);
+                                    Tick_Input_Buffer_Add(player_input_buffer, &incoming_input);
+                                    Print_Buffer(player_input_buffer);
 
                                     unsigned int* input_seq_nmbr = (unsigned int*)ECDB_GetEntityComponent(ecdb, packetData->networkId, componentHandles.latest_input_seq_nmbr_handle);
                                     *input_seq_nmbr = packetData->input_sequence_nmbr;
