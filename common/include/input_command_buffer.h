@@ -30,4 +30,10 @@ struct Command_Buffer
     unsigned int command_cnt;
 };
 
+struct Command_Snapshot
+{
+    struct Command_Buffer commands;
+    bool cmnd_states[CMND_MAX_CNT];
+};
+
 #endif /* INPUT_COMMAND_BUF_DEF */

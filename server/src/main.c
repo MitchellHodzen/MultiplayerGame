@@ -15,6 +15,7 @@
 #include "system_player_state_machine.h"
 #include "component_animation.h"
 #include "input_command_buffer.h"
+#include "tick_input.h"
 
 #define MAX_CONNECTIONS 20
 #define CHANNELS 3
@@ -134,8 +135,62 @@ void BroadcastChatMessage(ENetHost* server, struct P_Chat_Header header, char* s
     enet_host_broadcast(server, 1, chatPacket);
 }
 
+static inline void Print_Buffer(struct Ring_Buffer* tick_input_buffer)
+{
+    for(unsigned int i = 0; i < tick_input_buffer->buffer_size; ++i)
+    {
+        struct Tick_Input* tick_input = (struct Tick_Input*)Ring_Buffer_Get_At(tick_input_buffer, i);
+        printf("\t%i: {Tick=%i,FromUser=%i,CommandCnt=%i,CommandState:{%i,%i,%i,%i,%i}}\n", i, tick_input->tick, tick_input->from_client, tick_input->command_snapshot.commands.command_cnt,
+        tick_input->command_snapshot.cmnd_states[0], tick_input->command_snapshot.cmnd_states[1], tick_input->command_snapshot.cmnd_states[2], 
+        tick_input->command_snapshot.cmnd_states[3], tick_input->command_snapshot.cmnd_states[4], tick_input->command_snapshot.cmnd_states[5]);
+    }
+}
+
+
+static inline void Test_Tick_Input()
+{
+    // Game state snapshot is the snapshot struct + the actual game state
+    size_t buff_size = 10;
+    struct Ring_Buffer* stack = (struct Ring_Buffer*)calloc(1, Ring_Buffer_Calculate_Required_Memory(sizeof(struct Tick_Input), buff_size));
+    Ring_Buffer_Init(stack, sizeof(struct Tick_Input), buff_size);
+    printf("Initial state:\n");
+    Print_Buffer(stack);
+    printf("\n");
+    printf("Adding tick 0\n");
+    struct Tick_Input input0 = {.from_client = true, .tick = 0, .command_snapshot = {.commands = {.command_cnt = 2}, .cmnd_states = {0, 0, 1}}};
+    Tick_Input_Buffer_Add(stack, &input0);
+    Print_Buffer(stack);
+    printf("\n");
+
+    printf("Adding tick 1\n");
+    struct Tick_Input input1 = {.from_client = true, .tick = 1, .command_snapshot = {.commands = {.command_cnt = 4}, .cmnd_states = {1, 1, 1}}};
+    Tick_Input_Buffer_Add(stack, &input1);
+    Print_Buffer(stack);
+    printf("\n");
+
+    printf("Adding tick 5\n");
+    struct Tick_Input input5 = {.from_client = true, .tick = 5, .command_snapshot = {.commands = {.command_cnt = 3}, .cmnd_states = {0, 1, 0}}};
+    Tick_Input_Buffer_Add(stack, &input5);
+    Print_Buffer(stack);
+    printf("\n");
+
+    printf("Adding tick 3\n");
+    struct Tick_Input input3 = {.from_client = true, .tick = 3, .command_snapshot = {.commands = {.command_cnt = 3}, .cmnd_states = {0, 0, 0, 1, 1}}};
+    Tick_Input_Buffer_Add(stack, &input3);
+    Print_Buffer(stack);
+    printf("\n");
+
+    printf("Replacing tick 5\n");
+    struct Tick_Input input5_2 = {.from_client = true, .tick = 5, .command_snapshot = {.commands = {.command_cnt = 3}, .cmnd_states = {1, 1, 1, 1, 1}}};
+    Tick_Input_Buffer_Add(stack, &input5_2);
+    Print_Buffer(stack);
+    printf("\n");
+}
+
+
 int main(int argc, char* args[])
 {
+    Test_Tick_Input();
     if (enet_initialize () != 0)
     {
         fprintf(stderr, "An error occurred while initializing ENet.\n");
