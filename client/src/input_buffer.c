@@ -36,18 +36,18 @@ void Input_Snapshot_Init(struct Input_Snapshot* input_snapshot, unsigned int inp
 
 bool Input_Snapshot_Push_Command(struct Input_Snapshot* snapshot, struct Command_Entry command)
 {
-    if (snapshot->command_queue.command_cnt >= EVENT_BUF_SIZE)
+    if (snapshot->cmnd_snapshot.commands.command_cnt >= EVENT_BUF_SIZE)
     {
         return false;
     }
 
-    snapshot->command_queue.command_queue[snapshot->command_queue.command_cnt++] = command;
+    snapshot->cmnd_snapshot.commands.command_queue[snapshot->cmnd_snapshot.commands.command_cnt++] = command;
     return true;
 }
 
 unsigned int Input_Snapshot_Save_Command_State(struct Input_Snapshot* snapshot, bool* cmnd_states, size_t cmnd_state_len)
 {
-    memcpy(snapshot->cmnd_states, cmnd_states, cmnd_state_len);
+    memcpy(snapshot->cmnd_snapshot.cmnd_states, cmnd_states, cmnd_state_len);
     // Any keyboard state over and above the cmnd size would get thrown out
     return cmnd_state_len - CMND_MAX_CNT;
 }
