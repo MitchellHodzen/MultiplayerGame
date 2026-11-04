@@ -60,14 +60,31 @@ void* Ring_Buffer_Get_At(const struct Ring_Buffer* buffer, unsigned int index)
     return Get_Pointer_At(buffer, index);
 }
 
-void* Ring_Buffer_Pop(struct Ring_Buffer* buffer)
+void* Ring_Buffer_Peek_Unsafe(struct Ring_Buffer* buffer)
+{
+    void* retval = Ring_Buffer_Get_At(buffer, buffer->buffer_size - 1);
+    return retval;
+}
+
+void* Ring_Buffer_Peek(struct Ring_Buffer* buffer)
 {
     if (buffer->buffer_size == 0)
     {
         return NULL;
     }
 
-    void* retval = Ring_Buffer_Get_At(buffer, buffer->buffer_size - 1);
+    void* retval = Ring_Buffer_Peek_Unsafe(buffer);
+    return retval;
+}
+
+void* Ring_Buffer_Pop(struct Ring_Buffer* buffer)
+{
+    if (buffer->buffer_size == 0)
+    {
+        return NULL;
+    }
+    
+    void* retval = Ring_Buffer_Peek_Unsafe(buffer);
     buffer->buffer_size--;
 
     // decrement the write index without allowing underflow

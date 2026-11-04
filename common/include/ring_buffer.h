@@ -16,5 +16,6 @@ void Ring_Buffer_Clear(struct Ring_Buffer* buffer);
 void* Ring_Buffer_Get_Next(struct Ring_Buffer* buffer);
 void* Ring_Buffer_Get_At(const struct Ring_Buffer* buffer, unsigned int index);
 void* Ring_Buffer_Pop(struct Ring_Buffer* buffer);
+void* Ring_Buffer_Peek(struct Ring_Buffer* buffer);
 void* Ring_Buffer_Dequeue(struct Ring_Buffer* buffer);
 #endif /* RING_BUFFER_DEF */
