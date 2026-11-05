@@ -8,7 +8,7 @@
 #include <ws2ipdef.h>
 #include "ring_buffer.h"
 
-#define PACKET_DELAY_MS 25
+#define PACKET_DELAY_MS 60
 #define DEFAULT_BUFLEN 512
 #define PROXY_PORT "1234"
 #define SERVER_IP "localhost"
